@@ -3,17 +3,21 @@
 use std::fs;
 use std::path::Path;
 
-use gf_core::{Config, FeatureId, FrameworkId, LanguageId, LimitsConfig, ProjectConfig};
+use gf_core::{
+    Config, CoverageConfig, FeatureId, FrameworkId, LanguageId, LimitsConfig, ProjectConfig,
+    ScannerPolicy, ScannersConfig,
+};
 
 use crate::config_schema::{
-    LimitsSection, ProjectSection, RawManifest, RulesSection, default_cache_dir,
+    CoverageSection, LimitsSection, ProjectSection, RawManifest, RulesSection, ScannersSection,
+    default_cache_dir,
 };
 use crate::{DEFAULT_CONFIG_FILENAME, EngineError};
 
 /// Deserialized workspace configuration combining pure rules and cache settings.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct LoadedWorkspaceConfig {
-    /// Pure analyzer configuration passed to `gf-rules`.
+    /// Pure analyzer configuration passed to `gf-rules` and external scanners.
     pub analyzer: Config,
     /// Whether the on-disk `BLAKE3` cache is active.
     pub cache_enabled: bool,
@@ -42,6 +46,44 @@ fn parse_project_section(raw: Option<ProjectSection>) -> Result<ProjectConfig, E
         cfg.frameworks.insert(id);
     }
     Ok(cfg)
+}
+
+fn parse_policy_field(field_name: &str, raw: Option<String>) -> Result<ScannerPolicy, EngineError> {
+    let Some(val) = raw else {
+        return Ok(ScannerPolicy::Auto);
+    };
+    ScannerPolicy::from_config_str(&val).ok_or_else(|| {
+        EngineError::InvalidConfig(format!(
+            "invalid scanner policy `{val}` for `{field_name}` (expected `auto`, `required`, or `off`)"
+        ))
+    })
+}
+
+fn parse_scanners_section(raw: Option<ScannersSection>) -> Result<ScannersConfig, EngineError> {
+    let Some(sec) = raw else {
+        return Ok(ScannersConfig::defaults());
+    };
+    Ok(ScannersConfig {
+        secrets: parse_policy_field("secrets", sec.secrets)?,
+        vulns: parse_policy_field("vulns", sec.vulns)?,
+    })
+}
+
+fn parse_coverage_section(raw: Option<CoverageSection>) -> Result<CoverageConfig, EngineError> {
+    let Some(cov) = raw else {
+        return Ok(CoverageConfig::empty());
+    };
+    if let Some(pct) = cov.min_line_coverage
+        && pct > 100
+    {
+        return Err(EngineError::InvalidConfig(format!(
+            "min_line_coverage {pct} exceeds 100%"
+        )));
+    }
+    Ok(CoverageConfig {
+        min_line_coverage: cov.min_line_coverage,
+        lcov_path: cov.lcov_path,
+    })
 }
 
 fn merge_limits(raw: Option<LimitsSection>) -> LimitsConfig {
@@ -106,6 +148,8 @@ pub fn load_workspace_config(root: &Path) -> Result<LoadedWorkspaceConfig, Engin
     }
     let project = parse_project_section(raw.project.take())?;
     let limits = merge_limits(raw.limits.take());
+    let scanners = parse_scanners_section(raw.scanners.take())?;
+    let coverage = parse_coverage_section(raw.coverage.take())?;
     let forbid_panicking_constructs = forbid_constructs_enabled(raw.rules.take());
     let ((ignore_paths, entrypoints), (cache_enabled, cache_dir)) = raw.into_paths_and_cache();
 
@@ -113,6 +157,8 @@ pub fn load_workspace_config(root: &Path) -> Result<LoadedWorkspaceConfig, Engin
         analyzer: Config {
             project,
             limits,
+            scanners,
+            coverage,
             forbid_panicking_constructs,
             ignore_paths,
             entrypoints,

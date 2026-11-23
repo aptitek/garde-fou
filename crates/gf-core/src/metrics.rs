@@ -15,6 +15,17 @@ pub struct SyntaxErrorNode {
     pub span: Span,
 }
 
+/// Redacted hardcoded secret or private key detected natively in source text (`GF040`).
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct SecretFinding {
+    /// Category slug (e.g. `"github-pat"`, `"pem-private-key"`, `"hardcoded-secret"`).
+    pub kind: String,
+    /// Masked representation safe for logs and reports (never contains the raw secret).
+    pub redacted_preview: String,
+    /// 1-indexed line span of the finding.
+    pub span: Span,
+}
+
 /// Normalized module import declaration (`use`, `import`, `from ... import`).
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct ImportDecl {

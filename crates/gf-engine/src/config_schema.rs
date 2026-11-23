@@ -11,6 +11,10 @@ pub struct RawManifest {
     #[serde(default)]
     pub limits: Option<LimitsSection>,
     #[serde(default)]
+    pub scanners: Option<ScannersSection>,
+    #[serde(default)]
+    pub coverage: Option<CoverageSection>,
+    #[serde(default)]
     pub rules: Option<RulesSection>,
     #[serde(default)]
     paths: Option<PathsSection>,
@@ -48,6 +52,24 @@ pub struct ProjectSection {
     pub features: Vec<String>,
     #[serde(default)]
     pub frameworks: Vec<String>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ScannersSection {
+    #[serde(default)]
+    pub secrets: Option<String>,
+    #[serde(default)]
+    pub vulns: Option<String>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct CoverageSection {
+    #[serde(default)]
+    pub min_line_coverage: Option<u32>,
+    #[serde(default)]
+    pub lcov_path: Option<String>,
 }
 
 #[derive(Deserialize)]

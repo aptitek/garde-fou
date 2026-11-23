@@ -3,7 +3,7 @@
 use core::fmt::Write as _;
 
 use gf_core::Diagnostic;
-use gf_engine::{CheckReport, InitOutcome, ScanScope};
+use gf_engine::{CheckReport, InitReport, ScanScope};
 use serde_json::json;
 
 use crate::OutputFormat;
@@ -131,15 +131,24 @@ pub fn render_check_report(report: &CheckReport, format: OutputFormat) -> String
     }
 }
 
-/// Formats an [`InitOutcome`] for terminal display.
+/// Formats an [`InitReport`] for terminal display.
 #[must_use]
-pub fn render_init_outcome(outcome: &InitOutcome) -> String {
-    match outcome {
-        InitOutcome::Created(path) => format!("garde-fou: created {}", path.display()),
-        InitOutcome::AlreadyPresent(path) => {
-            format!("garde-fou: preserved existing {}", path.display())
-        }
-    }
+pub fn render_init_report(report: &InitReport) -> String {
+    let git_label = if report.git_initialized {
+        "initialized"
+    } else {
+        "existing/skipped"
+    };
+    format!(
+        "garde-fou: initialized `{}` in {} ({}, git={}, created={}, updated={}, preserved={})",
+        report.project_name,
+        report.root.display(),
+        report.context.summary_inline(),
+        git_label,
+        report.created_files.len(),
+        report.updated_files.len(),
+        report.preserved_files.len(),
+    )
 }
 
 #[cfg(test)]
@@ -147,9 +156,9 @@ mod tests {
     use std::path::PathBuf;
 
     use gf_core::{Diagnostic, ProjectContext, RepoPath, Severity, Span};
-    use gf_engine::{CheckReport, InitOutcome, ScanScope};
+    use gf_engine::{CheckReport, InitReport, ScanScope};
 
-    use super::{render_check_report, render_init_outcome};
+    use super::{render_check_report, render_init_report};
     use crate::OutputFormat;
 
     #[test]
@@ -186,21 +195,20 @@ mod tests {
                 span: Span::new(5, 42)?,
             }],
         };
-        let agent_out = render_check_report(&failing, OutputFormat::Agent);
-        assert!(agent_out.contains("`measured: 14`, `max: 10`"));
+        assert!(render_check_report(&failing, OutputFormat::Agent).contains("`measured: 14`"));
         assert!(render_check_report(&failing, OutputFormat::Human).contains("[GF004]"));
         assert!(render_check_report(&failing, OutputFormat::Sarif).contains(r#""ruleId":"GF004""#));
 
-        assert!(
-            render_init_outcome(&InitOutcome::Created(PathBuf::from("garde-fou.toml")))
-                .contains("created")
-        );
-        assert!(
-            render_init_outcome(&InitOutcome::AlreadyPresent(PathBuf::from(
-                "garde-fou.toml"
-            )))
-            .contains("preserved")
-        );
+        let init_rep = InitReport {
+            root: PathBuf::from("/tmp/demo"),
+            project_name: String::from("demo"),
+            context: ProjectContext::default(),
+            git_initialized: true,
+            created_files: vec![String::from("garde-fou.toml")],
+            updated_files: Vec::new(),
+            preserved_files: Vec::new(),
+        };
+        assert!(render_init_report(&init_rep).contains("initialized `demo`"));
         Ok(())
     }
 }

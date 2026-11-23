@@ -7,6 +7,7 @@ mod complexity;
 mod cst;
 mod fingerprint;
 pub mod langs;
+mod secrets;
 
 use core::fmt;
 
@@ -135,26 +136,23 @@ pub fn detect_project_marker(path: &RepoPath) -> Option<ProjectMarker> {
 ///
 /// Returns [`ParseError`] if grammar setup or span construction fails.
 pub fn parse_source(path: &RepoPath, source: &str) -> Result<UastDocument, ParseError> {
-    match detect_language(path) {
-        Language::Rust => RustExtractor.extract(path, source),
+    let mut doc = match detect_language(path) {
+        Language::Rust => RustExtractor.extract(path, source)?,
         Language::TypeScript => {
-            TypeScriptExtractor::new(TsDialect::TypeScript).extract(path, source)
+            TypeScriptExtractor::new(TsDialect::TypeScript).extract(path, source)?
         }
         Language::JavaScript => {
-            TypeScriptExtractor::new(TsDialect::JavaScript).extract(path, source)
+            TypeScriptExtractor::new(TsDialect::JavaScript).extract(path, source)?
         }
-        Language::Tsx => TypeScriptExtractor::new(TsDialect::Tsx).extract(path, source),
-        Language::Jsx => TypeScriptExtractor::new(TsDialect::Jsx).extract(path, source),
-        Language::Python => PythonExtractor.extract(path, source),
-        Language::Dockerfile => DockerfileExtractor.extract(path, source),
+        Language::Tsx => TypeScriptExtractor::new(TsDialect::Tsx).extract(path, source)?,
+        Language::Jsx => TypeScriptExtractor::new(TsDialect::Jsx).extract(path, source)?,
+        Language::Python => PythonExtractor.extract(path, source)?,
+        Language::Dockerfile => DockerfileExtractor.extract(path, source)?,
         other => {
             let (total_lines, effective_lines) = cst::line_metrics(source);
-            Ok(UastDocument::new(
-                path.clone(),
-                other,
-                total_lines,
-                effective_lines,
-            )?)
+            UastDocument::new(path.clone(), other, total_lines, effective_lines)?
         }
-    }
+    };
+    doc.secret_findings = secrets::extract_secret_findings(path, source);
+    Ok(doc)
 }

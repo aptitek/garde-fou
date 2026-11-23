@@ -1,14 +1,15 @@
-//! Parallel `rayon` file analysis and workspace-wide diagnostic aggregation.
+//! Parallel `rayon` file analysis, external `SARIF` / `LCOV` gates, and workspace aggregation.
 
 use std::collections::BTreeSet;
 use std::fs;
 use std::path::Path;
 
-use gf_core::{Config, ProjectContext, RepoPath, UastDocument};
+use gf_core::{Config, Diagnostic, ProjectContext, RepoPath, UastDocument};
 use gf_parsers::parse_source;
 use gf_rules::{evaluate_document, evaluate_workspace_sorted};
 use rayon::prelude::*;
 
+use crate::scanners::run_external_gates;
 use crate::{
     CacheKey, CachedFileArtifact, CheckOptions, CheckReport, DiskCache, EngineError, ScanScope,
     detect_project_context, discover_files,
@@ -63,15 +64,17 @@ fn load_or_analyze_file(
     })
 }
 
-/// Executes file discovery, parallel `v2` cache/parse pass, and workspace-wide rules.
+/// Executes file discovery, parallel `v2` cache/parse pass, workspace rules, and external gates.
 pub fn execute_pipeline(
     root: &Path,
-    options: CheckOptions,
+    options: &CheckOptions,
     config: &Config,
     disk_cache: Option<&DiskCache>,
 ) -> Result<CheckReport, EngineError> {
     let all_files = discover_files(root, ScanScope::All, config)?;
     let context = detect_project_context(root, &all_files, config);
+    let mut external_diags = run_external_gates(root, options, config)?;
+
     let staged_filter: Option<BTreeSet<RepoPath>> = (options.scope == ScanScope::StagedOnly)
         .then(|| discover_files(root, ScanScope::StagedOnly, config))
         .transpose()?
@@ -80,6 +83,7 @@ pub fn execute_pipeline(
     if let Some(staged) = &staged_filter
         && staged.is_empty()
     {
+        external_diags.sort();
         return Ok(CheckReport {
             scope: options.scope,
             context,
@@ -87,7 +91,7 @@ pub fn execute_pipeline(
             cache_hits: 0,
             cache_misses: 0,
             cache_fingerprint: CacheKey::from_bytes(config.canonical_string().as_bytes()).to_hex(),
-            diagnostics: Vec::new(),
+            diagnostics: external_diags,
         });
     }
 
@@ -104,27 +108,28 @@ pub fn execute_pipeline(
         .collect::<Result<Vec<_>, _>>()?;
 
     Ok(assemble_report(
-        options.scope,
-        context,
+        (options.scope, context),
         config,
-        (outcomes, staged_filter.as_ref()),
+        outcomes,
+        (staged_filter.as_ref(), external_diags),
     ))
 }
 
 fn assemble_report(
-    scope: ScanScope,
-    context: ProjectContext,
+    header: (ScanScope, ProjectContext),
     config: &Config,
-    results: (Vec<FileOutcome>, Option<&BTreeSet<RepoPath>>),
+    outcomes: Vec<FileOutcome>,
+    extras: (Option<&BTreeSet<RepoPath>>, Vec<Diagnostic>),
 ) -> CheckReport {
-    let (outcomes, staged_filter) = results;
+    let (scope, context) = header;
+    let (staged_filter, external_diags) = extras;
     let mut fp_hasher = blake3::Hasher::new();
     fp_hasher.update(config.canonical_string().as_bytes());
 
     let mut cache_hits = 0_usize;
     let mut cache_misses = 0_usize;
     let mut docs: Vec<UastDocument> = Vec::with_capacity(outcomes.len());
-    let mut diagnostics = Vec::new();
+    let mut diagnostics = external_diags;
 
     for outcome in outcomes {
         fp_hasher.update(outcome.file_key.to_hex().as_bytes());

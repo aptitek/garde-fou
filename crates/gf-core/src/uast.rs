@@ -7,7 +7,9 @@ use serde::{Deserialize, Serialize};
 
 use crate::diagnostic::{Span, SpanError};
 use crate::docker::DockerDocument;
-use crate::metrics::{CallableDecl, ExportDecl, ImportDecl, SyntaxErrorNode, TypeDecl};
+use crate::metrics::{
+    CallableDecl, ExportDecl, ImportDecl, SecretFinding, SyntaxErrorNode, TypeDecl,
+};
 use crate::path::RepoPath;
 
 /// Source language or configuration dialect mapped into the `UAST`.
@@ -118,6 +120,8 @@ pub struct UastDocument {
     pub types: Vec<TypeDecl>,
     /// Functions, methods, and named closures extracted from the file.
     pub callables: Vec<CallableDecl>,
+    /// Redacted native secret findings (`GF040`) extracted at parse time.
+    pub secret_findings: Vec<SecretFinding>,
     /// Deterministic set of symbol identifiers referenced inside this file.
     pub referenced_symbols: BTreeSet<String>,
     /// Optional structured `Dockerfile` representation when `language == Language::Dockerfile`.
@@ -149,6 +153,7 @@ impl UastDocument {
             exports: Vec::new(),
             types: Vec::new(),
             callables: Vec::new(),
+            secret_findings: Vec::new(),
             referenced_symbols: BTreeSet::new(),
             docker: None,
             root: UastNode::leaf(UastKind::File, root_span),

@@ -84,23 +84,11 @@ fn detects_disguised_type2_clone_across_files_and_via_v2_cache()
          print(compute_invoice([1], 0) + calculate_freight([2], 0))\n",
     )?;
 
-    let fresh = run_check_with_options(
-        &dir,
-        CheckOptions {
-            scope: ScanScope::All,
-            no_cache: true,
-        },
-    )?;
+    let fresh = run_check_with_options(&dir, &CheckOptions::new(ScanScope::All, true))?;
     assert_eq!(fresh.cache_misses, 3);
     assert!(fresh.diagnostics.iter().any(|d| d.rule_id == "GF020"));
 
-    let cached = run_check_with_options(
-        &dir,
-        CheckOptions {
-            scope: ScanScope::All,
-            no_cache: false,
-        },
-    )?;
+    let cached = run_check_with_options(&dir, &CheckOptions::new(ScanScope::All, false))?;
     assert_eq!((cached.cache_hits, cached.cache_misses), (3, 0));
     assert_eq!(fresh.diagnostics, cached.diagnostics);
     let _ = fs::remove_dir_all(&dir);
@@ -131,13 +119,7 @@ fn astro_framework_exempts_pages_entrypoints_while_flagging_dead_exports()
          export function HomePage() {\n    return <h1>{formatTitle(\"Hi\")}</h1>;\n}\n",
     )?;
 
-    let report = run_check_with_options(
-        &dir,
-        CheckOptions {
-            scope: ScanScope::All,
-            no_cache: true,
-        },
-    )?;
+    let report = run_check_with_options(&dir, &CheckOptions::new(ScanScope::All, true))?;
     assert!(report.context.frameworks.contains(&FrameworkId::Astro));
     assert!(report.context.frameworks.contains(&FrameworkId::React));
 
@@ -164,13 +146,7 @@ fn rust_plus_docker_feature_triggers_gf030_through_gf034_and_passes_when_hardene
     fs::write(dir.join("src/main.rs"), "fn main() {}\n")?;
     fs::write(dir.join("Dockerfile"), BAD_DOCKERFILE)?;
 
-    let bad = run_check_with_options(
-        &dir,
-        CheckOptions {
-            scope: ScanScope::All,
-            no_cache: true,
-        },
-    )?;
+    let bad = run_check_with_options(&dir, &CheckOptions::new(ScanScope::All, true))?;
     assert!(bad.context.languages.contains(&LanguageId::Rust));
     assert!(bad.context.features.contains(&FeatureId::Docker));
     assert!(
@@ -184,13 +160,7 @@ fn rust_plus_docker_feature_triggers_gf030_through_gf034_and_passes_when_hardene
 
     fs::write(dir.join(".dockerignore"), ".git\n/target/\n")?;
     fs::write(dir.join("Dockerfile"), HARDENED_DOCKERFILE)?;
-    let clean = run_check_with_options(
-        &dir,
-        CheckOptions {
-            scope: ScanScope::All,
-            no_cache: true,
-        },
-    )?;
+    let clean = run_check_with_options(&dir, &CheckOptions::new(ScanScope::All, true))?;
     assert_eq!(clean.diagnostics, Vec::new());
     let _ = fs::remove_dir_all(&dir);
     Ok(())

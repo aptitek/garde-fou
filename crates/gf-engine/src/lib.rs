@@ -1,13 +1,15 @@
-//! Imperative shell orchestrating strict `TOML` config, context detection,
-//! parallel `rayon` analysis, `.garde-fou-cache/v2/` caching, and global workspace rules.
+//! Imperative shell orchestrating strict `TOML` config, `uv`-style `init`, context detection,
+//! parallel `rayon` analysis, `.garde-fou-cache/v2/` caching, and `SARIF` / `LCOV` gates.
 
 pub mod cache;
 pub mod config_loader;
 mod config_schema;
 pub mod context_detector;
 pub mod discovery;
+pub mod init;
 mod runner;
 pub mod scaffold;
+pub mod scanners;
 
 use core::fmt;
 use std::path::Path;
@@ -19,8 +21,10 @@ pub use cache::{CacheKey, CachedFileArtifact, DiskCache};
 pub use config_loader::{LoadedWorkspaceConfig, load_workspace_config};
 pub use context_detector::detect_project_context;
 pub use discovery::discover_files;
+pub use init::{InitReport, InitRequest, run_init};
 use runner::execute_pipeline;
 pub use scaffold::{DEFAULT_CONFIG_FILENAME, InitOutcome, scaffold_config};
+pub use scanners::sarif_ingest::{SarifMapping, ingest_sarif_json};
 
 /// Scope of files selected for a check run.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -32,12 +36,35 @@ pub enum ScanScope {
 }
 
 /// Execution flags controlling [`run_check_with_options`].
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CheckOptions {
     /// File selection scope (`All` vs `StagedOnly`).
     pub scope: ScanScope,
     /// Bypass cached artifacts and force full `Tree-sitter` re-evaluation.
     pub no_cache: bool,
+    /// Upgrade `auto` scanner policies to `required` (`GF043` when a binary is missing).
+    pub strict_tools: bool,
+    /// Optional explicit path to an `LCOV` coverage report (`GF050`).
+    pub lcov_path: Option<String>,
+}
+
+impl CheckOptions {
+    /// Builds standard [`CheckOptions`] for `scope` (`no_cache` optionally set).
+    #[must_use]
+    pub const fn new(scope: ScanScope, no_cache: bool) -> Self {
+        Self {
+            scope,
+            no_cache,
+            strict_tools: false,
+            lcov_path: None,
+        }
+    }
+}
+
+impl Default for CheckOptions {
+    fn default() -> Self {
+        Self::new(ScanScope::All, false)
+    }
 }
 
 /// Summary report returned by [`run_check`] and [`run_check_with_options`].
@@ -55,7 +82,7 @@ pub struct CheckReport {
     pub cache_misses: usize,
     /// Hexadecimal `BLAKE3` fingerprint summarizing the analyzed workspace state.
     pub cache_fingerprint: String,
-    /// Deterministically sorted local and workspace-global diagnostics.
+    /// Deterministically sorted local, workspace-global, security, and coverage diagnostics.
     pub diagnostics: Vec<Diagnostic>,
 }
 
@@ -74,7 +101,7 @@ pub enum EngineError {
     Io(std::io::Error),
     /// Repository path validation failure.
     InvalidPath(RepoPathError),
-    /// Strict `garde-fou.toml` or glob configuration error.
+    /// Strict `garde-fou.toml`, CLI flag, or `SARIF` configuration error.
     InvalidConfig(String),
     /// External `git` command failure.
     GitCommand(String),
@@ -114,14 +141,14 @@ impl From<ParseError> for EngineError {
     }
 }
 
-/// Loads `garde-fou.toml` from `root` and executes parallel + workspace-global analysis.
+/// Loads `garde-fou.toml` from `root` and executes parallel + workspace + security analysis.
 ///
 /// # Errors
 ///
 /// Returns [`EngineError`] if configuration loading, discovery, I/O, or parsing fails.
 pub fn run_check_with_options(
     root: &Path,
-    options: CheckOptions,
+    options: &CheckOptions,
 ) -> Result<CheckReport, EngineError> {
     let loaded = load_workspace_config(root)?;
     let cache = loaded
@@ -140,13 +167,5 @@ pub fn run_check(
     scope: ScanScope,
     config: &Config,
 ) -> Result<CheckReport, EngineError> {
-    execute_pipeline(
-        root,
-        CheckOptions {
-            scope,
-            no_cache: true,
-        },
-        config,
-        None,
-    )
+    execute_pipeline(root, &CheckOptions::new(scope, true), config, None)
 }

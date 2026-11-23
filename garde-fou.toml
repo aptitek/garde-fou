@@ -27,6 +27,10 @@ forbid_todo = true
 forbid_unimplemented = true
 forbid_dbg = true
 
+[scanners]
+secrets = "required"
+vulns = "required"
+
 [paths]
 ignore_paths = [".agents/**"]
 entrypoints = [

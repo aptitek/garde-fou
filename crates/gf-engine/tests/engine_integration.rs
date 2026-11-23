@@ -30,13 +30,7 @@ fn rejects_unknown_fields_in_garde_fou_toml() -> Result<(), Box<dyn std::error::
         dir.join("garde-fou.toml"),
         "schema_version = 1\n[limits]\nmax_typo_lines = 999\n",
     )?;
-    let res = run_check_with_options(
-        &dir,
-        CheckOptions {
-            scope: ScanScope::All,
-            no_cache: true,
-        },
-    );
+    let res = run_check_with_options(&dir, &CheckOptions::new(ScanScope::All, true));
     assert!(matches!(res, Err(EngineError::InvalidConfig(_))));
     let _ = fs::remove_dir_all(&dir);
     Ok(())
@@ -61,13 +55,7 @@ fn populates_blake3_cache_and_serves_subsequent_hits() -> Result<(), Box<dyn std
         "def greet(name):\n    return name\n",
     )?;
 
-    let first = run_check_with_options(
-        &dir,
-        CheckOptions {
-            scope: ScanScope::All,
-            no_cache: true,
-        },
-    )?;
+    let first = run_check_with_options(&dir, &CheckOptions::new(ScanScope::All, true))?;
     assert_eq!(
         (first.files_checked, first.cache_hits, first.cache_misses),
         (2, 0, 2)
@@ -75,13 +63,7 @@ fn populates_blake3_cache_and_serves_subsequent_hits() -> Result<(), Box<dyn std
     assert!(first.is_clean());
     assert!(dir.join(".garde-fou-cache/v2").is_dir());
 
-    let second = run_check_with_options(
-        &dir,
-        CheckOptions {
-            scope: ScanScope::All,
-            no_cache: false,
-        },
-    )?;
+    let second = run_check_with_options(&dir, &CheckOptions::new(ScanScope::All, false))?;
     assert_eq!(
         (second.files_checked, second.cache_hits, second.cache_misses),
         (2, 2, 0)
@@ -99,22 +81,10 @@ fn invalidates_cache_entry_when_source_file_changes() -> Result<(), Box<dyn std:
     fs::write(dir.join("src/a.rs"), "pub const fn ok() -> i32 { 1 }\n")?;
     fs::write(dir.join("src/b.py"), "def ok():\n    return 1\n")?;
 
-    run_check_with_options(
-        &dir,
-        CheckOptions {
-            scope: ScanScope::All,
-            no_cache: true,
-        },
-    )?;
+    run_check_with_options(&dir, &CheckOptions::new(ScanScope::All, true))?;
     fs::write(dir.join("src/a.rs"), "pub fn broken( {\n")?;
 
-    let invalidated = run_check_with_options(
-        &dir,
-        CheckOptions {
-            scope: ScanScope::All,
-            no_cache: false,
-        },
-    )?;
+    let invalidated = run_check_with_options(&dir, &CheckOptions::new(ScanScope::All, false))?;
     assert_eq!((invalidated.cache_hits, invalidated.cache_misses), (1, 1));
     assert!(!invalidated.is_clean());
     let _ = fs::remove_dir_all(&dir);
@@ -157,13 +127,8 @@ fn discovers_only_staged_files_and_respects_ignore_paths() -> Result<(), Box<dyn
             .success()
     );
 
-    let staged_report = run_check_with_options(
-        &dir,
-        CheckOptions {
-            scope: ScanScope::StagedOnly,
-            no_cache: true,
-        },
-    )?;
+    let staged_report =
+        run_check_with_options(&dir, &CheckOptions::new(ScanScope::StagedOnly, true))?;
     assert_eq!(staged_report.files_checked, 1);
     assert!(staged_report.is_clean());
 

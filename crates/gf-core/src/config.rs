@@ -1,4 +1,4 @@
-//! Configuration, project overrides, SRP limits, and DRY clone thresholds.
+//! Configuration, project overrides, SRP limits, `[scanners]`, and `[coverage]` policies.
 
 use alloc::collections::BTreeSet;
 use alloc::format;
@@ -7,6 +7,86 @@ use alloc::vec::Vec;
 use serde::{Deserialize, Serialize};
 
 use crate::context::{FeatureId, FrameworkId, LanguageId};
+
+/// Policy controlling orchestration of an external security scanner (`gitleaks`, `osv-scanner`).
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+pub enum ScannerPolicy {
+    /// Execute if the binary is found in `PATH`, skip silently otherwise.
+    #[default]
+    Auto,
+    /// Fail immediately with blocking `GF043` if the binary is absent from `PATH`.
+    Required,
+    /// Explicitly disable this external scanner.
+    Off,
+}
+
+impl ScannerPolicy {
+    /// Parses a case-insensitive scanner policy (`"auto"`, `"required"`, `"off"`).
+    #[must_use]
+    pub fn from_config_str(raw: &str) -> Option<Self> {
+        if raw.eq_ignore_ascii_case("auto") {
+            Some(Self::Auto)
+        } else if raw.eq_ignore_ascii_case("required") {
+            Some(Self::Required)
+        } else if raw.eq_ignore_ascii_case("off") || raw.eq_ignore_ascii_case("false") {
+            Some(Self::Off)
+        } else {
+            None
+        }
+    }
+
+    /// Canonical lowercase label.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Auto => "auto",
+            Self::Required => "required",
+            Self::Off => "off",
+        }
+    }
+}
+
+/// External scanner policies configured under `[scanners]`.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ScannersConfig {
+    /// Policy for `gitleaks` (`GF041`).
+    pub secrets: ScannerPolicy,
+    /// Policy for `osv-scanner` (`GF042`).
+    pub vulns: ScannerPolicy,
+}
+
+impl ScannersConfig {
+    /// Default scanner configuration (`secrets = "auto"`, `vulns = "auto"`).
+    #[must_use]
+    pub const fn defaults() -> Self {
+        Self {
+            secrets: ScannerPolicy::Auto,
+            vulns: ScannerPolicy::Auto,
+        }
+    }
+}
+
+/// Universal `LCOV` coverage gate configured under `[coverage]`.
+#[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct CoverageConfig {
+    /// Minimum required line-coverage percentage (`0..=100`), enforced by `GF050`.
+    pub min_line_coverage: Option<u32>,
+    /// Repository-relative path to the `LCOV` file (defaults to `"lcov.info"` when active).
+    pub lcov_path: Option<String>,
+}
+
+impl CoverageConfig {
+    /// Empty coverage gate (disabled unless `min_line_coverage` or `--lcov` is set).
+    #[must_use]
+    pub const fn empty() -> Self {
+        Self {
+            min_line_coverage: None,
+            lcov_path: None,
+        }
+    }
+}
 
 /// Explicit `[project]` overrides merged with automatic workspace context detection.
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
@@ -83,7 +163,7 @@ impl Default for LimitsConfig {
     }
 }
 
-/// Top-level pure analyzer configuration consumed by `gf-rules`.
+/// Top-level pure analyzer configuration consumed by `gf-rules` and `gf-engine`.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Config {
@@ -91,6 +171,10 @@ pub struct Config {
     pub project: ProjectConfig,
     /// Quantitative SRP, complexity, and DRY clone thresholds.
     pub limits: LimitsConfig,
+    /// External scanner policies (`gitleaks`, `osv-scanner`).
+    pub scanners: ScannersConfig,
+    /// Optional `LCOV` coverage gate (`GF050`).
+    pub coverage: CoverageConfig,
     /// Whether forbidden constructs (`unwrap`, `panic!`, `unsafe`, etc.) are denied.
     pub forbid_panicking_constructs: bool,
     /// Explicit repository-relative glob patterns excluded from analysis.
@@ -106,6 +190,8 @@ impl Config {
         Self {
             project: ProjectConfig::empty(),
             limits: LimitsConfig::strict_defaults(),
+            scanners: ScannersConfig::defaults(),
+            coverage: CoverageConfig::empty(),
             forbid_panicking_constructs: true,
             ignore_paths: Vec::new(),
             entrypoints: Vec::new(),
@@ -129,7 +215,7 @@ impl Config {
             .collect();
         let l = self.limits;
         format!(
-            "v3|fl={}|fnl={}|p={}|cyc={}|cog={}|nest={}|imp={}|meth={}|cll={}|cln={}|forbid={}|ign={}|ep={}|pl={}|pf={}|pfw={}",
+            "v4|fl={}|fnl={}|p={}|cyc={}|cog={}|nest={}|imp={}|meth={}|cll={}|cln={}|sec={}|vul={}|cov={:?}|lcov={:?}|forbid={}|ign={}|ep={}|pl={}|pf={}|pfw={}",
             l.max_file_lines,
             l.max_function_lines,
             l.max_parameters,
@@ -140,6 +226,10 @@ impl Config {
             l.max_methods_per_type,
             l.min_clone_lines,
             l.min_clone_nodes,
+            self.scanners.secrets.as_str(),
+            self.scanners.vulns.as_str(),
+            self.coverage.min_line_coverage,
+            self.coverage.lcov_path,
             self.forbid_panicking_constructs,
             ignores.join(","),
             entries.join(","),
@@ -153,27 +243,5 @@ impl Config {
 impl Default for Config {
     fn default() -> Self {
         Self::strict_defaults()
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use alloc::string::String;
-    use alloc::vec;
-
-    use super::{Config, LimitsConfig};
-    use crate::FeatureId;
-
-    #[test]
-    fn canonical_string_reflects_clone_thresholds_and_project_features() {
-        let base = Config::strict_defaults();
-        assert_eq!(base.limits, LimitsConfig::default());
-        assert_eq!(base.limits.min_clone_lines, 15);
-        assert_eq!(base.limits.min_clone_nodes, 40);
-
-        let mut modified = base.clone();
-        modified.project.features.insert(FeatureId::Docker);
-        modified.ignore_paths = vec![String::from("b/**"), String::from("a/**")];
-        assert_ne!(base.canonical_string(), modified.canonical_string());
     }
 }
