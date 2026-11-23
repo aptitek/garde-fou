@@ -12,12 +12,16 @@ extern crate std;
 
 pub mod config;
 pub mod diagnostic;
+pub mod metrics;
 pub mod path;
 pub mod uast;
 pub mod validation;
 
 pub use config::{Config, LimitsConfig};
 pub use diagnostic::{Diagnostic, Severity, Span, SpanError};
+pub use metrics::{
+    CallableDecl, CallableKind, ExportDecl, ImportDecl, SyntaxErrorNode, TypeDecl, TypeKind,
+};
 pub use path::{RepoPath, RepoPathError};
 pub use uast::{Language, UastDocument, UastKind, UastNode};
 pub use validation::Validation;

@@ -14,9 +14,20 @@ schema_version = 1
 [limits]
 max_file_lines = 250
 max_function_lines = 50
+max_parameters = 4
+max_cyclomatic_complexity = 10
 max_cognitive_complexity = 10
-max_function_params = 4
-max_struct_bools = 2
+max_nesting_depth = 4
+max_imports_per_file = 15
+max_methods_per_type = 10
+
+[paths]
+ignore_paths = []
+entrypoints = []
+
+[cache]
+enabled = true
+directory = \".garde-fou-cache\"
 ";
 
 /// Outcome of running [`scaffold_config`].

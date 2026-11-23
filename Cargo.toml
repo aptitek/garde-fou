@@ -24,6 +24,17 @@ gf-parsers = { version = "0.1.0", path = "crates/gf-parsers" }
 gf-engine = { version = "0.1.0", path = "crates/gf-engine" }
 blake3 = { version = "1.8", default-features = true }
 clap = { version = "4.5", features = ["derive"] }
+globset = { version = "0.4" }
+ignore = { version = "0.4" }
+proptest = { version = "1.6" }
+rayon = { version = "1.10" }
+serde = { version = "1.0", default-features = false, features = ["derive", "alloc"] }
+serde_json = { version = "1.0" }
+toml = { version = "0.8", default-features = false, features = ["parse"] }
+tree-sitter = { version = "0.26" }
+tree-sitter-python = { version = "0.25" }
+tree-sitter-rust = { version = "0.24" }
+tree-sitter-typescript = { version = "0.23" }
 
 [workspace.lints.rust]
 unsafe_code = "forbid"

@@ -29,6 +29,7 @@ path = "../../tests/cli_smoke.rs"
 clap = { workspace = true }
 gf-core = { workspace = true }
 gf-engine = { workspace = true }
+serde_json = { workspace = true }
 
 [lints]
 workspace = true

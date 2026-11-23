@@ -2,6 +2,7 @@
 
 use alloc::string::String;
 use core::fmt;
+use serde::{Deserialize, Serialize};
 
 /// Validation failures when constructing a [`RepoPath`].
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -27,7 +28,8 @@ impl fmt::Display for RepoPathError {
 impl core::error::Error for RepoPathError {}
 
 /// Normalized, validated path relative to the repository root.
-#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
+#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
+#[serde(try_from = "String", into = "String")]
 pub struct RepoPath(String);
 
 impl RepoPath {
@@ -74,6 +76,14 @@ impl RepoPath {
     }
 }
 
+impl TryFrom<String> for RepoPath {
+    type Error = RepoPathError;
+
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        Self::new(&value)
+    }
+}
+
 impl fmt::Display for RepoPath {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(self.as_str())
@@ -88,13 +98,13 @@ impl From<RepoPath> for String {
 
 #[cfg(test)]
 mod tests {
-    use alloc::string::ToString;
+    use alloc::string::{String, ToString};
 
     use super::{RepoPath, RepoPathError};
 
     #[test]
     fn validates_and_extracts_path_metadata() -> Result<(), RepoPathError> {
-        let path = RepoPath::new("crates\\gf-core\\src/lib.rs")?;
+        let path = RepoPath::try_from(String::from("crates\\gf-core\\src/lib.rs"))?;
         assert_eq!(path.as_str(), "crates/gf-core/src/lib.rs");
         assert_eq!(path.to_string(), "crates/gf-core/src/lib.rs");
         assert_eq!(path.file_name(), "lib.rs");
@@ -102,7 +112,7 @@ mod tests {
 
         let dotfile = RepoPath::new(".gitignore")?;
         assert_eq!(dotfile.extension(), None);
-        let raw: alloc::string::String = dotfile.into();
+        let raw: String = dotfile.into();
         assert_eq!(raw, ".gitignore");
         Ok(())
     }

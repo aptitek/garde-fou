@@ -25,10 +25,14 @@ fn cli_help_and_version_succeed() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 #[test]
-fn cli_init_and_check_formats_succeed() -> Result<(), Box<dyn std::error::Error>> {
+fn cli_init_no_cache_and_cache_hit_succeed() -> Result<(), Box<dyn std::error::Error>> {
     let nanos = SystemTime::now().duration_since(UNIX_EPOCH)?.as_nanos();
     let dir = std::env::temp_dir().join(format!("gf-cli-smoke-{nanos}"));
-    fs::create_dir_all(&dir)?;
+    fs::create_dir_all(dir.join("src"))?;
+    fs::write(
+        dir.join("src/lib.rs"),
+        "/// Clean fn.\npub const fn id(x: u32) -> u32 {\n    x\n}\n",
+    )?;
 
     let init = Command::new(garde_fou_bin())
         .arg("init")
@@ -37,12 +41,21 @@ fn cli_init_and_check_formats_succeed() -> Result<(), Box<dyn std::error::Error>
     assert!(init.status.success());
     assert!(dir.join("garde-fou.toml").is_file());
 
-    let agent = Command::new(garde_fou_bin())
-        .args(["check", "--staged", "--format", "agent"])
+    let fresh = Command::new(garde_fou_bin())
+        .args(["check", "--no-cache", "--format", "agent"])
         .current_dir(&dir)
         .output()?;
-    assert!(agent.status.success());
-    assert!(String::from_utf8(agent.stdout)?.contains("## Garde-fou Report"));
+    assert!(fresh.status.success());
+    let fresh_out = String::from_utf8(fresh.stdout)?;
+    assert!(fresh_out.contains("`0` hits, `1` misses"));
+
+    let cached = Command::new(garde_fou_bin())
+        .args(["check", "--format", "agent"])
+        .current_dir(&dir)
+        .output()?;
+    assert!(cached.status.success());
+    let cached_out = String::from_utf8(cached.stdout)?;
+    assert!(cached_out.contains("`1` hits, `0` misses"));
 
     let sarif = Command::new(garde_fou_bin())
         .args(["check", "--format", "sarif"])

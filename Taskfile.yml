@@ -23,6 +23,16 @@ tasks:
     cmds:
       - cargo clippy --workspace --all-targets --all-features -- -D warnings
 
+  dogfood:
+    desc: Self-analyze Garde-fou repository using incremental BLAKE3 cache
+    cmds:
+      - cargo run -p gf-cli --quiet -- check --format agent
+
+  dogfood:fresh:
+    desc: Self-analyze Garde-fou repository from scratch (--no-cache)
+    cmds:
+      - cargo run -p gf-cli --quiet -- check --no-cache --format agent
+
   deps:
     desc: Detect unused dependencies and audit supply-chain policies
     cmds:
@@ -41,7 +51,7 @@ tasks:
       - bash -euo pipefail -c 'if git rev-parse --verify HEAD >/dev/null 2>&1; then gitleaks git --redact --no-banner; fi'
 
   test:
-    desc: Execute unit, integration, and architecture tests via nextest
+    desc: Execute unit, integration, proptest, and architecture tests via nextest
     cmds:
       - cargo nextest run --workspace
 
@@ -56,17 +66,19 @@ tasks:
       - bash -euo pipefail -c 'cargo mutants --in-diff <(git diff main)'
 
   check:fast:
-    desc: Run fast verification suite in parallel (fmt, lint, secrets, test)
+    desc: Run fast verification suite in parallel (fmt, lint, secrets, test, dogfood)
     deps:
       - fmt
       - lint
       - secrets
       - test
+      - dogfood
 
   check:full:
-    desc: Run complete quality, security, and coverage verification gates
+    desc: Run complete quality, dogfooding, security, and coverage verification gates
     cmds:
       - task: check:fast
+      - task: dogfood:fresh
       - task: deps
       - task: cov
       - osv-scanner scan source -r .

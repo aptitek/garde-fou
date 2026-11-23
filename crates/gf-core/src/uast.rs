@@ -3,7 +3,8 @@
 use alloc::string::String;
 use alloc::vec::Vec;
 
-use crate::diagnostic::Span;
+use crate::diagnostic::{Span, SpanError};
+use crate::metrics::{CallableDecl, ExportDecl, ImportDecl, SyntaxErrorNode, TypeDecl};
 use crate::path::RepoPath;
 
 /// Source language or configuration dialect mapped into the `UAST`.
@@ -13,8 +14,14 @@ pub enum Language {
     Rust,
     /// Python source file (`.py`).
     Python,
-    /// TypeScript / TSX source file (`.ts`, `.tsx`).
+    /// TypeScript source file (`.ts`).
     TypeScript,
+    /// TypeScript JSX source file (`.tsx`).
+    Tsx,
+    /// JavaScript source file (`.js`, `.mjs`, `.cjs`).
+    JavaScript,
+    /// JavaScript JSX source file (`.jsx`).
+    Jsx,
     /// Go source file (`.go`).
     Go,
     /// Container build recipe (`Dockerfile`).
@@ -23,6 +30,17 @@ pub enum Language {
     Toml,
     /// Unclassified text or source file.
     Unknown,
+}
+
+impl Language {
+    /// Returns `true` if `gf-parsers` provides a full `Tree-sitter` AST extractor.
+    #[must_use]
+    pub const fn is_code_analyzed(self) -> bool {
+        matches!(
+            self,
+            Self::Rust | Self::Python | Self::TypeScript | Self::Tsx | Self::JavaScript | Self::Jsx
+        )
+    }
 }
 
 /// Language-agnostic semantic node categories inside a [`UastDocument`].
@@ -78,43 +96,67 @@ pub struct UastDocument {
     pub language: Language,
     /// Total number of lines in the raw source text.
     pub total_lines: u32,
+    /// Total number of non-blank lines in the source text.
+    pub effective_lines: u32,
+    /// Syntax error or missing-token nodes detected in the CST.
+    pub syntax_errors: Vec<SyntaxErrorNode>,
+    /// Module import declarations extracted from the file.
+    pub imports: Vec<ImportDecl>,
+    /// Public symbol export declarations extracted from the file.
+    pub exports: Vec<ExportDecl>,
+    /// Composite types and `impl` blocks extracted from the file.
+    pub types: Vec<TypeDecl>,
+    /// Functions, methods, and named closures extracted from the file.
+    pub callables: Vec<CallableDecl>,
     /// Root `UAST` node (typically [`UastKind::File`]).
     pub root: UastNode,
+}
+
+impl UastDocument {
+    /// Constructs an empty [`UastDocument`] with initialized line metrics and file span.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SpanError`] if constructing the root span fails.
+    pub fn new(
+        path: RepoPath,
+        language: Language,
+        total_lines: u32,
+        effective_lines: u32,
+    ) -> Result<Self, SpanError> {
+        let root_span = Span::new(1, total_lines.max(1))?;
+        Ok(Self {
+            path,
+            language,
+            total_lines,
+            effective_lines,
+            syntax_errors: Vec::new(),
+            imports: Vec::new(),
+            exports: Vec::new(),
+            types: Vec::new(),
+            callables: Vec::new(),
+            root: UastNode::leaf(UastKind::File, root_span),
+        })
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use alloc::boxed::Box;
-    use alloc::string::ToString;
 
-    use super::{Language, UastDocument, UastKind, UastNode};
-    use crate::{RepoPath, Span};
+    use super::{Language, UastDocument};
+    use crate::RepoPath;
 
     #[test]
-    fn builds_nested_uast_document() -> Result<(), Box<dyn core::error::Error>> {
-        let path = RepoPath::new("crates/gf-core/src/lib.rs")?;
-        let file_span = Span::new(1, 20)?;
-        let fn_span = Span::new(5, 12)?;
-        let func = UastNode::leaf(
-            UastKind::Function {
-                name: "compute".to_string(),
-                param_count: 2,
-                cognitive_complexity: 3,
-            },
-            fn_span,
-        );
-        let doc = UastDocument {
-            path,
-            language: Language::Rust,
-            total_lines: 20,
-            root: UastNode {
-                kind: UastKind::File,
-                span: file_span,
-                children: alloc::vec![func],
-            },
-        };
-        assert_eq!(doc.language, Language::Rust);
-        assert_eq!(doc.root.children.len(), 1);
+    fn constructs_document_and_identifies_analyzed_languages()
+    -> Result<(), Box<dyn core::error::Error>> {
+        let doc = UastDocument::new(RepoPath::new("src/lib.rs")?, Language::Rust, 42, 35)?;
+        assert!(doc.language.is_code_analyzed());
+        assert!(Language::Tsx.is_code_analyzed());
+        assert!(Language::Python.is_code_analyzed());
+        assert!(!Language::Toml.is_code_analyzed());
+        assert_eq!(doc.total_lines, 42);
+        assert_eq!(doc.effective_lines, 35);
         Ok(())
     }
 }

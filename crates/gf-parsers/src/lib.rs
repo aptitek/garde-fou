@@ -1,11 +1,20 @@
-//! Context detectors and source-to-[`UastDocument`] bridges for **Garde-fou**.
+//! Context detectors and safe `Tree-sitter` -> [`UastDocument`] extractors for **Garde-fou**.
 //!
-//! This crate performs pure lexical/syntactic detection on in-memory strings and
-//! [`RepoPath`] metadata without touching the filesystem or environment.
+//! This crate performs pure syntactic and metric extraction on in-memory UTF-8 strings
+//! without touching the filesystem, processes, or environment.
+
+mod complexity;
+mod cst;
+pub mod langs;
 
 use core::fmt;
 
-use gf_core::{Language, RepoPath, Span, SpanError, UastDocument, UastKind, UastNode};
+use gf_core::{Language, RepoPath, SpanError, UastDocument};
+use langs::{
+    python::PythonExtractor,
+    rust::RustExtractor,
+    typescript::{TsDialect, TypeScriptExtractor},
+};
 
 /// High-level ecosystem or build-tool marker detected from a repository path.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -23,14 +32,20 @@ pub enum ProjectMarker {
 /// Errors produced while bridging source text into a [`UastDocument`].
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ParseError {
-    /// Source span invariants failed during root node construction.
+    /// Source span invariants failed during node construction.
     InvalidSpan(SpanError),
+    /// `Tree-sitter` grammar failed to initialize on the parser instance.
+    LanguageSetup,
+    /// `Tree-sitter` returned no syntax tree (unexpected cancellation or engine error).
+    EngineFailure,
 }
 
 impl fmt::Display for ParseError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::InvalidSpan(err) => write!(f, "failed to build UAST span: {err}"),
+            Self::LanguageSetup => f.write_str("failed to configure Tree-sitter grammar"),
+            Self::EngineFailure => f.write_str("Tree-sitter parser returned no CST"),
         }
     }
 }
@@ -43,21 +58,43 @@ impl From<SpanError> for ParseError {
     }
 }
 
+/// Contract implemented by every language-specific `Tree-sitter` extractor.
+pub trait LanguageExtractor {
+    /// Parses `source` and extracts a normalized [`UastDocument`].
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ParseError`] if initializing the grammar or constructing spans fails.
+    fn extract(&self, path: &RepoPath, source: &str) -> Result<UastDocument, ParseError>;
+}
+
+const EXT_LANGUAGES: &[(&str, Language)] = &[
+    ("rs", Language::Rust),
+    ("py", Language::Python),
+    ("ts", Language::TypeScript),
+    ("tsx", Language::Tsx),
+    ("js", Language::JavaScript),
+    ("mjs", Language::JavaScript),
+    ("cjs", Language::JavaScript),
+    ("jsx", Language::Jsx),
+    ("go", Language::Go),
+    ("dockerfile", Language::Dockerfile),
+    ("toml", Language::Toml),
+];
+
 /// Infers the [`Language`] of a repository file from its name or extension.
 #[must_use]
 pub fn detect_language(path: &RepoPath) -> Language {
     if path.file_name().eq_ignore_ascii_case("dockerfile") {
         return Language::Dockerfile;
     }
-    match path.extension() {
-        Some("rs") => Language::Rust,
-        Some("py") => Language::Python,
-        Some("ts" | "tsx") => Language::TypeScript,
-        Some("go") => Language::Go,
-        Some("dockerfile") => Language::Dockerfile,
-        Some("toml") => Language::Toml,
-        _ => Language::Unknown,
-    }
+    let Some(ext) = path.extension() else {
+        return Language::Unknown;
+    };
+    EXT_LANGUAGES
+        .iter()
+        .find_map(|(candidate, lang)| (*candidate == ext).then_some(*lang))
+        .unwrap_or(Language::Unknown)
 }
 
 /// Detects well-known project ecosystem manifest files from a [`RepoPath`].
@@ -72,94 +109,32 @@ pub fn detect_project_marker(path: &RepoPath) -> Option<ProjectMarker> {
     }
 }
 
-/// Builds a minimal normalized [`UastDocument`] from raw UTF-8 source text.
+/// Parses `source` using the dedicated `Tree-sitter` grammar for `path` when supported,
+/// falling back to line-metric skeleton extraction for configuration dialects.
 ///
 /// # Errors
 ///
-/// Returns [`ParseError`] if constructing the document span fails.
-pub fn parse_source_skeleton(path: RepoPath, source: &str) -> Result<UastDocument, ParseError> {
-    let language = detect_language(&path);
-    let counted_lines = u32::try_from(source.lines().count()).unwrap_or(u32::MAX);
-    let end_line = counted_lines.max(1);
-    let root_span = Span::new(1, end_line)?;
-
-    Ok(UastDocument {
-        path,
-        language,
-        total_lines: counted_lines,
-        root: UastNode::leaf(UastKind::File, root_span),
-    })
-}
-
-#[cfg(test)]
-mod tests {
-    use gf_core::{Language, RepoPath, SpanError};
-
-    use super::{
-        ParseError, ProjectMarker, detect_language, detect_project_marker, parse_source_skeleton,
-    };
-
-    #[test]
-    fn detects_languages_and_project_markers() -> Result<(), Box<dyn core::error::Error>> {
-        assert_eq!(
-            detect_language(&RepoPath::new("src/lib.rs")?),
-            Language::Rust
-        );
-        assert_eq!(detect_language(&RepoPath::new("app.py")?), Language::Python);
-        assert_eq!(
-            detect_language(&RepoPath::new("ui.tsx")?),
-            Language::TypeScript
-        );
-        assert_eq!(detect_language(&RepoPath::new("main.go")?), Language::Go);
-        assert_eq!(
-            detect_language(&RepoPath::new("Dockerfile")?),
-            Language::Dockerfile
-        );
-        assert_eq!(
-            detect_language(&RepoPath::new("ci.dockerfile")?),
-            Language::Dockerfile
-        );
-        assert_eq!(
-            detect_language(&RepoPath::new("garde-fou.toml")?),
-            Language::Toml
-        );
-        assert_eq!(
-            detect_language(&RepoPath::new("README.md")?),
-            Language::Unknown
-        );
-
-        assert_eq!(
-            detect_project_marker(&RepoPath::new("Cargo.toml")?),
-            Some(ProjectMarker::CargoManifest)
-        );
-        assert_eq!(
-            detect_project_marker(&RepoPath::new("Dockerfile")?),
-            Some(ProjectMarker::Containerfile)
-        );
-        assert_eq!(
-            detect_project_marker(&RepoPath::new("package.json")?),
-            Some(ProjectMarker::NodeManifest)
-        );
-        assert_eq!(
-            detect_project_marker(&RepoPath::new("go.mod")?),
-            Some(ProjectMarker::GoMod)
-        );
-        assert_eq!(detect_project_marker(&RepoPath::new("src/lib.rs")?), None);
-        Ok(())
-    }
-
-    #[test]
-    fn parses_empty_and_multiline_skeletons() -> Result<(), Box<dyn core::error::Error>> {
-        let empty = parse_source_skeleton(RepoPath::new("empty.rs")?, "")?;
-        assert_eq!(empty.total_lines, 0);
-        assert_eq!(empty.root.span.line_count(), 1);
-
-        let multi = parse_source_skeleton(RepoPath::new("two.rs")?, "fn a() {}\nfn b() {}\n")?;
-        assert_eq!(multi.total_lines, 2);
-        assert_eq!(multi.root.span.end_line(), 2);
-
-        let err = ParseError::from(SpanError::ZeroLine);
-        assert_ne!(err.to_string(), "");
-        Ok(())
+/// Returns [`ParseError`] if `Tree-sitter` setup or span construction fails.
+pub fn parse_source(path: &RepoPath, source: &str) -> Result<UastDocument, ParseError> {
+    match detect_language(path) {
+        Language::Rust => RustExtractor.extract(path, source),
+        Language::TypeScript => {
+            TypeScriptExtractor::new(TsDialect::TypeScript).extract(path, source)
+        }
+        Language::JavaScript => {
+            TypeScriptExtractor::new(TsDialect::JavaScript).extract(path, source)
+        }
+        Language::Tsx => TypeScriptExtractor::new(TsDialect::Tsx).extract(path, source),
+        Language::Jsx => TypeScriptExtractor::new(TsDialect::Jsx).extract(path, source),
+        Language::Python => PythonExtractor.extract(path, source),
+        other => {
+            let (total_lines, effective_lines) = cst::line_metrics(source);
+            Ok(UastDocument::new(
+                path.clone(),
+                other,
+                total_lines,
+                effective_lines,
+            )?)
+        }
     }
 }

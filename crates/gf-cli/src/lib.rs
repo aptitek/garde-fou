@@ -7,8 +7,7 @@ use std::path::Path;
 use std::process::ExitCode;
 
 use clap::{Parser, Subcommand, ValueEnum};
-use gf_core::Config;
-use gf_engine::{EngineError, ScanScope, run_check, scaffold_config};
+use gf_engine::{CheckOptions, EngineError, ScanScope, run_check_with_options, scaffold_config};
 
 use reporter::{render_check_report, render_init_outcome};
 
@@ -32,6 +31,9 @@ pub enum Commands {
         /// Restrict analysis to staged Git files only.
         #[arg(long)]
         staged: bool,
+        /// Force full `Tree-sitter` re-evaluation, bypassing cached entries.
+        #[arg(long)]
+        no_cache: bool,
         /// Select diagnostic output format (`human`, `agent`, or `sarif`).
         #[arg(long, value_enum, default_value_t = OutputFormat::Human)]
         format: OutputFormat,
@@ -58,16 +60,20 @@ pub struct Cli {
 ///
 /// # Errors
 ///
-/// Returns [`EngineError`] if workspace I/O or parsing fails.
+/// Returns [`EngineError`] if workspace configuration, I/O, or parsing fails.
 pub fn execute(cli: &Cli, cwd: &Path) -> Result<(String, ExitCode), EngineError> {
     match cli.command {
-        Commands::Check { staged, format } => {
+        Commands::Check {
+            staged,
+            no_cache,
+            format,
+        } => {
             let scope = if staged {
                 ScanScope::StagedOnly
             } else {
                 ScanScope::All
             };
-            let report = run_check(cwd, scope, &Config::strict_defaults())?;
+            let report = run_check_with_options(cwd, CheckOptions { scope, no_cache })?;
             let exit = if report.is_clean() {
                 ExitCode::SUCCESS
             } else {
@@ -94,11 +100,19 @@ mod tests {
 
     #[test]
     fn parses_cli_flags_and_executes_subcommands() -> Result<(), Box<dyn std::error::Error>> {
-        let parsed = Cli::try_parse_from(["garde-fou", "check", "--staged", "--format", "agent"])?;
+        let parsed = Cli::try_parse_from([
+            "garde-fou",
+            "check",
+            "--staged",
+            "--no-cache",
+            "--format",
+            "agent",
+        ])?;
         assert_eq!(
             parsed.command,
             Commands::Check {
                 staged: true,
+                no_cache: true,
                 format: OutputFormat::Agent,
             }
         );
@@ -112,7 +126,8 @@ mod tests {
         assert_eq!(init_code, ExitCode::SUCCESS);
         assert!(init_text.contains("created"));
 
-        let (_, check_code) = execute(&parsed, &dir)?;
+        let fresh_check = Cli::try_parse_from(["garde-fou", "check", "--no-cache"])?;
+        let (_, check_code) = execute(&fresh_check, &dir)?;
         assert_eq!(check_code, ExitCode::SUCCESS);
 
         let _ = fs::remove_dir_all(&dir);

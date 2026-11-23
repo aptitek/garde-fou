@@ -1,0 +1,128 @@
+//! Shared safe `Tree-sitter` CST utilities (spans, slices, line metrics, syntax errors).
+
+use gf_core::{Span, SyntaxErrorNode};
+use tree_sitter::{Language as TsLanguage, Node, Parser, Tree};
+
+use crate::ParseError;
+
+/// Runs a `Tree-sitter` parser configured with `ts_lang` on `source`.
+pub fn parse_with_language(ts_lang: &TsLanguage, source: &str) -> Result<Tree, ParseError> {
+    let mut parser = Parser::new();
+    parser
+        .set_language(ts_lang)
+        .map_err(|_| ParseError::LanguageSetup)?;
+    parser.parse(source, None).ok_or(ParseError::EngineFailure)
+}
+
+/// Converts a 0-indexed `Tree-sitter` node range into a 1-indexed inclusive [`Span`].
+pub fn node_span(node: Node<'_>) -> Span {
+    let start_pos = node.start_position();
+    let end_pos = node.end_position();
+    let start_row = start_pos.row;
+    let end_row = if end_pos.column == 0 && end_pos.row > start_row {
+        end_pos.row.saturating_sub(1)
+    } else {
+        end_pos.row
+    };
+
+    let start_line = u32::try_from(start_row)
+        .unwrap_or(u32::MAX)
+        .saturating_add(1);
+    let end_line = u32::try_from(end_row)
+        .unwrap_or(u32::MAX)
+        .saturating_add(1)
+        .max(start_line);
+
+    Span::new(start_line, end_line).unwrap_or(Span::FIRST)
+}
+
+/// Safely slices `source` using `node.byte_range()`, returning `""` if out of bounds.
+pub fn node_text<'a>(node: Node<'_>, source: &'a str) -> &'a str {
+    source.get(node.byte_range()).unwrap_or("")
+}
+
+/// Extracts the text of a named child field, or `fallback` when absent.
+pub fn field_name_string(node: Node<'_>, field: &str, fallback: &str, source: &str) -> String {
+    node.child_by_field_name(field).map_or_else(
+        || String::from(fallback),
+        |n| String::from(node_text(n, source)),
+    )
+}
+
+/// Counts direct children of `parent` whose `kind()` is contained in `kinds`.
+pub fn count_children_of_kind(parent: Option<Node<'_>>, kinds: &[&str]) -> u32 {
+    let Some(node) = parent else {
+        return 0;
+    };
+    let mut cursor = node.walk();
+    let matched = node
+        .children(&mut cursor)
+        .filter(|c| kinds.contains(&c.kind()))
+        .count();
+    u32::try_from(matched).unwrap_or(u32::MAX)
+}
+
+/// Counts direct `named_children` of `parent` whose `kind()` is contained in `kinds`.
+pub fn count_named_kinds(parent: Option<Node<'_>>, kinds: &[&str]) -> u32 {
+    let Some(node) = parent else {
+        return 0;
+    };
+    let mut cursor = node.walk();
+    let matched = node
+        .named_children(&mut cursor)
+        .filter(|c| kinds.contains(&c.kind()))
+        .count();
+    u32::try_from(matched).unwrap_or(u32::MAX)
+}
+
+/// Computes `(total_lines, effective_non_blank_lines)` for `source`.
+pub fn line_metrics(source: &str) -> (u32, u32) {
+    let total = u32::try_from(source.lines().count()).unwrap_or(u32::MAX);
+    let effective =
+        u32::try_from(source.lines().filter(|l| !l.trim().is_empty()).count()).unwrap_or(u32::MAX);
+    (total, effective)
+}
+
+/// Counts non-blank lines inside the 1-indexed inclusive `span` of `source`.
+pub fn span_effective_lines(span: Span, source: &str) -> u32 {
+    let start_idx = usize::try_from(span.start_line().saturating_sub(1)).unwrap_or(0);
+    let count = usize::try_from(span.line_count()).unwrap_or(0);
+    let non_blank = source
+        .lines()
+        .skip(start_idx)
+        .take(count)
+        .filter(|line| !line.trim().is_empty())
+        .count();
+    u32::try_from(non_blank).unwrap_or(u32::MAX).max(1)
+}
+
+/// Collects all top-level `ERROR` and `MISSING` CST nodes when `root.has_error()` is true.
+pub fn collect_syntax_errors(root: Node<'_>) -> Vec<SyntaxErrorNode> {
+    if !root.has_error() {
+        return Vec::new();
+    }
+    let mut errors = Vec::new();
+    walk_errors(root, &mut errors);
+    errors
+}
+
+fn walk_errors(node: Node<'_>, out: &mut Vec<SyntaxErrorNode>) {
+    if node.is_error() {
+        out.push(SyntaxErrorNode {
+            message: String::from("malformed syntax node (`ERROR`)"),
+            span: node_span(node),
+        });
+        return;
+    }
+    if node.is_missing() {
+        out.push(SyntaxErrorNode {
+            message: format!("missing expected token `{}`", node.kind()),
+            span: node_span(node),
+        });
+        return;
+    }
+    let mut cursor = node.walk();
+    for child in node.children(&mut cursor) {
+        walk_errors(child, out);
+    }
+}

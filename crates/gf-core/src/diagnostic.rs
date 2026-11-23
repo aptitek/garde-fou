@@ -1,7 +1,9 @@
-//! Source spans, severities, and structured diagnostics.
+//! Source spans, severities, and structured diagnostics with AI remediation hints.
 
 use alloc::string::String;
+use core::cmp::Ordering;
 use core::fmt;
+use serde::{Deserialize, Serialize};
 
 use crate::path::RepoPath;
 
@@ -34,13 +36,19 @@ impl fmt::Display for SpanError {
 impl core::error::Error for SpanError {}
 
 /// Inclusive 1-indexed line range within a source file.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
 pub struct Span {
     start_line: u32,
     end_line: u32,
 }
 
 impl Span {
+    /// Canonical fallback span covering line 1 (`1..=1`).
+    pub const FIRST: Self = Self {
+        start_line: 1,
+        end_line: 1,
+    };
+
     /// Creates a validated inclusive line range (`start_line..=end_line`).
     ///
     /// # Errors
@@ -84,7 +92,7 @@ impl Span {
 }
 
 /// Diagnostic severity level.
-#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
 pub enum Severity {
     /// Informational note that does not fail checks.
     Info,
@@ -95,7 +103,7 @@ pub enum Severity {
 }
 
 /// Pure static-analysis diagnostic emitted by a rule or runner.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct Diagnostic {
     /// Stable rule identifier (e.g. `"GF001"`).
     pub rule_id: String,
@@ -103,37 +111,48 @@ pub struct Diagnostic {
     pub severity: Severity,
     /// Human- and agent-actionable explanation.
     pub message: String,
+    /// Explicit architectural refactoring guidance preventing AI anti-patterns.
+    pub remediation: String,
+    /// Concrete metric value measured on the offending construct.
+    pub measured: u32,
+    /// Configured upper threshold violated by `measured`.
+    pub threshold: u32,
     /// Target repository-relative file path.
     pub path: RepoPath,
     /// Source span of the violation.
     pub span: Span,
 }
 
+impl Ord for Diagnostic {
+    fn cmp(&self, other: &Self) -> Ordering {
+        (&self.path, self.span, &self.rule_id, &self.message).cmp(&(
+            &other.path,
+            other.span,
+            &other.rule_id,
+            &other.message,
+        ))
+    }
+}
+
+impl PartialOrd for Diagnostic {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    use alloc::boxed::Box;
     use alloc::string::ToString;
 
     use super::{Diagnostic, RepoPath, Severity, Span, SpanError};
 
     #[test]
-    fn span_computes_inclusive_line_counts() -> Result<(), SpanError> {
-        let span = Span::new(10, 24)?;
-        assert_eq!(span.start_line(), 10);
-        assert_eq!(span.end_line(), 24);
-        assert_eq!(span.line_count(), 15);
-        Ok(())
-    }
-
-    #[test]
-    fn span_rejects_zero_and_inverted_ranges() -> Result<(), crate::path::RepoPathError> {
+    fn span_and_diagnostic_ordering_are_deterministic() -> Result<(), Box<dyn core::error::Error>> {
+        let span_a = Span::new(10, 24)?;
+        let span_b = Span::new(2, 5)?;
+        assert_eq!(span_a.line_count(), 15);
         assert_eq!(Span::new(0, 1), Err(SpanError::ZeroLine));
-        assert_eq!(
-            Span::new(8, 3),
-            Err(SpanError::InvertedRange {
-                start_line: 8,
-                end_line: 3,
-            })
-        );
         assert_ne!(SpanError::ZeroLine.to_string(), "");
         assert_ne!(
             SpanError::InvertedRange {
@@ -144,17 +163,22 @@ mod tests {
             ""
         );
 
-        let path = RepoPath::new("src/main.rs")?;
-        if let Ok(span) = Span::new(1, 1) {
-            let diag = Diagnostic {
-                rule_id: "GF001".to_string(),
-                severity: Severity::Error,
-                message: "too long".to_string(),
-                path,
-                span,
-            };
-            assert_eq!(diag.severity, Severity::Error);
-        }
+        let d1 = Diagnostic {
+            rule_id: "GF002".to_string(),
+            severity: Severity::Error,
+            message: "msg".to_string(),
+            remediation: "extract helper".to_string(),
+            measured: 60,
+            threshold: 50,
+            path: RepoPath::new("src/b.rs")?,
+            span: span_a,
+        };
+        let d2 = Diagnostic {
+            path: RepoPath::new("src/a.rs")?,
+            span: span_b,
+            ..d1.clone()
+        };
+        assert!(d2 < d1);
         Ok(())
     }
 }

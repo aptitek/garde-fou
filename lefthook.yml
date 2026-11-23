@@ -9,6 +9,8 @@ pre-commit:
       run: gitleaks git --pre-commit --redact --staged --no-banner
     test:
       run: cargo nextest run --workspace
+    dogfood:
+      run: cargo run -p gf-cli --quiet -- check --staged --format agent
 
 pre-push:
   parallel: true
@@ -19,5 +21,7 @@ pre-push:
       run: cargo machete
     osv:
       run: osv-scanner scan source -r .
+    dogfood-fresh:
+      run: cargo run -p gf-cli --quiet -- check --no-cache --format agent
     coverage:
       run: cargo llvm-cov nextest --workspace --fail-under-lines 85

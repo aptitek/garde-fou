@@ -1,15 +1,19 @@
-# Configuration dogfooding initiale de Garde-fou
+# Configuration dogfooding de Garde-fou (appliquée au dépôt lui-même)
 schema_version = 1
 
 [project]
 name = "garde-fou"
-languages = ["rust"]
+languages = ["rust", "typescript", "python"]
 
 [limits]
 max_file_lines = 250
 max_function_lines = 50
+max_parameters = 4
+max_cyclomatic_complexity = 10
 max_cognitive_complexity = 10
-max_function_params = 4
+max_nesting_depth = 4
+max_imports_per_file = 15
+max_methods_per_type = 10
 max_struct_bools = 2
 
 [rules]
@@ -20,6 +24,15 @@ forbid_panic = true
 forbid_todo = true
 forbid_unimplemented = true
 forbid_dbg = true
+
+[paths]
+ignore_paths = [".agents/**"]
+entrypoints = [
+    "crates/gf-cli/src/main.rs",
+    "crates/*/src/lib.rs",
+    "crates/*/tests/*.rs",
+    "tests/*.rs",
+]
 
 [architecture]
 no_std_crates = ["gf-core", "gf-rules"]

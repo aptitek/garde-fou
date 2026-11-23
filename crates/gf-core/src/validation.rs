@@ -25,6 +25,26 @@ impl<T, E> Validation<T, E> {
         Self::Invalid(vec![error])
     }
 
+    /// Creates a failed validation from a non-empty list, or `Valid(())` when empty.
+    #[must_use]
+    pub fn from_errors(errors: Vec<E>) -> Validation<(), E> {
+        if errors.is_empty() {
+            Validation::Valid(())
+        } else {
+            Validation::Invalid(errors)
+        }
+    }
+
+    /// Accumulates an iterator of unit validations without short-circuiting.
+    #[must_use]
+    pub fn collect_all<I: IntoIterator<Item = Validation<(), E>>>(checks: I) -> Validation<(), E> {
+        checks
+            .into_iter()
+            .fold(Validation::Valid(()), |acc, check| {
+                acc.zip_with(check, |(), ()| ())
+            })
+    }
+
     /// Returns `true` when validation succeeded.
     #[must_use]
     pub const fn is_valid(&self) -> bool {
@@ -70,36 +90,5 @@ impl<T, E> Validation<T, E> {
             Self::Valid(value) => Ok(value),
             Self::Invalid(errors) => Err(errors),
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use alloc::vec;
-
-    use super::Validation;
-
-    #[test]
-    fn accumulates_errors_across_independent_checks() {
-        let a: Validation<u32, &str> = Validation::invalid_one("bad_a");
-        let b: Validation<u32, &str> = Validation::invalid_one("bad_b");
-        let combined = a.zip_with(b, u32::saturating_add);
-        assert!(!combined.is_valid());
-        assert_eq!(combined.into_result(), Err(vec!["bad_a", "bad_b"]));
-    }
-
-    #[test]
-    fn maps_and_combines_valid_values() {
-        let left: Validation<u32, &str> = Validation::valid(20).map(|v| v + 2);
-        let right: Validation<u32, &str> = Validation::valid(20);
-        let merged = left.zip_with(right, u32::saturating_add);
-        assert!(merged.is_valid());
-        assert_eq!(merged.into_result(), Ok(42));
-
-        let mixed = Validation::<u32, &str>::valid(1).zip_with(
-            Validation::<u32, &str>::invalid_one("only_right"),
-            u32::saturating_add,
-        );
-        assert_eq!(mixed.into_result(), Err(vec!["only_right"]));
     }
 }

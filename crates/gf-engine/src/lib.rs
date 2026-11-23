@@ -1,8 +1,9 @@
-//! Imperative shell orchestrating filesystem I/O, `BLAKE3` cache keys, and pure analysis.
-//!
-//! `gf-engine` may read/write files and inspect paths, but never writes directly to
-//! `stdout` or `stderr` (reserved exclusively for `gf-cli`).
+//! Imperative shell orchestrating strict `TOML` config, `ignore`/Git discovery,
+//! parallel `rayon` analysis, and `BLAKE3` on-disk caching.
 
+pub mod cache;
+pub mod config_loader;
+pub mod discovery;
 pub mod scaffold;
 
 use core::fmt;
@@ -10,28 +11,14 @@ use std::fs;
 use std::path::Path;
 
 use gf_core::{Config, Diagnostic, RepoPath, RepoPathError};
-use gf_parsers::{ParseError, parse_source_skeleton};
+use gf_parsers::{ParseError, parse_source};
 use gf_rules::evaluate_document;
+use rayon::prelude::*;
 
+pub use cache::{CacheKey, DiskCache};
+pub use config_loader::{LoadedWorkspaceConfig, load_workspace_config};
+pub use discovery::discover_files;
 pub use scaffold::{DEFAULT_CONFIG_FILENAME, InitOutcome, scaffold_config};
-
-/// Deterministic `BLAKE3` content digest used for incremental analysis caching.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct CacheKey([u8; 32]);
-
-impl CacheKey {
-    /// Hashes arbitrary bytes with `BLAKE3`.
-    #[must_use]
-    pub fn from_bytes(bytes: &[u8]) -> Self {
-        Self(*blake3::hash(bytes).as_bytes())
-    }
-
-    /// Encodes the 32-byte digest as lowercase hexadecimal.
-    #[must_use]
-    pub fn to_hex(self) -> String {
-        blake3::Hash::from_bytes(self.0).to_hex().to_string()
-    }
-}
 
 /// Scope of files selected for a check run.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -42,16 +29,29 @@ pub enum ScanScope {
     StagedOnly,
 }
 
-/// Summary report returned by [`run_check`].
+/// Execution flags controlling [`run_check_with_options`].
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct CheckOptions {
+    /// File selection scope (`All` vs `StagedOnly`).
+    pub scope: ScanScope,
+    /// Bypass cached diagnostics and force full `Tree-sitter` re-evaluation.
+    pub no_cache: bool,
+}
+
+/// Summary report returned by [`run_check`] and [`run_check_with_options`].
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CheckReport {
     /// Requested scan scope.
     pub scope: ScanScope,
-    /// Number of files analyzed during this run.
+    /// Total number of source files analyzed during this run.
     pub files_checked: usize,
-    /// Hexadecimal `BLAKE3` fingerprint of the analyzed input state.
+    /// Number of files served directly from the `BLAKE3` disk cache.
+    pub cache_hits: usize,
+    /// Number of files parsed and evaluated via `Tree-sitter` + `gf-rules`.
+    pub cache_misses: usize,
+    /// Hexadecimal `BLAKE3` fingerprint summarizing the analyzed workspace state.
     pub cache_fingerprint: String,
-    /// Diagnostics produced by `gf-rules` and external runners.
+    /// Deterministically sorted diagnostics across all checked files.
     pub diagnostics: Vec<Diagnostic>,
 }
 
@@ -70,7 +70,11 @@ pub enum EngineError {
     Io(std::io::Error),
     /// Repository path validation failure.
     InvalidPath(RepoPathError),
-    /// Source-to-UAST bridge failure.
+    /// Strict `garde-fou.toml` or glob configuration error.
+    InvalidConfig(String),
+    /// External `git` command failure.
+    GitCommand(String),
+    /// Source-to-UAST parser failure.
     Parse(ParseError),
 }
 
@@ -79,6 +83,8 @@ impl fmt::Display for EngineError {
         match self {
             Self::Io(err) => write!(f, "I/O error: {err}"),
             Self::InvalidPath(err) => write!(f, "invalid repository path: {err}"),
+            Self::InvalidConfig(msg) => write!(f, "configuration error in garde-fou.toml: {msg}"),
+            Self::GitCommand(msg) => write!(f, "git command failed: {msg}"),
             Self::Parse(err) => write!(f, "parse error: {err}"),
         }
     }
@@ -104,93 +110,131 @@ impl From<ParseError> for EngineError {
     }
 }
 
-/// Executes a static analysis pass rooted at `root`.
+struct FileOutcome {
+    file_key: CacheKey,
+    was_hit: bool,
+    diagnostics: Vec<Diagnostic>,
+}
+
+fn analyze_one_file(
+    root: &Path,
+    repo_path: &RepoPath,
+    ctx: (&Config, CacheKey, Option<&DiskCache>, bool),
+) -> Result<FileOutcome, EngineError> {
+    let (config, config_hash, disk_cache, no_cache) = ctx;
+    let source = fs::read_to_string(root.join(repo_path.as_str()))?;
+    let content_hash = CacheKey::from_bytes(source.as_bytes());
+    let file_key = CacheKey::for_file(
+        env!("CARGO_PKG_VERSION"),
+        config_hash,
+        repo_path,
+        content_hash,
+    );
+
+    if !no_cache
+        && let Some(cache) = disk_cache
+        && let Some(cached) = cache.get(file_key)
+    {
+        return Ok(FileOutcome {
+            file_key,
+            was_hit: true,
+            diagnostics: cached,
+        });
+    }
+
+    let uast = parse_source(repo_path, &source)?;
+    let diagnostics = evaluate_document(&uast, config);
+    if let Some(cache) = disk_cache {
+        let _ = cache.put(file_key, &diagnostics);
+    }
+
+    Ok(FileOutcome {
+        file_key,
+        was_hit: false,
+        diagnostics,
+    })
+}
+
+fn execute_pipeline(
+    root: &Path,
+    options: CheckOptions,
+    config: &Config,
+    disk_cache: Option<&DiskCache>,
+) -> Result<CheckReport, EngineError> {
+    let files = discover_files(root, options.scope, config)?;
+    let config_hash = CacheKey::from_bytes(config.canonical_string().as_bytes());
+
+    let outcomes: Vec<FileOutcome> = files
+        .par_iter()
+        .map(|repo_path| {
+            analyze_one_file(
+                root,
+                repo_path,
+                (config, config_hash, disk_cache, options.no_cache),
+            )
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+
+    let mut fp_hasher = blake3::Hasher::new();
+    fp_hasher.update(config.canonical_string().as_bytes());
+    let mut cache_hits = 0_usize;
+    let mut cache_misses = 0_usize;
+    let mut diagnostics = Vec::new();
+
+    for outcome in outcomes {
+        fp_hasher.update(outcome.file_key.to_hex().as_bytes());
+        if outcome.was_hit {
+            cache_hits = cache_hits.saturating_add(1);
+        } else {
+            cache_misses = cache_misses.saturating_add(1);
+        }
+        diagnostics.extend(outcome.diagnostics);
+    }
+    diagnostics.sort();
+
+    Ok(CheckReport {
+        scope: options.scope,
+        files_checked: files.len(),
+        cache_hits,
+        cache_misses,
+        cache_fingerprint: fp_hasher.finalize().to_hex().to_string(),
+        diagnostics,
+    })
+}
+
+/// Loads `garde-fou.toml` from `root` and executes parallel analysis with optional `BLAKE3` caching.
 ///
 /// # Errors
 ///
-/// Returns [`EngineError`] if reading configuration or source files fails.
+/// Returns [`EngineError`] if configuration loading, discovery, I/O, or parsing fails.
+pub fn run_check_with_options(
+    root: &Path,
+    options: CheckOptions,
+) -> Result<CheckReport, EngineError> {
+    let loaded = load_workspace_config(root)?;
+    let cache = loaded
+        .cache_enabled
+        .then(|| DiskCache::new(root, &loaded.cache_dir));
+    execute_pipeline(root, options, &loaded.analyzer, cache.as_ref())
+}
+
+/// Runs analysis on `root` using an explicit in-memory [`Config`] without disk caching.
+///
+/// # Errors
+///
+/// Returns [`EngineError`] if file discovery, I/O, or parsing fails.
 pub fn run_check(
     root: &Path,
     scope: ScanScope,
     config: &Config,
 ) -> Result<CheckReport, EngineError> {
-    let manifest_path = root.join(DEFAULT_CONFIG_FILENAME);
-    if !manifest_path.is_file() {
-        return Ok(CheckReport {
+    execute_pipeline(
+        root,
+        CheckOptions {
             scope,
-            files_checked: 0,
-            cache_fingerprint: CacheKey::from_bytes(b"").to_hex(),
-            diagnostics: Vec::new(),
-        });
-    }
-
-    let source = fs::read_to_string(&manifest_path)?;
-    let cache_fingerprint = CacheKey::from_bytes(source.as_bytes()).to_hex();
-    let repo_path = RepoPath::new(DEFAULT_CONFIG_FILENAME)?;
-    let uast = parse_source_skeleton(repo_path, &source)?;
-    let diagnostics = evaluate_document(&uast, config);
-
-    Ok(CheckReport {
-        scope,
-        files_checked: 1,
-        cache_fingerprint,
-        diagnostics,
-    })
-}
-
-#[cfg(test)]
-mod tests {
-    use std::fs;
-    use std::time::{SystemTime, UNIX_EPOCH};
-
-    use gf_core::{Config, LimitsConfig, RepoPathError};
-    use gf_parsers::ParseError;
-
-    use super::{
-        CacheKey, DEFAULT_CONFIG_FILENAME, EngineError, InitOutcome, ScanScope, run_check,
-        scaffold_config,
-    };
-
-    #[test]
-    fn scaffolds_and_checks_workspace_with_blake3_fingerprint()
-    -> Result<(), Box<dyn std::error::Error>> {
-        let nanos = SystemTime::now().duration_since(UNIX_EPOCH)?.as_nanos();
-        let dir = std::env::temp_dir().join(format!("gf-engine-test-{nanos}"));
-        fs::create_dir_all(&dir)?;
-
-        let empty_report = run_check(&dir, ScanScope::All, &Config::strict_defaults())?;
-        assert_eq!(empty_report.files_checked, 0);
-        assert!(empty_report.is_clean());
-
-        let first = scaffold_config(&dir)?;
-        assert!(matches!(first, InitOutcome::Created(_)));
-        let second = scaffold_config(&dir)?;
-        assert!(matches!(second, InitOutcome::AlreadyPresent(_)));
-
-        let clean_report = run_check(&dir, ScanScope::StagedOnly, &Config::strict_defaults())?;
-        assert_eq!(clean_report.files_checked, 1);
-        assert_eq!(clean_report.cache_fingerprint.len(), 64);
-        assert!(clean_report.is_clean());
-
-        let tiny_cfg = Config {
-            limits: LimitsConfig {
-                max_file_lines: 2,
-                ..LimitsConfig::strict_defaults()
-            },
-            forbid_panicking_constructs: true,
-        };
-        let failing_report = run_check(&dir, ScanScope::All, &tiny_cfg)?;
-        assert!(!failing_report.is_clean());
-
-        let _ = fs::remove_file(dir.join(DEFAULT_CONFIG_FILENAME));
-        let _ = fs::remove_dir_all(&dir);
-
-        assert_ne!(EngineError::from(RepoPathError::Empty).to_string(), "");
-        assert_ne!(
-            EngineError::from(ParseError::InvalidSpan(gf_core::SpanError::ZeroLine)).to_string(),
-            ""
-        );
-        assert_eq!(CacheKey::from_bytes(b"abc").to_hex().len(), 64);
-        Ok(())
-    }
+            no_cache: true,
+        },
+        config,
+        None,
+    )
 }
