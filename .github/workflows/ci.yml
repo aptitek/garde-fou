@@ -144,14 +144,14 @@ jobs:
           }
 
           Set-Content -LiteralPath (Join-Path $Dist "SHA256SUMS") -Value ("0" * 64 + "  $Archive") -Encoding Ascii
-          $TamperedFailed = $false
-          try {
-            pwsh -File scripts/install.ps1 -FromDir $Dist -InstallDir (Join-Path $Work "bin-bad") -NoModifyPath
-            if ($LASTEXITCODE -ne 0) { $TamperedFailed = $true }
-          } catch {
-            $TamperedFailed = $true
-          }
-          if (-not $TamperedFailed) {
+          $PrevNativePref = if (Get-Variable -Name PSNativeCommandUseErrorActionPreference -ErrorAction SilentlyContinue) { $PSNativeCommandUseErrorActionPreference } else { $false }
+          $PSNativeCommandUseErrorActionPreference = $false
+          pwsh -File scripts/install.ps1 -FromDir $Dist -InstallDir (Join-Path $Work "bin-bad") -NoModifyPath
+          $BadExit = $LASTEXITCODE
+          $PSNativeCommandUseErrorActionPreference = $PrevNativePref
+          $global:LASTEXITCODE = 0
+          if ($BadExit -eq 0) {
             throw "install.ps1 succeeded despite tampered SHA256SUMS!"
           }
+          Write-Host "Tampered SHA256SUMS properly rejected on Windows (exit code $BadExit)."
           Remove-Item -LiteralPath $Work -Recurse -Force -ErrorAction SilentlyContinue
