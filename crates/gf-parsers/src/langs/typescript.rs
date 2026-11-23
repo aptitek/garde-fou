@@ -6,11 +6,12 @@ use gf_core::{
 };
 use tree_sitter::Node;
 
-use crate::complexity::{ComplexityRules, ComputedMetrics, compute_metrics};
+use crate::complexity::ComplexityRules;
 use crate::cst::{
-    collect_syntax_errors, count_named_kinds, field_name_string, line_metrics, node_span,
-    node_text, parse_with_language, span_effective_lines,
+    CallableSpec, assemble_callable, collect_syntax_errors, count_named_kinds, field_name_string,
+    line_metrics, node_span, node_text, parse_with_language,
 };
+use crate::fingerprint::collect_referenced_symbols;
 use crate::{LanguageExtractor, ParseError};
 
 const TS_COMPLEXITY: ComplexityRules = ComplexityRules {
@@ -93,6 +94,7 @@ impl LanguageExtractor for TypeScriptExtractor {
         )?;
         let root = tree.root_node();
         doc.syntax_errors = collect_syntax_errors(root);
+        doc.referenced_symbols = collect_referenced_symbols(root, source);
         walk_ts(root, source, &mut doc);
         Ok(doc)
     }
@@ -119,14 +121,31 @@ fn extract_import(node: Node<'_>, source: &str) -> ImportDecl {
     }
 }
 
-fn extract_export(node: Node<'_>, source: &str) -> Option<ExportDecl> {
-    let name = node
-        .child_by_field_name("declaration")?
-        .child_by_field_name("name")?;
-    Some(ExportDecl {
-        symbol: String::from(node_text(name, source)),
-        span: node_span(node),
-    })
+fn extract_exports(node: Node<'_>, source: &str, out: &mut Vec<ExportDecl>) {
+    let span = node_span(node);
+    let Some(decl) = node.child_by_field_name("declaration") else {
+        return;
+    };
+    if let Some(name) = decl.child_by_field_name("name") {
+        out.push(ExportDecl {
+            symbol: String::from(node_text(name, source)),
+            span,
+        });
+        return;
+    }
+    if decl.kind() == "lexical_declaration" {
+        let mut cursor = decl.walk();
+        for child in decl.named_children(&mut cursor) {
+            if child.kind() == "variable_declarator"
+                && let Some(name) = child.child_by_field_name("name")
+            {
+                out.push(ExportDecl {
+                    symbol: String::from(node_text(name, source)),
+                    span,
+                });
+            }
+        }
+    }
 }
 
 fn extract_ts_type(node: Node<'_>, source: &str) -> Option<TypeDecl> {
@@ -157,30 +176,22 @@ fn build_ts_callable(
     target: Node<'_>,
     source: &str,
 ) -> CallableDecl {
-    let span = node_span(target);
     let param_count = if target.child_by_field_name("parameter").is_some() {
         1
     } else {
         count_ts_params(target.child_by_field_name("parameters"))
     };
-    let metrics = target.child_by_field_name("body").map_or(
-        ComputedMetrics {
-            cyclomatic: 1,
-            cognitive: 0,
-            max_nesting: 0,
+    assemble_callable(
+        CallableSpec {
+            name,
+            kind,
+            decl_node: target,
+            body_node: target.child_by_field_name("body"),
+            param_count,
         },
-        |body| compute_metrics(body, source, &TS_COMPLEXITY),
-    );
-    CallableDecl {
-        name,
-        kind,
-        span,
-        effective_lines: span_effective_lines(span, source),
-        param_count,
-        cyclomatic_complexity: metrics.cyclomatic,
-        cognitive_complexity: metrics.cognitive,
-        max_nesting_depth: metrics.max_nesting,
-    }
+        source,
+        &TS_COMPLEXITY,
+    )
 }
 
 fn record_ts_declarator(node: Node<'_>, source: &str, doc: &mut UastDocument) {
@@ -197,11 +208,7 @@ fn record_ts_declarator(node: Node<'_>, source: &str, doc: &mut UastDocument) {
 fn record_ts_node(node: Node<'_>, source: &str, doc: &mut UastDocument) {
     match node.kind() {
         "import_statement" => doc.imports.push(extract_import(node, source)),
-        "export_statement" => {
-            if let Some(exp) = extract_export(node, source) {
-                doc.exports.push(exp);
-            }
-        }
+        "export_statement" => extract_exports(node, source, &mut doc.exports),
         "function_declaration" => doc.callables.push(build_ts_callable(
             field_name_string(node, "name", "<fn>", source),
             CallableKind::Function,

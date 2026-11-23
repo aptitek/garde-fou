@@ -26,7 +26,7 @@ impl Point {
     let doc = parse_source(&RepoPath::new("src/point.rs")?, clean_src)?;
     assert_eq!(doc.language, Language::Rust);
     assert_eq!(doc.imports.len(), 1);
-    assert_eq!(doc.exports.len(), 2);
+    assert_eq!(doc.exports.len(), 1);
     assert_eq!(doc.types.len(), 2);
     assert_eq!(doc.callables.len(), 1);
     assert_eq!(doc.callables[0].param_count, 1);

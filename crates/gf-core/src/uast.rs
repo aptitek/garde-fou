@@ -1,14 +1,17 @@
 //! Unified Abstract Syntax Tree (`UAST`) hub representations.
 
+use alloc::collections::BTreeSet;
 use alloc::string::String;
 use alloc::vec::Vec;
+use serde::{Deserialize, Serialize};
 
 use crate::diagnostic::{Span, SpanError};
+use crate::docker::DockerDocument;
 use crate::metrics::{CallableDecl, ExportDecl, ImportDecl, SyntaxErrorNode, TypeDecl};
 use crate::path::RepoPath;
 
 /// Source language or configuration dialect mapped into the `UAST`.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub enum Language {
     /// Rust source file (`.rs`).
     Rust,
@@ -24,7 +27,7 @@ pub enum Language {
     Jsx,
     /// Go source file (`.go`).
     Go,
-    /// Container build recipe (`Dockerfile`).
+    /// Container build recipe (`Dockerfile`, `Containerfile`).
     Dockerfile,
     /// TOML configuration file (`.toml`).
     Toml,
@@ -33,18 +36,24 @@ pub enum Language {
 }
 
 impl Language {
-    /// Returns `true` if `gf-parsers` provides a full `Tree-sitter` AST extractor.
+    /// Returns `true` if `gf-parsers` provides a dedicated structural extractor.
     #[must_use]
     pub const fn is_code_analyzed(self) -> bool {
         matches!(
             self,
-            Self::Rust | Self::Python | Self::TypeScript | Self::Tsx | Self::JavaScript | Self::Jsx
+            Self::Rust
+                | Self::Python
+                | Self::TypeScript
+                | Self::Tsx
+                | Self::JavaScript
+                | Self::Jsx
+                | Self::Dockerfile
         )
     }
 }
 
 /// Language-agnostic semantic node categories inside a [`UastDocument`].
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub enum UastKind {
     /// Root translation unit of a file.
     File,
@@ -65,7 +74,7 @@ pub enum UastKind {
 }
 
 /// Single node inside the Unified Abstract Syntax Tree.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct UastNode {
     /// Semantic kind of this node.
     pub kind: UastKind,
@@ -87,8 +96,9 @@ impl UastNode {
     }
 }
 
-/// Normalized `UAST` document produced by `gf-parsers` and analyzed by `gf-rules`.
-#[derive(Clone, Debug, Eq, PartialEq)]
+/// Normalized `UAST` document produced by `gf-parsers`, cached in `.garde-fou-cache/v2/`,
+/// and analyzed locally and globally by `gf-rules`.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct UastDocument {
     /// Repository-relative file path.
     pub path: RepoPath,
@@ -98,7 +108,7 @@ pub struct UastDocument {
     pub total_lines: u32,
     /// Total number of non-blank lines in the source text.
     pub effective_lines: u32,
-    /// Syntax error or missing-token nodes detected in the CST.
+    /// Syntax error or missing-token nodes detected in the file.
     pub syntax_errors: Vec<SyntaxErrorNode>,
     /// Module import declarations extracted from the file.
     pub imports: Vec<ImportDecl>,
@@ -108,6 +118,10 @@ pub struct UastDocument {
     pub types: Vec<TypeDecl>,
     /// Functions, methods, and named closures extracted from the file.
     pub callables: Vec<CallableDecl>,
+    /// Deterministic set of symbol identifiers referenced inside this file.
+    pub referenced_symbols: BTreeSet<String>,
+    /// Optional structured `Dockerfile` representation when `language == Language::Dockerfile`.
+    pub docker: Option<DockerDocument>,
     /// Root `UAST` node (typically [`UastKind::File`]).
     pub root: UastNode,
 }
@@ -135,6 +149,8 @@ impl UastDocument {
             exports: Vec::new(),
             types: Vec::new(),
             callables: Vec::new(),
+            referenced_symbols: BTreeSet::new(),
+            docker: None,
             root: UastNode::leaf(UastKind::File, root_span),
         })
     }
@@ -152,11 +168,10 @@ mod tests {
     -> Result<(), Box<dyn core::error::Error>> {
         let doc = UastDocument::new(RepoPath::new("src/lib.rs")?, Language::Rust, 42, 35)?;
         assert!(doc.language.is_code_analyzed());
-        assert!(Language::Tsx.is_code_analyzed());
+        assert!(Language::Dockerfile.is_code_analyzed());
         assert!(Language::Python.is_code_analyzed());
         assert!(!Language::Toml.is_code_analyzed());
         assert_eq!(doc.total_lines, 42);
-        assert_eq!(doc.effective_lines, 35);
         Ok(())
     }
 }

@@ -6,11 +6,12 @@ use gf_core::{
 };
 use tree_sitter::Node;
 
-use crate::complexity::{ComplexityRules, compute_metrics};
+use crate::complexity::ComplexityRules;
 use crate::cst::{
-    collect_syntax_errors, line_metrics, node_span, node_text, parse_with_language,
-    span_effective_lines,
+    CallableSpec, assemble_callable, collect_syntax_errors, field_name_string, line_metrics,
+    node_span, node_text, parse_with_language,
 };
+use crate::fingerprint::collect_referenced_symbols;
 use crate::{LanguageExtractor, ParseError};
 
 const PY_COMPLEXITY: ComplexityRules = ComplexityRules {
@@ -45,6 +46,7 @@ impl LanguageExtractor for PythonExtractor {
             UastDocument::new(path.clone(), Language::Python, total_lines, effective_lines)?;
         let root = tree.root_node();
         doc.syntax_errors = collect_syntax_errors(root);
+        doc.referenced_symbols = collect_referenced_symbols(root, source);
         walk_python(root, source, false, &mut doc);
         Ok(doc)
     }
@@ -52,10 +54,7 @@ impl LanguageExtractor for PythonExtractor {
 
 fn extract_py_import(node: Node<'_>, source: &str) -> ImportDecl {
     let module_source = if node.kind() == "import_from_statement" {
-        node.child_by_field_name("module_name").map_or_else(
-            || String::from(node_text(node, source)),
-            |m| String::from(node_text(m, source)),
-        )
+        field_name_string(node, "module_name", node_text(node, source), source)
     } else {
         String::from(node_text(node, source).trim_start_matches("import ").trim())
     };
@@ -86,10 +85,7 @@ fn count_py_params(params_node: Option<Node<'_>>, source: &str, is_method: bool)
 }
 
 fn extract_py_class(node: Node<'_>, source: &str) -> TypeDecl {
-    let name = node.child_by_field_name("name").map_or_else(
-        || String::from("<class>"),
-        |n| String::from(node_text(n, source)),
-    );
+    let name = field_name_string(node, "name", "<class>", source);
     let mut field_count = 0_u32;
     let mut method_count = 0_u32;
 
@@ -127,35 +123,22 @@ fn extract_py_class(node: Node<'_>, source: &str) -> TypeDecl {
 }
 
 fn extract_py_fn(node: Node<'_>, source: &str, in_class: bool) -> CallableDecl {
-    let name = node.child_by_field_name("name").map_or_else(
-        || String::from("<def>"),
-        |n| String::from(node_text(n, source)),
-    );
-    let span = node_span(node);
-    let param_count = count_py_params(node.child_by_field_name("parameters"), source, in_class);
-    let metrics = node.child_by_field_name("body").map_or(
-        crate::complexity::ComputedMetrics {
-            cyclomatic: 1,
-            cognitive: 0,
-            max_nesting: 0,
+    let kind = if in_class {
+        CallableKind::Method
+    } else {
+        CallableKind::Function
+    };
+    assemble_callable(
+        CallableSpec {
+            name: field_name_string(node, "name", "<def>", source),
+            kind,
+            decl_node: node,
+            body_node: node.child_by_field_name("body"),
+            param_count: count_py_params(node.child_by_field_name("parameters"), source, in_class),
         },
-        |body| compute_metrics(body, source, &PY_COMPLEXITY),
-    );
-
-    CallableDecl {
-        name,
-        kind: if in_class {
-            CallableKind::Method
-        } else {
-            CallableKind::Function
-        },
-        span,
-        effective_lines: span_effective_lines(span, source),
-        param_count,
-        cyclomatic_complexity: metrics.cyclomatic,
-        cognitive_complexity: metrics.cognitive,
-        max_nesting_depth: metrics.max_nesting,
-    }
+        source,
+        &PY_COMPLEXITY,
+    )
 }
 
 fn maybe_push_py_export(node: Node<'_>, name: &str, span: gf_core::Span, doc: &mut UastDocument) {

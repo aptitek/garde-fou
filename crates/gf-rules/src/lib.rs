@@ -1,7 +1,7 @@
-//! Pure `#![no_std]` rule evaluation engine for **Garde-fou**.
+//! Pure `#![no_std]` local and workspace-wide rule evaluation engine for **Garde-fou**.
 //!
-//! Depends exclusively on [`gf_core`] and transforms a [`UastDocument`] plus [`Config`]
-//! into deterministic [`Diagnostic`] values via applicative [`Validation`] accumulation.
+//! Depends exclusively on [`gf_core`] and transforms [`UastDocument`] values,
+//! [`ProjectContext`], and [`Config`] into deterministic [`Diagnostic`]s via [`Validation`].
 
 #![no_std]
 
@@ -11,16 +11,20 @@ extern crate alloc;
 extern crate std;
 
 mod checks;
+mod docker_checks;
+mod docker_instr_checks;
+mod workspace_checks;
 
 use alloc::vec::Vec;
-use gf_core::{Config, Diagnostic, UastDocument, Validation};
+use gf_core::{Config, Diagnostic, ProjectContext, UastDocument, Validation};
 
 use checks::{
     check_callables, check_file_metrics, check_root_uast, check_syntax_errors, check_types,
 };
+use docker_checks::check_docker_feature;
+use workspace_checks::{check_dead_exports, check_type2_clones};
 
-/// Evaluates all pure static rules applicatively, accumulating every violation without
-/// short-circuiting on the first failure.
+/// Evaluates all pure single-file rules applicatively without short-circuiting.
 #[must_use]
 pub fn evaluate_document_validated(
     doc: &UastDocument,
@@ -35,11 +39,41 @@ pub fn evaluate_document_validated(
     ])
 }
 
-/// Evaluates all pure static rules against a normalized [`UastDocument`] and returns
-/// diagnostics sorted deterministically by file path, source span, and rule ID.
+/// Evaluates all pure single-file rules and returns deterministically sorted diagnostics.
 #[must_use]
 pub fn evaluate_document(doc: &UastDocument, config: &Config) -> Vec<Diagnostic> {
     match evaluate_document_validated(doc, config) {
+        Validation::Valid(()) => Vec::new(),
+        Validation::Invalid(mut diagnostics) => {
+            diagnostics.sort();
+            diagnostics
+        }
+    }
+}
+
+/// Evaluates cross-file DRY clones (`GF020`), dead exports (`GF021`), and contextual
+/// feature rules such as `docker` (`GF030`–`GF034`) across the entire workspace.
+#[must_use]
+pub fn evaluate_workspace(
+    docs: &[UastDocument],
+    ctx: &ProjectContext,
+    config: &Config,
+) -> Validation<(), Diagnostic> {
+    Validation::<(), Diagnostic>::collect_all([
+        check_type2_clones(docs, config),
+        check_dead_exports(docs, ctx, config),
+        check_docker_feature(docs, ctx),
+    ])
+}
+
+/// Convenience wrapper returning sorted workspace-level diagnostics.
+#[must_use]
+pub fn evaluate_workspace_sorted(
+    docs: &[UastDocument],
+    ctx: &ProjectContext,
+    config: &Config,
+) -> Vec<Diagnostic> {
+    match evaluate_workspace(docs, ctx, config) {
         Validation::Valid(()) => Vec::new(),
         Validation::Invalid(mut diagnostics) => {
             diagnostics.sort();

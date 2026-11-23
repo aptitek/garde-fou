@@ -6,11 +6,12 @@ use gf_core::{
 };
 use tree_sitter::Node;
 
-use crate::complexity::{ComplexityRules, ComputedMetrics, compute_metrics};
+use crate::complexity::ComplexityRules;
 use crate::cst::{
-    collect_syntax_errors, count_children_of_kind, field_name_string, line_metrics, node_span,
-    node_text, parse_with_language, span_effective_lines,
+    CallableSpec, assemble_callable, collect_syntax_errors, count_children_of_kind,
+    field_name_string, line_metrics, node_span, node_text, parse_with_language,
 };
+use crate::fingerprint::collect_referenced_symbols;
 use crate::{LanguageExtractor, ParseError};
 
 const RUST_COMPLEXITY: ComplexityRules = ComplexityRules {
@@ -43,12 +44,16 @@ impl LanguageExtractor for RustExtractor {
             UastDocument::new(path.clone(), Language::Rust, total_lines, effective_lines)?;
         let root = tree.root_node();
         doc.syntax_errors = collect_syntax_errors(root);
+        doc.referenced_symbols = collect_referenced_symbols(root, source);
         walk_rust(root, source, &mut doc);
         Ok(doc)
     }
 }
 
-fn has_public_vis(node: Node<'_>, source: &str) -> bool {
+fn is_top_level_public(node: Node<'_>, source: &str) -> bool {
+    if node.parent().is_none_or(|p| p.kind() != "source_file") {
+        return false;
+    }
     let mut cursor = node.walk();
     node.children(&mut cursor)
         .any(|c| c.kind() == "visibility_modifier" && node_text(c, source) == "pub")
@@ -120,36 +125,28 @@ fn extract_type(node: Node<'_>, source: &str) -> Option<TypeDecl> {
 }
 
 fn extract_fn(node: Node<'_>, source: &str) -> CallableDecl {
-    let name = field_name_string(node, "name", "<fn>", source);
     let is_method = node
         .parent()
         .is_some_and(|p| p.kind() == "declaration_list");
-    let param_count =
-        count_children_of_kind(node.child_by_field_name("parameters"), &["parameter"]);
-    let span = node_span(node);
-    let metrics = node.child_by_field_name("body").map_or(
-        ComputedMetrics {
-            cyclomatic: 1,
-            cognitive: 0,
-            max_nesting: 0,
+    let kind = if is_method {
+        CallableKind::Method
+    } else {
+        CallableKind::Function
+    };
+    assemble_callable(
+        CallableSpec {
+            name: field_name_string(node, "name", "<fn>", source),
+            kind,
+            decl_node: node,
+            body_node: node.child_by_field_name("body"),
+            param_count: count_children_of_kind(
+                node.child_by_field_name("parameters"),
+                &["parameter"],
+            ),
         },
-        |body| compute_metrics(body, source, &RUST_COMPLEXITY),
-    );
-
-    CallableDecl {
-        name,
-        kind: if is_method {
-            CallableKind::Method
-        } else {
-            CallableKind::Function
-        },
-        span,
-        effective_lines: span_effective_lines(span, source),
-        param_count,
-        cyclomatic_complexity: metrics.cyclomatic,
-        cognitive_complexity: metrics.cognitive,
-        max_nesting_depth: metrics.max_nesting,
-    }
+        source,
+        &RUST_COMPLEXITY,
+    )
 }
 
 fn extract_named_closure(node: Node<'_>, source: &str) -> Option<CallableDecl> {
@@ -157,33 +154,28 @@ fn extract_named_closure(node: Node<'_>, source: &str) -> Option<CallableDecl> {
     if val.kind() != "closure_expression" {
         return None;
     }
-    let span = node_span(val);
     let body = val.child_by_field_name("body")?;
-    if span.line_count() <= 1 && body.kind() != "block" {
+    if node_span(val).line_count() <= 1 && body.kind() != "block" {
         return None;
     }
-    let name = node.child_by_field_name("pattern").map_or_else(
-        || String::from("<closure>"),
-        |p| String::from(node_text(p, source)),
-    );
-    let params = val.child_by_field_name("parameters");
-    let param_count = count_children_of_kind(params, &["parameter", "identifier"]);
-    let metrics = compute_metrics(body, source, &RUST_COMPLEXITY);
-
-    Some(CallableDecl {
-        name,
-        kind: CallableKind::Closure,
-        span,
-        effective_lines: span_effective_lines(span, source),
-        param_count,
-        cyclomatic_complexity: metrics.cyclomatic,
-        cognitive_complexity: metrics.cognitive,
-        max_nesting_depth: metrics.max_nesting,
-    })
+    Some(assemble_callable(
+        CallableSpec {
+            name: field_name_string(node, "pattern", "<closure>", source),
+            kind: CallableKind::Closure,
+            decl_node: val,
+            body_node: Some(body),
+            param_count: count_children_of_kind(
+                val.child_by_field_name("parameters"),
+                &["parameter", "identifier"],
+            ),
+        },
+        source,
+        &RUST_COMPLEXITY,
+    ))
 }
 
 fn maybe_push_export(node: Node<'_>, symbol: &str, source: &str, doc: &mut UastDocument) {
-    if has_public_vis(node, source) {
+    if is_top_level_public(node, source) {
         doc.exports.push(ExportDecl {
             symbol: String::from(symbol),
             span: node_span(node),
@@ -198,6 +190,12 @@ fn record_rust_node(node: Node<'_>, source: &str, doc: &mut UastDocument) {
             let callable = extract_fn(node, source);
             maybe_push_export(node, &callable.name, source, doc);
             doc.callables.push(callable);
+        }
+        "const_item" | "type_item" | "static_item" => {
+            let name = field_name_string(node, "name", "", source);
+            if !name.is_empty() {
+                maybe_push_export(node, &name, source, doc);
+            }
         }
         "let_declaration" => {
             if let Some(closure) = extract_named_closure(node, source) {

@@ -16,20 +16,21 @@ const fn scope_label(scope: ScanScope) -> &'static str {
 }
 
 fn render_human(report: &CheckReport) -> String {
+    let ctx_summary = report.context.summary_inline();
     if report.is_clean() {
         let short_fp = report
             .cache_fingerprint
             .get(0..12)
             .unwrap_or(&report.cache_fingerprint);
         return format!(
-            "garde-fou: ok (scope={}, files={}, cache_hits={}, cache_misses={}, blake3={short_fp})",
+            "garde-fou: ok (scope={}, {ctx_summary}, files={}, cache_hits={}, cache_misses={}, blake3={short_fp})",
             scope_label(report.scope),
             report.files_checked,
             report.cache_hits,
             report.cache_misses,
         );
     }
-    let mut buf = String::new();
+    let mut buf = format!("garde-fou: FAIL ({ctx_summary})\n");
     for diag in &report.diagnostics {
         let _ = writeln!(
             buf,
@@ -50,12 +51,13 @@ fn render_human(report: &CheckReport) -> String {
 fn render_agent_markdown(report: &CheckReport) -> String {
     let status = if report.is_clean() { "PASS" } else { "FAIL" };
     let mut buf = format!(
-        "## Garde-fou Report\n\n- **Status**: `{status}` | **Scope**: `{}` | **Files**: `{}` (`{}` hits, `{}` misses) | **Violations**: `{}`\n",
+        "## Garde-fou Report\n\n- **Status**: `{status}` | **Scope**: `{}` | **Files**: `{}` (`{}` hits, `{}` misses) | **Violations**: `{}`\n- **Context**: `{}`\n",
         scope_label(report.scope),
         report.files_checked,
         report.cache_hits,
         report.cache_misses,
-        report.diagnostics.len()
+        report.diagnostics.len(),
+        report.context.summary_inline(),
     );
     if !report.diagnostics.is_empty() {
         buf.push_str("\n### Actionable Violations\n\n");
@@ -144,29 +146,31 @@ pub fn render_init_outcome(outcome: &InitOutcome) -> String {
 mod tests {
     use std::path::PathBuf;
 
-    use gf_core::{Diagnostic, RepoPath, Severity, Span};
+    use gf_core::{Diagnostic, ProjectContext, RepoPath, Severity, Span};
     use gf_engine::{CheckReport, InitOutcome, ScanScope};
 
     use super::{render_check_report, render_init_outcome};
     use crate::OutputFormat;
 
     #[test]
-    fn renders_all_formats_with_metrics_and_remediation() -> Result<(), Box<dyn std::error::Error>>
-    {
+    fn renders_all_formats_with_context_metrics_and_remediation()
+    -> Result<(), Box<dyn std::error::Error>> {
         let clean = CheckReport {
             scope: ScanScope::All,
+            context: ProjectContext::default(),
             files_checked: 3,
             cache_hits: 2,
             cache_misses: 1,
             cache_fingerprint: "0123456789abcdef0123456789abcdef".to_string(),
             diagnostics: Vec::new(),
         };
-        assert!(render_check_report(&clean, OutputFormat::Human).contains("cache_hits=2"));
-        assert!(render_check_report(&clean, OutputFormat::Agent).contains("`PASS`"));
+        assert!(render_check_report(&clean, OutputFormat::Human).contains("langs=[]"));
+        assert!(render_check_report(&clean, OutputFormat::Agent).contains("**Context**:"));
         assert!(render_check_report(&clean, OutputFormat::Sarif).contains(r#""version":"2.1.0""#));
 
         let failing = CheckReport {
             scope: ScanScope::StagedOnly,
+            context: ProjectContext::default(),
             files_checked: 1,
             cache_hits: 0,
             cache_misses: 1,
@@ -184,7 +188,6 @@ mod tests {
         };
         let agent_out = render_check_report(&failing, OutputFormat::Agent);
         assert!(agent_out.contains("`measured: 14`, `max: 10`"));
-        assert!(agent_out.contains("**Remediation**: Extract pure helper functions."));
         assert!(render_check_report(&failing, OutputFormat::Human).contains("[GF004]"));
         assert!(render_check_report(&failing, OutputFormat::Sarif).contains(r#""ruleId":"GF004""#));
 

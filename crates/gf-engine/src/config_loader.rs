@@ -3,9 +3,11 @@
 use std::fs;
 use std::path::Path;
 
-use gf_core::{Config, LimitsConfig};
-use serde::Deserialize;
+use gf_core::{Config, FeatureId, FrameworkId, LanguageId, LimitsConfig, ProjectConfig};
 
+use crate::config_schema::{
+    LimitsSection, ProjectSection, RawManifest, RulesSection, default_cache_dir,
+};
 use crate::{DEFAULT_CONFIG_FILENAME, EngineError};
 
 /// Deserialized workspace configuration combining pure rules and cache settings.
@@ -15,120 +17,31 @@ pub struct LoadedWorkspaceConfig {
     pub analyzer: Config,
     /// Whether the on-disk `BLAKE3` cache is active.
     pub cache_enabled: bool,
-    /// Relative directory name storing cached diagnostics.
+    /// Relative directory name storing cached artifacts.
     pub cache_dir: String,
 }
 
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-struct RawManifest {
-    schema_version: u32,
-    #[serde(default)]
-    project: Option<ProjectSection>,
-    #[serde(default)]
-    limits: Option<LimitsSection>,
-    #[serde(default)]
-    rules: Option<RulesSection>,
-    #[serde(default)]
-    paths: Option<PathsSection>,
-    #[serde(default)]
-    architecture: Option<ArchitectureSection>,
-    #[serde(default)]
-    cache: Option<CacheSection>,
-}
-
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-struct ProjectSection {
-    #[serde(rename = "name", default)]
-    _name: Option<String>,
-    #[serde(rename = "languages", default)]
-    _languages: Vec<String>,
-}
-
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-struct LimitsSection {
-    #[serde(rename = "max_file_lines")]
-    file_lines: Option<u32>,
-    #[serde(rename = "max_function_lines")]
-    function_lines: Option<u32>,
-    #[serde(rename = "max_parameters")]
-    parameters: Option<u32>,
-    #[serde(rename = "max_cyclomatic_complexity")]
-    cyclomatic_complexity: Option<u32>,
-    #[serde(rename = "max_cognitive_complexity")]
-    cognitive_complexity: Option<u32>,
-    #[serde(rename = "max_nesting_depth")]
-    nesting_depth: Option<u32>,
-    #[serde(rename = "max_imports_per_file")]
-    imports_per_file: Option<u32>,
-    #[serde(rename = "max_methods_per_type")]
-    methods_per_type: Option<u32>,
-    #[serde(rename = "max_struct_bools")]
-    struct_bools: Option<u32>,
-}
-
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-#[expect(
-    clippy::struct_excessive_bools,
-    reason = "TOML rule toggle schema mirrors explicit user configuration flags"
-)]
-struct RulesSection {
-    #[serde(default = "default_true")]
-    forbid_unsafe: bool,
-    #[serde(default = "default_true")]
-    forbid_unwrap: bool,
-    #[serde(default = "default_true")]
-    forbid_expect: bool,
-    #[serde(default = "default_true")]
-    forbid_panic: bool,
-    #[serde(default = "default_true")]
-    forbid_todo: bool,
-    #[serde(default = "default_true")]
-    forbid_unimplemented: bool,
-    #[serde(default = "default_true")]
-    forbid_dbg: bool,
-}
-
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-struct PathsSection {
-    #[serde(default)]
-    ignore_paths: Vec<String>,
-    #[serde(default)]
-    entrypoints: Vec<String>,
-}
-
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-struct ArchitectureSection {
-    #[serde(rename = "no_std_crates", default)]
-    _no_std: Vec<String>,
-    #[serde(rename = "io_allowed_crates", default)]
-    _io_allowed: Vec<String>,
-    #[serde(rename = "console_allowed_crates", default)]
-    _console_allowed: Vec<String>,
-}
-
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-struct CacheSection {
-    #[serde(default = "default_true")]
-    enabled: bool,
-    #[serde(default = "default_cache_dir")]
-    directory: String,
-    #[serde(default)]
-    hash: Option<String>,
-}
-
-const fn default_true() -> bool {
-    true
-}
-
-fn default_cache_dir() -> String {
-    String::from(".garde-fou-cache")
+fn parse_project_section(raw: Option<ProjectSection>) -> Result<ProjectConfig, EngineError> {
+    let Some(section) = raw else {
+        return Ok(ProjectConfig::empty());
+    };
+    let mut cfg = ProjectConfig::empty();
+    for item in section.languages {
+        let id = LanguageId::from_config_str(&item)
+            .ok_or_else(|| EngineError::InvalidConfig(format!("unknown language `{item}`")))?;
+        cfg.languages.insert(id);
+    }
+    for item in section.features {
+        let id = FeatureId::from_config_str(&item)
+            .ok_or_else(|| EngineError::InvalidConfig(format!("unknown feature `{item}`")))?;
+        cfg.features.insert(id);
+    }
+    for item in section.frameworks {
+        let id = FrameworkId::from_config_str(&item)
+            .ok_or_else(|| EngineError::InvalidConfig(format!("unknown framework `{item}`")))?;
+        cfg.frameworks.insert(id);
+    }
+    Ok(cfg)
 }
 
 fn merge_limits(raw: Option<LimitsSection>) -> LimitsConfig {
@@ -150,16 +63,28 @@ fn merge_limits(raw: Option<LimitsSection>) -> LimitsConfig {
         max_nesting_depth: s.nesting_depth.unwrap_or(base.max_nesting_depth),
         max_imports_per_file: s.imports_per_file.unwrap_or(base.max_imports_per_file),
         max_methods_per_type: s.methods_per_type.unwrap_or(base.max_methods_per_type),
+        min_clone_lines: s.clone_lines.unwrap_or(base.min_clone_lines),
+        min_clone_nodes: s.clone_nodes.unwrap_or(base.min_clone_nodes),
     }
 }
 
-/// Loads and strictly validates `garde-fou.toml` in `root`, or returns strict defaults
-/// when no manifest file is present.
+fn forbid_constructs_enabled(rules: Option<RulesSection>) -> bool {
+    rules.is_none_or(|r| {
+        r.forbid_unsafe
+            || r.forbid_unwrap
+            || r.forbid_expect
+            || r.forbid_panic
+            || r.forbid_todo
+            || r.forbid_unimplemented
+            || r.forbid_dbg
+    })
+}
+
+/// Loads and strictly validates `garde-fou.toml` in `root`, or returns strict defaults.
 ///
 /// # Errors
 ///
-/// Returns [`EngineError`] if reading the file fails, if unknown TOML fields are present,
-/// or if `schema_version` is unsupported.
+/// Returns [`EngineError`] on I/O failure, unknown TOML fields, or invalid identifiers.
 pub fn load_workspace_config(root: &Path) -> Result<LoadedWorkspaceConfig, EngineError> {
     let path = root.join(DEFAULT_CONFIG_FILENAME);
     if !path.is_file() {
@@ -171,7 +96,7 @@ pub fn load_workspace_config(root: &Path) -> Result<LoadedWorkspaceConfig, Engin
     }
 
     let content = fs::read_to_string(&path)?;
-    let raw: RawManifest =
+    let mut raw: RawManifest =
         toml::from_str(&content).map_err(|err| EngineError::InvalidConfig(err.to_string()))?;
     if raw.schema_version != 1 {
         return Err(EngineError::InvalidConfig(format!(
@@ -179,32 +104,15 @@ pub fn load_workspace_config(root: &Path) -> Result<LoadedWorkspaceConfig, Engin
             raw.schema_version
         )));
     }
-    let _ = (&raw.project, &raw.architecture);
-
-    let forbid_panicking_constructs = raw.rules.is_none_or(|r| {
-        r.forbid_unsafe
-            || r.forbid_unwrap
-            || r.forbid_expect
-            || r.forbid_panic
-            || r.forbid_todo
-            || r.forbid_unimplemented
-            || r.forbid_dbg
-    });
-    let (ignore_paths, entrypoints) = raw.paths.map_or_else(
-        || (Vec::new(), Vec::new()),
-        |p| (p.ignore_paths, p.entrypoints),
-    );
-    let (cache_enabled, cache_dir) = raw.cache.map_or_else(
-        || (true, default_cache_dir()),
-        |c| {
-            let _ = c.hash;
-            (c.enabled, c.directory)
-        },
-    );
+    let project = parse_project_section(raw.project.take())?;
+    let limits = merge_limits(raw.limits.take());
+    let forbid_panicking_constructs = forbid_constructs_enabled(raw.rules.take());
+    let ((ignore_paths, entrypoints), (cache_enabled, cache_dir)) = raw.into_paths_and_cache();
 
     Ok(LoadedWorkspaceConfig {
         analyzer: Config {
-            limits: merge_limits(raw.limits),
+            project,
+            limits,
             forbid_panicking_constructs,
             ignore_paths,
             entrypoints,

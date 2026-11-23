@@ -20,6 +20,8 @@ max_cognitive_complexity = 10
 max_nesting_depth = 4
 max_imports_per_file = 15
 max_methods_per_type = 10
+min_clone_lines = 15
+min_clone_nodes = 40
 
 [paths]
 ignore_paths = []

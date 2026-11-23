@@ -56,6 +56,8 @@ fn build_synthetic_doc(m: DocMetrics) -> Result<UastDocument, TestCaseError> {
         cyclomatic_complexity: m.cyc,
         cognitive_complexity: m.cog,
         max_nesting_depth: m.nest,
+        structural_hash: None,
+        ast_node_count: 0,
     });
     Ok(doc)
 }

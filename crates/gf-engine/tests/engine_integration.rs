@@ -53,11 +53,11 @@ fn populates_blake3_cache_and_serves_subsequent_hits() -> Result<(), Box<dyn std
 
     fs::create_dir_all(dir.join("src"))?;
     fs::write(
-        dir.join("src/clean.rs"),
+        dir.join("src/lib.rs"),
         "pub fn add(a: i32, b: i32) -> i32 {\n    a + b\n}\n",
     )?;
     fs::write(
-        dir.join("src/app.py"),
+        dir.join("src/main.py"),
         "def greet(name):\n    return name\n",
     )?;
 
@@ -73,7 +73,7 @@ fn populates_blake3_cache_and_serves_subsequent_hits() -> Result<(), Box<dyn std
         (2, 0, 2)
     );
     assert!(first.is_clean());
-    assert!(dir.join(".garde-fou-cache/v1").is_dir());
+    assert!(dir.join(".garde-fou-cache/v2").is_dir());
 
     let second = run_check_with_options(
         &dir,
@@ -140,7 +140,7 @@ fn discovers_only_staged_files_and_respects_ignore_paths() -> Result<(), Box<dyn
     fs::create_dir_all(dir.join("src"))?;
     fs::create_dir_all(dir.join("vendor"))?;
     fs::write(
-        dir.join("src/staged.ts"),
+        dir.join("src/index.ts"),
         "export const ok = (x: number): number => x + 1;\n",
     )?;
     fs::write(
@@ -151,7 +151,7 @@ fn discovers_only_staged_files_and_respects_ignore_paths() -> Result<(), Box<dyn
 
     assert!(
         Command::new("git")
-            .args(["add", "src/staged.ts", "vendor/gen.ts"])
+            .args(["add", "src/index.ts", "vendor/gen.ts"])
             .current_dir(&dir)
             .status()?
             .success()

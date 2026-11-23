@@ -93,3 +93,46 @@ fn repo_path_normalizes_separators_and_rejects_traversal() -> Result<(), String>
     })
     .map_err(|err| err.to_string())
 }
+
+#[test]
+fn parses_and_formats_all_context_identifiers() {
+    use gf_core::{FeatureId, FrameworkId, LanguageId, ProjectContext};
+
+    for (raw, expected) in [
+        ("rust", LanguageId::Rust),
+        ("ts", LanguageId::TypeScript),
+        ("py", LanguageId::Python),
+    ] {
+        assert_eq!(LanguageId::from_config_str(raw), Some(expected));
+        assert_ne!(expected.to_string(), "");
+    }
+    assert_eq!(LanguageId::from_config_str("cobol"), None);
+    for (raw, expected) in [
+        ("docker", FeatureId::Docker),
+        ("git-hooks", FeatureId::GitHooks),
+        ("ci-github", FeatureId::CiGithub),
+        ("task-runner", FeatureId::TaskRunner),
+    ] {
+        assert_eq!(FeatureId::from_config_str(raw), Some(expected));
+        assert_ne!(expected.to_string(), "");
+    }
+    assert_eq!(FeatureId::from_config_str("unknown"), None);
+    for (raw, fw) in [
+        ("cargo", FrameworkId::CargoWorkspace),
+        ("react", FrameworkId::React),
+        ("astro", FrameworkId::Astro),
+        ("nextjs", FrameworkId::NextJs),
+        ("fastapi", FrameworkId::FastApi),
+        ("django", FrameworkId::Django),
+    ] {
+        assert_eq!(FrameworkId::from_config_str(raw), Some(fw));
+        assert_ne!(fw.implicit_entrypoints().len(), 0);
+        assert_ne!(fw.to_string(), "");
+    }
+    assert_eq!(FrameworkId::from_config_str("rails"), None);
+    assert!(
+        ProjectContext::default()
+            .summary_inline()
+            .contains("langs=[]")
+    );
+}

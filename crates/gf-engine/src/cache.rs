@@ -1,10 +1,10 @@
-//! Content-addressed `BLAKE3` on-disk cache storing per-file diagnostics.
+//! Content-addressed `BLAKE3` `.garde-fou-cache/v2/` storing `UastDocument` + diagnostics.
 
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 
-use gf_core::{Diagnostic, RepoPath};
+use gf_core::{Diagnostic, RepoPath, UastDocument};
 use serde::{Deserialize, Serialize};
 
 static TEMP_COUNTER: AtomicU64 = AtomicU64::new(0);
@@ -47,23 +47,27 @@ impl CacheKey {
     }
 }
 
-#[derive(Serialize, Deserialize)]
-struct CachedEntry {
-    diagnostics: Vec<Diagnostic>,
+/// Cached per-file analysis artifact persisted in `.garde-fou-cache/v2/`.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct CachedFileArtifact {
+    /// Normalized `UAST` document enabling sub-second cross-file global evaluation.
+    pub document: UastDocument,
+    /// Single-file diagnostics produced by `evaluate_document`.
+    pub local_diagnostics: Vec<Diagnostic>,
 }
 
-/// Sharded filesystem cache backed by `.garde-fou-cache/v1/`.
+/// Sharded filesystem cache backed by `.garde-fou-cache/v2/`.
 #[derive(Clone, Debug)]
 pub struct DiskCache {
     base_dir: PathBuf,
 }
 
 impl DiskCache {
-    /// Creates a [`DiskCache`] handle rooted at `<workspace_root>/<cache_dir>/v1`.
+    /// Creates a [`DiskCache`] handle rooted at `<workspace_root>/<cache_dir>/v2`.
     #[must_use]
     pub fn new(workspace_root: &Path, cache_dir: &str) -> Self {
         Self {
-            base_dir: workspace_root.join(cache_dir).join("v1"),
+            base_dir: workspace_root.join(cache_dir).join("v2"),
         }
     }
 
@@ -73,20 +77,19 @@ impl DiskCache {
         self.base_dir.join(shard).join(format!("{hex}.json"))
     }
 
-    /// Looks up cached diagnostics for `key`, returning `None` on miss or corrupt data.
+    /// Looks up a cached [`CachedFileArtifact`] for `key`, returning `None` on miss.
     #[must_use]
-    pub fn get(&self, key: CacheKey) -> Option<Vec<Diagnostic>> {
+    pub fn get(&self, key: CacheKey) -> Option<CachedFileArtifact> {
         let raw = fs::read_to_string(self.entry_path(key)).ok()?;
-        let parsed: CachedEntry = serde_json::from_str(&raw).ok()?;
-        Some(parsed.diagnostics)
+        serde_json::from_str(&raw).ok()
     }
 
-    /// Atomically persists `diagnostics` under `key`.
+    /// Atomically persists `artifact` under `key`.
     ///
     /// # Errors
     ///
     /// Returns [`std::io::Error`] if creating shard directories or writing the entry fails.
-    pub fn put(&self, key: CacheKey, diagnostics: &[Diagnostic]) -> Result<(), std::io::Error> {
+    pub fn put(&self, key: CacheKey, artifact: &CachedFileArtifact) -> Result<(), std::io::Error> {
         let final_path = self.entry_path(key);
         if let Some(parent) = final_path.parent() {
             fs::create_dir_all(parent)?;
@@ -94,10 +97,7 @@ impl DiskCache {
         let seq = TEMP_COUNTER.fetch_add(1, Ordering::Relaxed);
         let pid = std::process::id();
         let tmp_path = final_path.with_extension(format!("tmp.{pid}.{seq}"));
-        let payload = serde_json::to_vec(&CachedEntry {
-            diagnostics: diagnostics.to_vec(),
-        })
-        .map_err(std::io::Error::other)?;
+        let payload = serde_json::to_vec(artifact).map_err(std::io::Error::other)?;
         fs::write(&tmp_path, payload)?;
         fs::rename(&tmp_path, &final_path)
     }

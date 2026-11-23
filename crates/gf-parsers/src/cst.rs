@@ -1,9 +1,63 @@
-//! Shared safe `Tree-sitter` CST utilities (spans, slices, line metrics, syntax errors).
+//! Shared safe `Tree-sitter` CST utilities (spans, slices, line metrics, callable assembly).
 
-use gf_core::{Span, SyntaxErrorNode};
+use gf_core::{CallableDecl, CallableKind, Span, SyntaxErrorNode};
 use tree_sitter::{Language as TsLanguage, Node, Parser, Tree};
 
 use crate::ParseError;
+use crate::complexity::{ComplexityRules, ComputedMetrics, compute_metrics};
+use crate::fingerprint::fingerprint_body;
+
+/// Inputs needed to assemble a normalized [`CallableDecl`] with complexity and Type-2 hash.
+pub struct CallableSpec<'a> {
+    /// Extracted identifier of the callable.
+    pub name: String,
+    /// Function, method, or closure category.
+    pub kind: CallableKind,
+    /// Full CST node defining the callable's source span.
+    pub decl_node: Node<'a>,
+    /// Optional body CST node analyzed for complexity and Type-2 fingerprinting.
+    pub body_node: Option<Node<'a>>,
+    /// Declared parameter count (excluding `self` / `cls`).
+    pub param_count: u32,
+}
+
+/// Assembles a [`CallableDecl`] with complexity metrics and Type-2 structural hash.
+pub fn assemble_callable(
+    spec: CallableSpec<'_>,
+    source: &str,
+    rules: &ComplexityRules,
+) -> CallableDecl {
+    let span = node_span(spec.decl_node);
+    let (metrics, structural_hash, ast_node_count) = spec.body_node.map_or(
+        (
+            ComputedMetrics {
+                cyclomatic: 1,
+                cognitive: 0,
+                max_nesting: 0,
+            },
+            None,
+            0,
+        ),
+        |body| {
+            let m = compute_metrics(body, source, rules);
+            let (hash, nodes) = fingerprint_body(body, source);
+            (m, hash, nodes)
+        },
+    );
+
+    CallableDecl {
+        name: spec.name,
+        kind: spec.kind,
+        span,
+        effective_lines: span_effective_lines(span, source),
+        param_count: spec.param_count,
+        cyclomatic_complexity: metrics.cyclomatic,
+        cognitive_complexity: metrics.cognitive,
+        max_nesting_depth: metrics.max_nesting,
+        structural_hash,
+        ast_node_count,
+    }
+}
 
 /// Runs a `Tree-sitter` parser configured with `ts_lang` on `source`.
 pub fn parse_with_language(ts_lang: &TsLanguage, source: &str) -> Result<Tree, ParseError> {
@@ -83,8 +137,7 @@ pub fn line_metrics(source: &str) -> (u32, u32) {
     (total, effective)
 }
 
-/// Counts non-blank lines inside the 1-indexed inclusive `span` of `source`.
-pub fn span_effective_lines(span: Span, source: &str) -> u32 {
+fn span_effective_lines(span: Span, source: &str) -> u32 {
     let start_idx = usize::try_from(span.start_line().saturating_sub(1)).unwrap_or(0);
     let count = usize::try_from(span.line_count()).unwrap_or(0);
     let non_blank = source

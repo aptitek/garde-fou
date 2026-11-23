@@ -1,23 +1,25 @@
-//! Imperative shell orchestrating strict `TOML` config, `ignore`/Git discovery,
-//! parallel `rayon` analysis, and `BLAKE3` on-disk caching.
+//! Imperative shell orchestrating strict `TOML` config, context detection,
+//! parallel `rayon` analysis, `.garde-fou-cache/v2/` caching, and global workspace rules.
 
 pub mod cache;
 pub mod config_loader;
+mod config_schema;
+pub mod context_detector;
 pub mod discovery;
+mod runner;
 pub mod scaffold;
 
 use core::fmt;
-use std::fs;
 use std::path::Path;
 
-use gf_core::{Config, Diagnostic, RepoPath, RepoPathError};
-use gf_parsers::{ParseError, parse_source};
-use gf_rules::evaluate_document;
-use rayon::prelude::*;
+use gf_core::{Config, Diagnostic, ProjectContext, RepoPathError};
+use gf_parsers::ParseError;
 
-pub use cache::{CacheKey, DiskCache};
+pub use cache::{CacheKey, CachedFileArtifact, DiskCache};
 pub use config_loader::{LoadedWorkspaceConfig, load_workspace_config};
+pub use context_detector::detect_project_context;
 pub use discovery::discover_files;
+use runner::execute_pipeline;
 pub use scaffold::{DEFAULT_CONFIG_FILENAME, InitOutcome, scaffold_config};
 
 /// Scope of files selected for a check run.
@@ -25,7 +27,7 @@ pub use scaffold::{DEFAULT_CONFIG_FILENAME, InitOutcome, scaffold_config};
 pub enum ScanScope {
     /// Analyze the full repository workspace.
     All,
-    /// Analyze only staged Git changes (`--staged`).
+    /// Analyze staged Git changes while still enforcing workspace-wide rules via `v2` cache.
     StagedOnly,
 }
 
@@ -34,7 +36,7 @@ pub enum ScanScope {
 pub struct CheckOptions {
     /// File selection scope (`All` vs `StagedOnly`).
     pub scope: ScanScope,
-    /// Bypass cached diagnostics and force full `Tree-sitter` re-evaluation.
+    /// Bypass cached artifacts and force full `Tree-sitter` re-evaluation.
     pub no_cache: bool,
 }
 
@@ -43,15 +45,17 @@ pub struct CheckOptions {
 pub struct CheckReport {
     /// Requested scan scope.
     pub scope: ScanScope,
-    /// Total number of source files analyzed during this run.
+    /// Active detected + configured project context (`languages` × `features` × `frameworks`).
+    pub context: ProjectContext,
+    /// Total number of target source files checked in this scope.
     pub files_checked: usize,
-    /// Number of files served directly from the `BLAKE3` disk cache.
+    /// Number of files served directly from `.garde-fou-cache/v2/`.
     pub cache_hits: usize,
-    /// Number of files parsed and evaluated via `Tree-sitter` + `gf-rules`.
+    /// Number of files parsed from source on cache miss.
     pub cache_misses: usize,
     /// Hexadecimal `BLAKE3` fingerprint summarizing the analyzed workspace state.
     pub cache_fingerprint: String,
-    /// Deterministically sorted diagnostics across all checked files.
+    /// Deterministically sorted local and workspace-global diagnostics.
     pub diagnostics: Vec<Diagnostic>,
 }
 
@@ -110,99 +114,7 @@ impl From<ParseError> for EngineError {
     }
 }
 
-struct FileOutcome {
-    file_key: CacheKey,
-    was_hit: bool,
-    diagnostics: Vec<Diagnostic>,
-}
-
-fn analyze_one_file(
-    root: &Path,
-    repo_path: &RepoPath,
-    ctx: (&Config, CacheKey, Option<&DiskCache>, bool),
-) -> Result<FileOutcome, EngineError> {
-    let (config, config_hash, disk_cache, no_cache) = ctx;
-    let source = fs::read_to_string(root.join(repo_path.as_str()))?;
-    let content_hash = CacheKey::from_bytes(source.as_bytes());
-    let file_key = CacheKey::for_file(
-        env!("CARGO_PKG_VERSION"),
-        config_hash,
-        repo_path,
-        content_hash,
-    );
-
-    if !no_cache
-        && let Some(cache) = disk_cache
-        && let Some(cached) = cache.get(file_key)
-    {
-        return Ok(FileOutcome {
-            file_key,
-            was_hit: true,
-            diagnostics: cached,
-        });
-    }
-
-    let uast = parse_source(repo_path, &source)?;
-    let diagnostics = evaluate_document(&uast, config);
-    if let Some(cache) = disk_cache {
-        let _ = cache.put(file_key, &diagnostics);
-    }
-
-    Ok(FileOutcome {
-        file_key,
-        was_hit: false,
-        diagnostics,
-    })
-}
-
-fn execute_pipeline(
-    root: &Path,
-    options: CheckOptions,
-    config: &Config,
-    disk_cache: Option<&DiskCache>,
-) -> Result<CheckReport, EngineError> {
-    let files = discover_files(root, options.scope, config)?;
-    let config_hash = CacheKey::from_bytes(config.canonical_string().as_bytes());
-
-    let outcomes: Vec<FileOutcome> = files
-        .par_iter()
-        .map(|repo_path| {
-            analyze_one_file(
-                root,
-                repo_path,
-                (config, config_hash, disk_cache, options.no_cache),
-            )
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-
-    let mut fp_hasher = blake3::Hasher::new();
-    fp_hasher.update(config.canonical_string().as_bytes());
-    let mut cache_hits = 0_usize;
-    let mut cache_misses = 0_usize;
-    let mut diagnostics = Vec::new();
-
-    for outcome in outcomes {
-        fp_hasher.update(outcome.file_key.to_hex().as_bytes());
-        if outcome.was_hit {
-            cache_hits = cache_hits.saturating_add(1);
-        } else {
-            cache_misses = cache_misses.saturating_add(1);
-        }
-        diagnostics.extend(outcome.diagnostics);
-    }
-    diagnostics.sort();
-
-    Ok(CheckReport {
-        scope: options.scope,
-        files_checked: files.len(),
-        cache_hits,
-        cache_misses,
-        cache_fingerprint: fp_hasher.finalize().to_hex().to_string(),
-        diagnostics,
-    })
-}
-
-/// Loads `garde-fou.toml` from `root` and executes parallel analysis with optional `BLAKE3` caching.
+/// Loads `garde-fou.toml` from `root` and executes parallel + workspace-global analysis.
 ///
 /// # Errors
 ///

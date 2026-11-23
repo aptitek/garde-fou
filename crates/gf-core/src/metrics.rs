@@ -1,12 +1,13 @@
-//! Normalized structural and complexity metadata extracted from `Tree-sitter` CSTs.
+//! Normalized structural, complexity, and AST fingerprint metadata.
 
 use alloc::string::String;
 use alloc::vec::Vec;
+use serde::{Deserialize, Serialize};
 
 use crate::diagnostic::Span;
 
-/// Concrete syntax error or missing token reported by `Tree-sitter`.
-#[derive(Clone, Debug, Eq, PartialEq)]
+/// Concrete syntax error or missing token reported by a parser.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct SyntaxErrorNode {
     /// Short description of the malformed or missing syntax construct.
     pub message: String,
@@ -15,7 +16,7 @@ pub struct SyntaxErrorNode {
 }
 
 /// Normalized module import declaration (`use`, `import`, `from ... import`).
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct ImportDecl {
     /// Imported module path or specifier.
     pub module_source: String,
@@ -26,7 +27,7 @@ pub struct ImportDecl {
 }
 
 /// Normalized public symbol export declaration (`pub`, `export`, Python public symbol).
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct ExportDecl {
     /// Exported symbol identifier.
     pub symbol: String,
@@ -35,7 +36,7 @@ pub struct ExportDecl {
 }
 
 /// Kind of composite type or implementation block.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub enum TypeKind {
     /// Rust `struct`.
     Struct,
@@ -50,7 +51,7 @@ pub enum TypeKind {
 }
 
 /// Normalized composite type or `impl` declaration with SRP metrics.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct TypeDecl {
     /// Identifier of the type or `impl` target.
     pub name: String,
@@ -65,7 +66,7 @@ pub struct TypeDecl {
 }
 
 /// Kind of executable callable unit.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub enum CallableKind {
     /// Standalone function.
     Function,
@@ -75,8 +76,8 @@ pub enum CallableKind {
     Closure,
 }
 
-/// Normalized function, method, or named closure with complexity metrics.
-#[derive(Clone, Debug, Eq, PartialEq)]
+/// Normalized function, method, or named closure with complexity and clone-detection metrics.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct CallableDecl {
     /// Identifier of the callable.
     pub name: String,
@@ -94,4 +95,8 @@ pub struct CallableDecl {
     pub cognitive_complexity: u32,
     /// Deepest control-flow nesting level reached inside the callable body.
     pub max_nesting_depth: u32,
+    /// Type-2 normalized `BLAKE3` 128-bit structural AST hash (`$ID` / `$LIT` normalized).
+    pub structural_hash: Option<u128>,
+    /// Total number of non-comment AST nodes inside the callable body.
+    pub ast_node_count: u32,
 }
