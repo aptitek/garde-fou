@@ -4,13 +4,13 @@ use std::fs;
 use std::path::Path;
 
 use gf_core::{
-    Config, CoverageConfig, FeatureId, FrameworkId, LanguageId, LimitsConfig, ProjectConfig,
-    ScannerPolicy, ScannersConfig,
+    Config, CoverageConfig, DomainLayoutConfig, FeatureId, FrameworkId, LanguageId, LimitsConfig,
+    ProjectConfig, ScannerPolicy, ScannersConfig,
 };
 
 use crate::config_schema::{
-    CoverageSection, LimitsSection, ProjectSection, RawManifest, RulesSection, ScannersSection,
-    default_cache_dir,
+    CoverageSection, DomainsSection, LimitsSection, ProjectSection, RawManifest, RulesSection,
+    ScannersSection, default_cache_dir,
 };
 use crate::{DEFAULT_CONFIG_FILENAME, EngineError};
 
@@ -110,6 +110,23 @@ fn merge_limits(raw: Option<LimitsSection>) -> LimitsConfig {
     }
 }
 
+fn merge_domains(raw: Option<DomainsSection>) -> DomainLayoutConfig {
+    let base = DomainLayoutConfig::strict_defaults();
+    let Some(d) = raw else {
+        return base;
+    };
+    DomainLayoutConfig {
+        code_globs: d.code_globs.unwrap_or(base.code_globs),
+        scripts_globs: d.scripts_globs.unwrap_or(base.scripts_globs),
+        forme_globs: d.forme_globs.unwrap_or(base.forme_globs),
+        forme_token_globs: d.forme_token_globs.unwrap_or(base.forme_token_globs),
+        texte_globs: d.texte_globs.unwrap_or(base.texte_globs),
+        contenus_globs: d.contenus_globs.unwrap_or(base.contenus_globs),
+        asset_globs: d.asset_globs.unwrap_or(base.asset_globs),
+        max_asset_bytes: d.max_asset_bytes.unwrap_or(base.max_asset_bytes),
+    }
+}
+
 fn forbid_constructs_enabled(rules: Option<RulesSection>) -> bool {
     rules.is_none_or(|r| {
         r.forbid_unsafe
@@ -148,6 +165,7 @@ pub fn load_workspace_config(root: &Path) -> Result<LoadedWorkspaceConfig, Engin
     }
     let project = parse_project_section(raw.project.take())?;
     let limits = merge_limits(raw.limits.take());
+    let domains = merge_domains(raw.domains.take());
     let scanners = parse_scanners_section(raw.scanners.take())?;
     let coverage = parse_coverage_section(raw.coverage.take())?;
     let forbid_panicking_constructs = forbid_constructs_enabled(raw.rules.take());
@@ -157,6 +175,7 @@ pub fn load_workspace_config(root: &Path) -> Result<LoadedWorkspaceConfig, Engin
         analyzer: Config {
             project,
             limits,
+            domains,
             scanners,
             coverage,
             forbid_panicking_constructs,

@@ -1,5 +1,6 @@
 //! Non-destructive `uv init`-style project bootstrapper (`garde-fou init`).
 
+mod templates_domains;
 mod templates_infra;
 mod templates_python;
 mod templates_rust;
@@ -15,9 +16,7 @@ use gf_core::{
     compose_gitignore, merge_managed_block,
 };
 
-use crate::{
-    DEFAULT_CONFIG_FILENAME, EngineError, ScanScope, detect_project_context, discover_files,
-};
+use crate::{EngineError, ScanScope, detect_project_context, discover_files};
 
 /// Declarative parameters for [`run_init`].
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -137,7 +136,6 @@ fn upsert_managed_file(
         .then(|| fs::read_to_string(&target))
         .transpose()?;
     let merged = merge_managed_block(existing.as_deref(), managed);
-
     match existing {
         None => {
             fs::write(&target, merged)?;
@@ -147,9 +145,7 @@ fn upsert_managed_file(
             fs::write(&target, merged)?;
             report.updated_files.push(String::from(rel));
         }
-        Some(_) => {
-            report.preserved_files.push(String::from(rel));
-        }
+        Some(_) => report.preserved_files.push(String::from(rel)),
     }
     Ok(())
 }
@@ -172,42 +168,6 @@ fn write_missing_files(
         report.created_files.push(rel);
     }
     Ok(())
-}
-
-fn collect_candidate_files(
-    project_name: &str,
-    pkg_snake: &str,
-    context: &ProjectContext,
-) -> Vec<(String, String)> {
-    let mut files = vec![
-        (
-            String::from(".gitattributes"),
-            String::from(templates_infra::GITATTRIBUTES_TEMPLATE),
-        ),
-        (
-            String::from(DEFAULT_CONFIG_FILENAME),
-            templates_infra::render_garde_fou_toml(project_name, context),
-        ),
-        (
-            String::from("AGENTS.md"),
-            templates_infra::render_agents_md(project_name),
-        ),
-    ];
-    if context.languages.contains(&LanguageId::Rust) {
-        files.extend(templates_rust::rust_files(project_name, pkg_snake));
-    }
-    if context.languages.contains(&LanguageId::TypeScript) {
-        files.extend(templates_web::web_files(project_name, context));
-    }
-    if context.languages.contains(&LanguageId::Python) {
-        files.extend(templates_python::python_files(
-            project_name,
-            pkg_snake,
-            context,
-        ));
-    }
-    files.extend(templates_infra::infra_feature_files(project_name, context));
-    files
 }
 
 /// Bootstraps or non-destructively adopts a project workspace in `req.root`.
@@ -242,7 +202,7 @@ pub fn run_init(req: &InitRequest) -> Result<InitReport, EngineError> {
         upsert_managed_file(&req.root, ".dockerignore", &di, &mut report)?;
     }
 
-    let candidates = collect_candidate_files(&project_name, &pkg_snake, &context);
+    let candidates = templates_domains::collect_all_init_files(&project_name, &pkg_snake, &context);
     write_missing_files(&req.root, candidates, &mut report)?;
     Ok(report)
 }

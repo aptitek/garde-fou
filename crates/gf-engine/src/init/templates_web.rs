@@ -1,6 +1,7 @@
-//! Strict TypeScript / Web (`React`, `Astro`, `Next.js`) scaffolding templates.
+//! Strict TypeScript / Web (`React`, `Astro`, `Next.js`) scaffolding templates,
+//! wired cleanly to `Forme`, `Texte` (`t(...)`), and `Asset` when 6-domain features are active.
 
-use gf_core::{FrameworkId, ProjectContext};
+use gf_core::{FeatureId, FrameworkId, ProjectContext};
 
 fn dependencies_block(ctx: &ProjectContext) -> String {
     let mut deps = Vec::new();
@@ -63,25 +64,88 @@ fn tsconfig_json(uses_jsx: bool) -> String {
     )
 }
 
+fn render_ui_component(
+    import_prefix: &str,
+    project_kebab: &str,
+    has_i18n: bool,
+    has_logo: bool,
+) -> String {
+    if has_i18n {
+        let logo_jsx = if has_logo {
+            "\n      <img src=\"/assets/logo.svg\" alt={t(\"app.logo_alt\")} />"
+        } else {
+            ""
+        };
+        return format!(
+            "import {{ formatTitle, t }} from \"{import_prefix}\";\n\
+             \n\
+             export function HomePage() {{\n\
+             \x20 return (\n\
+             \x20   <main className=\"app-shell\">{logo_jsx}\n\
+             \x20     <h1>{{formatTitle(t(\"app.title\"))}}</h1>\n\
+             \x20     <button type=\"button\">{{t(\"app.cta\")}}</button>\n\
+             \x20   </main>\n\
+             \x20 );\n\
+             }}\n"
+        );
+    }
+    let logo_jsx = if has_logo {
+        "\n      <img src=\"/assets/logo.svg\" alt=\"Emblem\" />"
+    } else {
+        ""
+    };
+    format!(
+        "import {{ formatTitle }} from \"{import_prefix}\";\n\
+         \n\
+         export function HomePage() {{\n\
+         \x20 return (\n\
+         \x20   <main className=\"app-shell\">{logo_jsx}\n\
+         \x20     <h1>{{formatTitle(\"{project_kebab}\")}}</h1>\n\
+         \x20   </main>\n\
+         \x20 );\n\
+         }}\n"
+    )
+}
+
+fn render_index_and_test_ts(has_i18n: bool) -> (String, String) {
+    let i18n_fn = if has_i18n {
+        "\nexport function t(key: string): string {\n  return key;\n}\n"
+    } else {
+        ""
+    };
+    let index_ts = format!(
+        "export function formatTitle(raw: string): string {{\n\
+         \x20 const trimmed = raw.trim();\n\
+         \x20 return trimmed.length > 0 ? trimmed : \"Garde-fou App\";\n\
+         }}\n{i18n_fn}"
+    );
+    let i18n_test_import = if has_i18n { ", t" } else { "" };
+    let i18n_test_call = if has_i18n {
+        " && t(\"app.title\").length > 0 && t(\"app.cta\").length > 0 && t(\"app.logo_alt\").length > 0"
+    } else {
+        ""
+    };
+    let test_ts = format!(
+        "import {{ formatTitle{i18n_test_import} }} from \"../src/index\";\n\
+         \n\
+         export function verifyFormatTitle(): boolean {{\n\
+         \x20 return formatTitle(\"   Astro \") === \"Astro\"{i18n_test_call};\n\
+         }}\n"
+    );
+    (index_ts, test_ts)
+}
+
 /// Generates non-destructive TypeScript starter files `(relative_path, contents)`.
 pub fn web_files(project_kebab: &str, ctx: &ProjectContext) -> Vec<(String, String)> {
     let has_page_router = ctx.frameworks.contains(&FrameworkId::Astro)
         || ctx.frameworks.contains(&FrameworkId::NextJs);
-    let uses_jsx = has_page_router || ctx.frameworks.contains(&FrameworkId::React);
-
-    let index_ts = String::from(
-        "export function formatTitle(raw: string): string {\n\
-         \x20 const trimmed = raw.trim();\n\
-         \x20 return trimmed.length > 0 ? trimmed : \"Garde-fou App\";\n\
-         }\n",
-    );
-    let test_ts = String::from(
-        "import { formatTitle } from \"../src/index\";\n\
-         \n\
-         export function verifyFormatTitle(): boolean {\n\
-         \x20 return formatTitle(\"   Astro \") === \"Astro\" && formatTitle(\"\") === \"Garde-fou App\";\n\
-         }\n",
-    );
+    let has_react = ctx.frameworks.contains(&FrameworkId::React);
+    let has_i18n = ctx.features.contains(&FeatureId::I18n);
+    let has_logo =
+        ctx.features.contains(&FeatureId::Ui) || ctx.features.contains(&FeatureId::Content);
+    let uses_jsx =
+        has_page_router || has_react || has_i18n || ctx.features.contains(&FeatureId::Ui);
+    let (index_ts, test_ts) = render_index_and_test_ts(has_i18n);
 
     let mut files = vec![
         (
@@ -94,14 +158,15 @@ pub fn web_files(project_kebab: &str, ctx: &ProjectContext) -> Vec<(String, Stri
     ];
 
     if has_page_router {
-        let page_tsx = format!(
-            "import {{ formatTitle }} from \"../index\";\n\
-             \n\
-             export function HomePage() {{\n\
-             \x20 return <main><h1>{{formatTitle(\"{project_kebab}\")}}</h1></main>;\n\
-             }}\n"
-        );
-        files.push((String::from("src/pages/index.tsx"), page_tsx));
+        files.push((
+            String::from("src/pages/index.tsx"),
+            render_ui_component("../index", project_kebab, has_i18n, has_logo),
+        ));
+    } else if uses_jsx {
+        files.push((
+            String::from("src/App.tsx"),
+            render_ui_component("./index", project_kebab, has_i18n, has_logo),
+        ));
     }
     files
 }

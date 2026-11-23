@@ -1,8 +1,8 @@
 //! Pure `#![no_std]` functional core types for **Garde-fou**.
 //!
 //! This crate defines algebraic domain types (`Span`, `RepoPath`, `UastDocument`,
-//! `ProjectContext`, `DockerDocument`, `LcovSummary`, `Diagnostic`, `Config`, and
-//! `Validation`) with zero I/O or `std` dependencies.
+//! `ProjectContext`, `DomainKind`, `DockerDocument`, `LcovSummary`, `Diagnostic`,
+//! `Config`, and `Validation`) with zero I/O or `std` dependencies.
 
 #![no_std]
 
@@ -15,11 +15,14 @@ pub mod config;
 pub mod context;
 pub mod diagnostic;
 pub mod docker;
+pub mod domain_summaries;
+pub mod domains;
 pub mod gitignore;
 pub mod glob;
 pub mod lcov;
 pub mod metrics;
 pub mod path;
+pub mod policies;
 pub mod uast;
 pub mod validation;
 
@@ -29,6 +32,15 @@ pub use config::{
 pub use context::{FeatureId, FrameworkId, LanguageId, ProjectContext};
 pub use diagnostic::{Diagnostic, Severity, Span, SpanError};
 pub use docker::{DockerDocument, DockerInstruction, DockerInstructionKind, FromStage};
+pub use domain_summaries::{
+    AssetDocument, AssetHazard, AssetHazardKind, ContenusDocument, ContenusIssue,
+    ContenusIssueKind, FormeDocument, FormeFinding, FormeFindingKind, StyleLeakFinding,
+    StyleLeakKind, TexteDocument, TexteIssue, UiCheckFinding, UiCheckKind,
+};
+pub use domains::{
+    DEFAULT_MAX_ASSET_BYTES, DomainKind, DomainLayoutConfig, classify_path, is_asset_extension,
+    is_binary_asset_extension, is_forme_token_path, is_root_governance_doc,
+};
 pub use gitignore::{
     MANAGED_END, MANAGED_START, compose_dockerignore, compose_gitignore, merge_managed_block,
 };

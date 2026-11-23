@@ -1,4 +1,4 @@
-//! Unified Abstract Syntax Tree (`UAST`) hub representations.
+//! Unified Abstract Syntax Tree (`UAST`) hub representations (`v3` 6-domain schema).
 
 use alloc::collections::BTreeSet;
 use alloc::string::String;
@@ -7,12 +7,15 @@ use serde::{Deserialize, Serialize};
 
 use crate::diagnostic::{Span, SpanError};
 use crate::docker::DockerDocument;
+use crate::domain_summaries::{
+    AssetDocument, ContenusDocument, FormeDocument, StyleLeakFinding, TexteDocument, UiCheckFinding,
+};
 use crate::metrics::{
     CallableDecl, ExportDecl, ImportDecl, SecretFinding, SyntaxErrorNode, TypeDecl,
 };
 use crate::path::RepoPath;
 
-/// Source language or configuration dialect mapped into the `UAST`.
+/// Source language, stylesheet, content, or asset format mapped into the `UAST`.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub enum Language {
     /// Rust source file (`.rs`).
@@ -31,14 +34,26 @@ pub enum Language {
     Go,
     /// Container build recipe (`Dockerfile`, `Containerfile`).
     Dockerfile,
-    /// TOML configuration file (`.toml`).
+    /// Stylesheet in `Forme` (`.css`, `.scss`).
+    Css,
+    /// Editorial or governance Markdown/MDX (`.md`, `.mdx`).
+    Markdown,
+    /// JSON document or `i18n` dictionary (`.json`).
+    Json,
+    /// TOML configuration or `i18n` dictionary (`.toml`).
     Toml,
+    /// Shell / PowerShell automation script (`.sh`, `.bash`, `.ps1`).
+    Shell,
+    /// Scalable Vector Graphics XML asset (`.svg`).
+    Svg,
+    /// Non-text binary media or font asset (`.png`, `.woff2`, `.pdf`, etc.).
+    BinaryAsset,
     /// Unclassified text or source file.
     Unknown,
 }
 
 impl Language {
-    /// Returns `true` if `gf-parsers` provides a dedicated structural extractor.
+    /// Returns `true` if `gf-parsers` provides a programming-language / Dockerfile AST extractor.
     #[must_use]
     pub const fn is_code_analyzed(self) -> bool {
         matches!(
@@ -51,6 +66,17 @@ impl Language {
                 | Self::Jsx
                 | Self::Dockerfile
         )
+    }
+
+    /// Returns `true` for all file formats analyzed directly across the 6 domains
+    /// (excluding generic `Json`/`Toml`, which are included selectively inside `Texte`).
+    #[must_use]
+    pub const fn is_always_discovered(self) -> bool {
+        self.is_code_analyzed()
+            || matches!(
+                self,
+                Self::Css | Self::Markdown | Self::Shell | Self::Svg | Self::BinaryAsset
+            )
     }
 }
 
@@ -98,13 +124,13 @@ impl UastNode {
     }
 }
 
-/// Normalized `UAST` document produced by `gf-parsers`, cached in `.garde-fou-cache/v2/`,
+/// Normalized `UAST` document produced by `gf-parsers`, cached in `.garde-fou-cache/v3/`,
 /// and analyzed locally and globally by `gf-rules`.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct UastDocument {
     /// Repository-relative file path.
     pub path: RepoPath,
-    /// Detected language of the file.
+    /// Detected language or domain format of the file.
     pub language: Language,
     /// Total number of lines in the raw source text.
     pub total_lines: u32,
@@ -124,8 +150,26 @@ pub struct UastDocument {
     pub secret_findings: Vec<SecretFinding>,
     /// Deterministic set of symbol identifiers referenced inside this file.
     pub referenced_symbols: BTreeSet<String>,
-    /// Optional structured `Dockerfile` representation when `language == Language::Dockerfile`.
+    /// Style or inline-asset leaks detected in `Code` (`GF060`, `GF064`).
+    pub style_leaks: Vec<StyleLeakFinding>,
+    /// UI `i18n` (`GF062`) and static `a11y` (`GF066`) findings in JSX/TSX.
+    pub ui_checks: Vec<UiCheckFinding>,
+    /// Translation keys passed to `t("...")` / `i18n.t("...")` (`GF062`).
+    pub translation_keys_used: BTreeSet<String>,
+    /// Local asset paths referenced in `Code`, `Forme`, or `Contenus` (`GF064`).
+    pub asset_refs: BTreeSet<String>,
+    /// Script paths or filenames mentioned in string literals (`GF065` test coverage).
+    pub script_refs: BTreeSet<String>,
+    /// Optional structured `Dockerfile` representation.
     pub docker: Option<DockerDocument>,
+    /// Optional `Forme` stylesheet summary (`GF061`).
+    pub forme: Option<FormeDocument>,
+    /// Optional `Texte` (`i18n`) dictionary summary (`GF062`).
+    pub texte: Option<TexteDocument>,
+    /// Optional `Contenus` Markdown/MDX summary (`GF063`).
+    pub contenus: Option<ContenusDocument>,
+    /// Optional `Asset` metadata & SVG security summary (`GF064`).
+    pub asset: Option<AssetDocument>,
     /// Root `UAST` node (typically [`UastKind::File`]).
     pub root: UastNode,
 }
@@ -155,7 +199,16 @@ impl UastDocument {
             callables: Vec::new(),
             secret_findings: Vec::new(),
             referenced_symbols: BTreeSet::new(),
+            style_leaks: Vec::new(),
+            ui_checks: Vec::new(),
+            translation_keys_used: BTreeSet::new(),
+            asset_refs: BTreeSet::new(),
+            script_refs: BTreeSet::new(),
             docker: None,
+            forme: None,
+            texte: None,
+            contenus: None,
+            asset: None,
             root: UastNode::leaf(UastKind::File, root_span),
         })
     }
@@ -173,9 +226,9 @@ mod tests {
     -> Result<(), Box<dyn core::error::Error>> {
         let doc = UastDocument::new(RepoPath::new("src/lib.rs")?, Language::Rust, 42, 35)?;
         assert!(doc.language.is_code_analyzed());
-        assert!(Language::Dockerfile.is_code_analyzed());
-        assert!(Language::Python.is_code_analyzed());
-        assert!(!Language::Toml.is_code_analyzed());
+        assert!(Language::Css.is_always_discovered());
+        assert!(Language::Markdown.is_always_discovered());
+        assert!(!Language::Toml.is_always_discovered());
         assert_eq!(doc.total_lines, 42);
         Ok(())
     }

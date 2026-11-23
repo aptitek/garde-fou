@@ -1,12 +1,13 @@
-//! Parallel `rayon` file analysis, external `SARIF` / `LCOV` gates, and workspace aggregation.
+//! Parallel `rayon` file analysis, binary-asset shortcut, external `SARIF` / `LCOV` gates,
+//! and workspace diagnostic aggregation.
 
 use std::borrow::Cow;
 use std::collections::BTreeSet;
 use std::fs;
 use std::path::Path;
 
-use gf_core::{Config, Diagnostic, ProjectContext, RepoPath, UastDocument};
-use gf_parsers::parse_source;
+use gf_core::{Config, Diagnostic, Language, ProjectContext, RepoPath, UastDocument};
+use gf_parsers::{build_binary_asset_document, detect_language, parse_source_with_domains};
 use gf_rules::{evaluate_document, evaluate_workspace_sorted};
 use rayon::prelude::*;
 
@@ -22,11 +23,55 @@ struct FileOutcome {
     artifact: CachedFileArtifact,
 }
 
+fn load_binary_asset_outcome(
+    root: &Path,
+    repo_path: &RepoPath,
+    ctx: (&Config, CacheKey, Option<&DiskCache>, bool),
+) -> Result<FileOutcome, EngineError> {
+    let (config, config_hash, disk_cache, bypass_read) = ctx;
+    let meta = fs::metadata(root.join(repo_path.as_str()))?;
+    let byte_size = meta.len();
+    let content_hash = CacheKey::from_bytes(&byte_size.to_le_bytes());
+    let file_key = CacheKey::for_file(
+        env!("CARGO_PKG_VERSION"),
+        config_hash,
+        repo_path,
+        content_hash,
+    );
+    if !bypass_read
+        && let Some(cache) = disk_cache
+        && let Some(artifact) = cache.get(file_key)
+    {
+        return Ok(FileOutcome {
+            file_key,
+            was_hit: true,
+            artifact,
+        });
+    }
+    let document = build_binary_asset_document(repo_path, byte_size)?;
+    let local_diagnostics = evaluate_document(&document, config);
+    let artifact = CachedFileArtifact {
+        document,
+        local_diagnostics,
+    };
+    if let Some(cache) = disk_cache {
+        let _ = cache.put(file_key, &artifact);
+    }
+    Ok(FileOutcome {
+        file_key,
+        was_hit: false,
+        artifact,
+    })
+}
+
 fn load_or_analyze_file(
     root: &Path,
     repo_path: &RepoPath,
     ctx: (&Config, CacheKey, Option<&DiskCache>, bool),
 ) -> Result<FileOutcome, EngineError> {
+    if detect_language(repo_path) == Language::BinaryAsset {
+        return load_binary_asset_outcome(root, repo_path, ctx);
+    }
     let (config, config_hash, disk_cache, bypass_read) = ctx;
     let raw_source = fs::read_to_string(root.join(repo_path.as_str()))?;
     let source: Cow<'_, str> = if raw_source.contains('\r') {
@@ -53,7 +98,7 @@ fn load_or_analyze_file(
         });
     }
 
-    let document = parse_source(repo_path, &source)?;
+    let document = parse_source_with_domains(repo_path, &source, &config.domains)?;
     let local_diagnostics = evaluate_document(&document, config);
     let artifact = CachedFileArtifact {
         document,
@@ -70,7 +115,7 @@ fn load_or_analyze_file(
     })
 }
 
-/// Executes file discovery, parallel `v2` cache/parse pass, workspace rules, and external gates.
+/// Executes file discovery, parallel `v3` cache/parse pass, workspace rules, and external gates.
 pub fn execute_pipeline(
     root: &Path,
     options: &CheckOptions,

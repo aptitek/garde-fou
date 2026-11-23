@@ -3,7 +3,7 @@
 use std::path::Path;
 use std::process::Command;
 
-use gf_core::{Config, RepoPath};
+use gf_core::{Config, DomainKind, Language, RepoPath, classify_path};
 use gf_parsers::detect_language;
 use globset::{Glob, GlobSet, GlobSetBuilder};
 use ignore::WalkBuilder;
@@ -31,7 +31,18 @@ fn should_descend(entry_path: &Path, root: &Path) -> bool {
     })
 }
 
-fn discover_all(root: &Path, ignore_set: &GlobSet) -> Result<Vec<RepoPath>, EngineError> {
+fn is_discovered_target(repo_path: &RepoPath, config: &Config) -> bool {
+    let lang = detect_language(repo_path);
+    lang.is_always_discovered()
+        || (matches!(lang, Language::Json | Language::Toml)
+            && classify_path(repo_path, &config.domains) == DomainKind::Texte)
+}
+
+fn discover_all(
+    root: &Path,
+    config: &Config,
+    ignore_set: &GlobSet,
+) -> Result<Vec<RepoPath>, EngineError> {
     let root_owned = root.to_path_buf();
     let walker = WalkBuilder::new(root)
         .hidden(false)
@@ -54,9 +65,7 @@ fn discover_all(root: &Path, ignore_set: &GlobSet) -> Result<Vec<RepoPath>, Engi
             continue;
         };
         let repo_path = RepoPath::new(rel_str)?;
-        if detect_language(&repo_path).is_code_analyzed()
-            && !ignore_set.is_match(repo_path.as_str())
-        {
+        if is_discovered_target(&repo_path, config) && !ignore_set.is_match(repo_path.as_str()) {
             paths.push(repo_path);
         }
     }
@@ -64,7 +73,11 @@ fn discover_all(root: &Path, ignore_set: &GlobSet) -> Result<Vec<RepoPath>, Engi
     Ok(paths)
 }
 
-fn discover_staged(root: &Path, ignore_set: &GlobSet) -> Result<Vec<RepoPath>, EngineError> {
+fn discover_staged(
+    root: &Path,
+    config: &Config,
+    ignore_set: &GlobSet,
+) -> Result<Vec<RepoPath>, EngineError> {
     let output = Command::new("git")
         .args(["diff", "--cached", "--name-only", "--diff-filter=ACMR"])
         .current_dir(root)
@@ -81,9 +94,7 @@ fn discover_staged(root: &Path, ignore_set: &GlobSet) -> Result<Vec<RepoPath>, E
         if !root.join(repo_path.as_str()).is_file() {
             continue;
         }
-        if detect_language(&repo_path).is_code_analyzed()
-            && !ignore_set.is_match(repo_path.as_str())
-        {
+        if is_discovered_target(&repo_path, config) && !ignore_set.is_match(repo_path.as_str()) {
             paths.push(repo_path);
         }
     }
@@ -103,7 +114,7 @@ pub fn discover_files(
 ) -> Result<Vec<RepoPath>, EngineError> {
     let ignore_set = compile_ignore_globs(&config.ignore_paths)?;
     match scope {
-        ScanScope::All => discover_all(root, &ignore_set),
-        ScanScope::StagedOnly => discover_staged(root, &ignore_set),
+        ScanScope::All => discover_all(root, config, &ignore_set),
+        ScanScope::StagedOnly => discover_staged(root, config, &ignore_set),
     }
 }

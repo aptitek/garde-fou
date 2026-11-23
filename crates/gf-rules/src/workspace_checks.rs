@@ -6,8 +6,8 @@ use alloc::string::String;
 use alloc::vec::Vec;
 
 use gf_core::{
-    Config, Diagnostic, Language, ProjectContext, RepoPath, Severity, Span, UastDocument,
-    Validation, glob_matches,
+    Config, Diagnostic, DomainKind, Language, ProjectContext, RepoPath, Severity, Span,
+    UastDocument, Validation, classify_path, glob_matches,
 };
 
 const UNIVERSAL_ENTRYPOINT_GLOBS: &[&str] = &[
@@ -136,7 +136,11 @@ pub fn check_dead_exports(
     let mut diags = Vec::new();
 
     for doc in docs {
-        if doc.language == Language::Dockerfile || is_entrypoint_file(&doc.path, ctx, config) {
+        let domain = classify_path(&doc.path, &config.domains);
+        if domain != DomainKind::Code
+            || doc.language == Language::Dockerfile
+            || is_entrypoint_file(&doc.path, ctx, config)
+        {
             continue;
         }
         for export in &doc.exports {

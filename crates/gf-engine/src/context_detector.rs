@@ -4,7 +4,10 @@ use std::collections::BTreeSet;
 use std::fs;
 use std::path::Path;
 
-use gf_core::{Config, FeatureId, FrameworkId, Language, LanguageId, ProjectContext, RepoPath};
+use gf_core::{
+    Config, DomainKind, FeatureId, FrameworkId, Language, LanguageId, ProjectContext, RepoPath,
+    classify_path,
+};
 use gf_parsers::detect_language;
 
 const DOCKER_ROOT_MARKERS: &[&str] = &[
@@ -130,6 +133,42 @@ fn read_dockerignore(root: &Path) -> Option<BTreeSet<String>> {
     Some(entries)
 }
 
+const DOMAIN_DIR_FEATURES: &[(&str, FeatureId)] = &[
+    ("styles", FeatureId::Ui),
+    ("tokens", FeatureId::Ui),
+    ("locales", FeatureId::I18n),
+    ("i18n", FeatureId::I18n),
+    ("content", FeatureId::Content),
+    ("courses", FeatureId::Content),
+];
+
+const fn feature_for_domain(domain: DomainKind) -> Option<FeatureId> {
+    match domain {
+        DomainKind::Forme => Some(FeatureId::Ui),
+        DomainKind::Texte => Some(FeatureId::I18n),
+        DomainKind::Contenus => Some(FeatureId::Content),
+        _ => None,
+    }
+}
+
+fn detect_domain_features_into(
+    root: &Path,
+    files: &[RepoPath],
+    config: &Config,
+    out: &mut BTreeSet<FeatureId>,
+) {
+    for path in files {
+        if let Some(feat) = feature_for_domain(classify_path(path, &config.domains)) {
+            out.insert(feat);
+        }
+    }
+    for &(dir_name, feat) in DOMAIN_DIR_FEATURES {
+        if root.join(dir_name).is_dir() {
+            out.insert(feat);
+        }
+    }
+}
+
 /// Resolves the active [`ProjectContext`] by merging automatic workspace detection
 /// with any explicit `[project]` configuration in `garde-fou.toml`.
 #[must_use]
@@ -144,6 +183,7 @@ pub fn detect_project_context(
 
     detect_languages_into(root, discovered_files, &mut languages);
     detect_features_into(root, discovered_files, &mut features);
+    detect_domain_features_into(root, discovered_files, config, &mut features);
     detect_frameworks_into(root, &mut frameworks);
 
     ProjectContext {

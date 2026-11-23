@@ -65,13 +65,13 @@ pub struct InitArgs {
     #[arg(long, value_name = "NAME")]
     pub name: Option<String>,
     /// Project language(s) (`rust`, `typescript`, `python`).
-    #[arg(long = "lang", value_name = "LANG")]
+    #[arg(long = "lang", value_name = "LANG", value_delimiter = ',')]
     pub langs: Vec<String>,
-    /// Infrastructure feature(s) (`docker`, `git-hooks`, `ci-github`, `task-runner`).
-    #[arg(long = "feature", value_name = "FEAT")]
+    /// Infrastructure & 6-domain feature(s) (`docker`, `git-hooks`, `ci-github`, `task-runner`, `ui`, `i18n`, `content`).
+    #[arg(long = "feature", value_name = "FEAT", value_delimiter = ',')]
     pub features: Vec<String>,
     /// Framework(s) (`cargo-workspace`, `react`, `astro`, `nextjs`, `fastapi`, `django`).
-    #[arg(long = "framework", value_name = "FW")]
+    #[arg(long = "framework", value_name = "FW", value_delimiter = ',')]
     pub frameworks: Vec<String>,
     /// Skip running `git init -b main`.
     #[arg(long)]

@@ -1,7 +1,14 @@
-//! Language-specific `Tree-sitter` and pure-Rust extractors.
+//! Language-specific `Tree-sitter` and pure-Rust multi-domain extractors.
 
+pub mod asset;
+pub mod css;
 pub mod dockerfile;
 mod dockerfile_instr;
+pub mod i18n_dict;
+pub mod markdown;
+mod markdown_scan;
 pub mod python;
 pub mod rust;
 pub mod typescript;
+mod typescript_jsx;
+mod typescript_ui;

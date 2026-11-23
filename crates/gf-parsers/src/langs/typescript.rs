@@ -12,6 +12,9 @@ use crate::cst::{
     line_metrics, node_span, node_text, parse_with_language,
 };
 use crate::fingerprint::collect_referenced_symbols;
+use crate::langs::{
+    typescript_jsx::extract_jsx_ui_and_a11y, typescript_ui::extract_ts_style_and_i18n,
+};
 use crate::{LanguageExtractor, ParseError};
 
 const TS_COMPLEXITY: ComplexityRules = ComplexityRules {
@@ -96,6 +99,10 @@ impl LanguageExtractor for TypeScriptExtractor {
         doc.syntax_errors = collect_syntax_errors(root);
         doc.referenced_symbols = collect_referenced_symbols(root, source);
         walk_ts(root, source, &mut doc);
+        extract_ts_style_and_i18n(root, source, &mut doc);
+        if matches!(self.dialect, TsDialect::Tsx | TsDialect::Jsx) {
+            extract_jsx_ui_and_a11y(root, source, &mut doc);
+        }
         Ok(doc)
     }
 }

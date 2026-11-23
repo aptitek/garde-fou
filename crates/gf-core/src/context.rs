@@ -65,26 +65,42 @@ pub enum FeatureId {
     CiGithub,
     /// Declarative task runner (`Taskfile.yml`, `justfile`, `mise.toml`).
     TaskRunner,
+    /// Design Tokens & static UI accessibility (`styles/`, `tokens/`, `GF060`/`GF061`/`GF066`).
+    Ui,
+    /// Internationalization `Texte` dictionaries & strict `t(...)` JSX check (`locales/`, `GF062`).
+    I18n,
+    /// Editorial `Contenus` pure Markdown/MDX (`content/`, `courses/`, `docs/`, `GF063`).
+    Content,
 }
+
+const FEATURE_ALIASES: &[(&str, FeatureId)] = &[
+    ("docker", FeatureId::Docker),
+    ("container", FeatureId::Docker),
+    ("git-hooks", FeatureId::GitHooks),
+    ("githooks", FeatureId::GitHooks),
+    ("ci-github", FeatureId::CiGithub),
+    ("github-actions", FeatureId::CiGithub),
+    ("task-runner", FeatureId::TaskRunner),
+    ("taskrunner", FeatureId::TaskRunner),
+    ("ui", FeatureId::Ui),
+    ("tokens", FeatureId::Ui),
+    ("a11y", FeatureId::Ui),
+    ("i18n", FeatureId::I18n),
+    ("locales", FeatureId::I18n),
+    ("texte", FeatureId::I18n),
+    ("content", FeatureId::Content),
+    ("contenus", FeatureId::Content),
+    ("markdown", FeatureId::Content),
+];
 
 impl FeatureId {
     /// Parses a case-insensitive feature identifier from configuration.
     #[must_use]
     pub fn from_config_str(raw: &str) -> Option<Self> {
-        if raw.eq_ignore_ascii_case("docker") || raw.eq_ignore_ascii_case("container") {
-            Some(Self::Docker)
-        } else if raw.eq_ignore_ascii_case("git-hooks") || raw.eq_ignore_ascii_case("githooks") {
-            Some(Self::GitHooks)
-        } else if raw.eq_ignore_ascii_case("ci-github")
-            || raw.eq_ignore_ascii_case("github-actions")
-        {
-            Some(Self::CiGithub)
-        } else if raw.eq_ignore_ascii_case("task-runner") || raw.eq_ignore_ascii_case("taskrunner")
-        {
-            Some(Self::TaskRunner)
-        } else {
-            None
-        }
+        FEATURE_ALIASES
+            .iter()
+            .find(|(alias, _)| raw.eq_ignore_ascii_case(alias))
+            .map(|(_, id)| *id)
     }
 
     /// Canonical kebab-case identifier.
@@ -95,6 +111,9 @@ impl FeatureId {
             Self::GitHooks => "git-hooks",
             Self::CiGithub => "ci-github",
             Self::TaskRunner => "task-runner",
+            Self::Ui => "ui",
+            Self::I18n => "i18n",
+            Self::Content => "content",
         }
     }
 }

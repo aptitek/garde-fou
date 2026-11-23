@@ -11,6 +11,8 @@ pub struct RawManifest {
     #[serde(default)]
     pub limits: Option<LimitsSection>,
     #[serde(default)]
+    pub domains: Option<DomainsSection>,
+    #[serde(default)]
     pub scanners: Option<ScannersSection>,
     #[serde(default)]
     pub coverage: Option<CoverageSection>,
@@ -52,6 +54,19 @@ pub struct ProjectSection {
     pub features: Vec<String>,
     #[serde(default)]
     pub frameworks: Vec<String>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct DomainsSection {
+    pub code_globs: Option<Vec<String>>,
+    pub scripts_globs: Option<Vec<String>>,
+    pub forme_globs: Option<Vec<String>>,
+    pub forme_token_globs: Option<Vec<String>>,
+    pub texte_globs: Option<Vec<String>>,
+    pub contenus_globs: Option<Vec<String>>,
+    pub asset_globs: Option<Vec<String>>,
+    pub max_asset_bytes: Option<u64>,
 }
 
 #[derive(Deserialize)]

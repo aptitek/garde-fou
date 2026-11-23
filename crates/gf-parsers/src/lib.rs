@@ -1,4 +1,4 @@
-//! Context detectors, `Dockerfile` parser, and safe `Tree-sitter` -> [`UastDocument`] extractors.
+//! Context detectors, 6-domain extractors, and safe `Tree-sitter` -> [`UastDocument`] bridges.
 //!
 //! This crate performs pure syntactic and metric extraction on in-memory UTF-8 strings
 //! without touching the filesystem, processes, or environment.
@@ -11,9 +11,16 @@ mod secrets;
 
 use core::fmt;
 
-use gf_core::{Language, RepoPath, SpanError, UastDocument};
+use gf_core::{
+    AssetDocument, DomainKind, DomainLayoutConfig, Language, RepoPath, SpanError, UastDocument,
+    classify_path, is_binary_asset_extension,
+};
 use langs::{
+    asset::{collect_script_mentions, extract_svg_asset},
+    css::CssExtractor,
     dockerfile::DockerfileExtractor,
+    i18n_dict::extract_i18n_dictionary,
+    markdown::MarkdownExtractor,
     python::PythonExtractor,
     rust::RustExtractor,
     typescript::{TsDialect, TypeScriptExtractor},
@@ -83,7 +90,16 @@ const EXT_LANGUAGES: &[(&str, Language)] = &[
     ("go", Language::Go),
     ("dockerfile", Language::Dockerfile),
     ("containerfile", Language::Dockerfile),
+    ("css", Language::Css),
+    ("scss", Language::Css),
+    ("md", Language::Markdown),
+    ("mdx", Language::Markdown),
+    ("json", Language::Json),
     ("toml", Language::Toml),
+    ("sh", Language::Shell),
+    ("bash", Language::Shell),
+    ("ps1", Language::Shell),
+    ("svg", Language::Svg),
 ];
 
 fn is_dockerfile_name(file_name: &str) -> bool {
@@ -103,12 +119,16 @@ pub fn detect_language(path: &RepoPath) -> Language {
     {
         return Language::Dockerfile;
     }
-    if let Some(ext) = path.extension()
-        && let Some((_, lang)) = EXT_LANGUAGES
+    if let Some(ext) = path.extension() {
+        if let Some((_, lang)) = EXT_LANGUAGES
             .iter()
-            .find(|(candidate, _)| *candidate == ext)
-    {
-        return *lang;
+            .find(|(candidate, _)| candidate.eq_ignore_ascii_case(ext))
+        {
+            return *lang;
+        }
+        if is_binary_asset_extension(ext) {
+            return Language::BinaryAsset;
+        }
     }
     if is_dockerfile_name(file_name) {
         return Language::Dockerfile;
@@ -130,29 +150,91 @@ pub fn detect_project_marker(path: &RepoPath) -> Option<ProjectMarker> {
     }
 }
 
-/// Parses `source` using the dedicated `Tree-sitter` or `Dockerfile` extractor for `path`.
+/// Builds a lightweight [`UastDocument`] for a binary asset without decoding file bytes.
+///
+/// # Errors
+///
+/// Returns [`ParseError`] if constructing the 1-line span fails.
+pub fn build_binary_asset_document(
+    path: &RepoPath,
+    byte_size: u64,
+) -> Result<UastDocument, ParseError> {
+    let mut doc = UastDocument::new(path.clone(), Language::BinaryAsset, 1, 1)?;
+    let extension = path.extension().unwrap_or("").to_ascii_lowercase();
+    doc.asset = Some(AssetDocument {
+        byte_size,
+        extension,
+        hazards: Vec::new(),
+    });
+    Ok(doc)
+}
+
+const fn ts_dialect_for_language(lang: Language) -> Option<TsDialect> {
+    match lang {
+        Language::TypeScript => Some(TsDialect::TypeScript),
+        Language::JavaScript => Some(TsDialect::JavaScript),
+        Language::Tsx => Some(TsDialect::Tsx),
+        Language::Jsx => Some(TsDialect::Jsx),
+        _ => None,
+    }
+}
+
+fn dispatch_language_extractor(
+    lang: Language,
+    path: &RepoPath,
+    source: &str,
+    domains: &DomainLayoutConfig,
+) -> Result<UastDocument, ParseError> {
+    if let Some(dialect) = ts_dialect_for_language(lang) {
+        return TypeScriptExtractor::new(dialect).extract(path, source);
+    }
+    match lang {
+        Language::Rust => RustExtractor.extract(path, source),
+        Language::Python => PythonExtractor.extract(path, source),
+        Language::Dockerfile => DockerfileExtractor.extract(path, source),
+        Language::Css => CssExtractor.extract(path, source),
+        Language::Markdown => MarkdownExtractor.extract(path, source),
+        Language::Svg => extract_svg_asset(path, source),
+        Language::Json | Language::Toml if classify_path(path, domains) == DomainKind::Texte => {
+            extract_i18n_dictionary(path, lang, source)
+        }
+        other => {
+            let (total_lines, effective_lines) = cst::line_metrics(source);
+            Ok(UastDocument::new(
+                path.clone(),
+                other,
+                total_lines,
+                effective_lines,
+            )?)
+        }
+    }
+}
+
+/// Parses `source` with explicit [`DomainLayoutConfig`] (enabling `Texte` `.json`/`.toml` parsing).
+///
+/// # Errors
+///
+/// Returns [`ParseError`] if grammar setup or span construction fails.
+pub fn parse_source_with_domains(
+    path: &RepoPath,
+    source: &str,
+    domains: &DomainLayoutConfig,
+) -> Result<UastDocument, ParseError> {
+    let lang = detect_language(path);
+    let mut doc = dispatch_language_extractor(lang, path, source, domains)?;
+    doc.secret_findings = secrets::extract_secret_findings(path, source);
+    if ts_dialect_for_language(lang).is_some() || matches!(lang, Language::Rust | Language::Python)
+    {
+        doc.script_refs = collect_script_mentions(source);
+    }
+    Ok(doc)
+}
+
+/// Parses `source` using strict default domain boundaries.
 ///
 /// # Errors
 ///
 /// Returns [`ParseError`] if grammar setup or span construction fails.
 pub fn parse_source(path: &RepoPath, source: &str) -> Result<UastDocument, ParseError> {
-    let mut doc = match detect_language(path) {
-        Language::Rust => RustExtractor.extract(path, source)?,
-        Language::TypeScript => {
-            TypeScriptExtractor::new(TsDialect::TypeScript).extract(path, source)?
-        }
-        Language::JavaScript => {
-            TypeScriptExtractor::new(TsDialect::JavaScript).extract(path, source)?
-        }
-        Language::Tsx => TypeScriptExtractor::new(TsDialect::Tsx).extract(path, source)?,
-        Language::Jsx => TypeScriptExtractor::new(TsDialect::Jsx).extract(path, source)?,
-        Language::Python => PythonExtractor.extract(path, source)?,
-        Language::Dockerfile => DockerfileExtractor.extract(path, source)?,
-        other => {
-            let (total_lines, effective_lines) = cst::line_metrics(source);
-            UastDocument::new(path.clone(), other, total_lines, effective_lines)?
-        }
-    };
-    doc.secret_findings = secrets::extract_secret_findings(path, source);
-    Ok(doc)
+    parse_source_with_domains(path, source, &DomainLayoutConfig::strict_defaults())
 }

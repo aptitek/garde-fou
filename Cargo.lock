@@ -377,6 +377,8 @@ dependencies = [
  "gf-core",
  "gf-rules",
  "proptest",
+ "serde_json",
+ "toml",
  "tree-sitter",
  "tree-sitter-python",
  "tree-sitter-rust",

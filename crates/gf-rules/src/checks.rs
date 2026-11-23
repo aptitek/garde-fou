@@ -5,8 +5,8 @@ use alloc::string::String;
 use alloc::vec::Vec;
 
 use gf_core::{
-    CallableDecl, Config, Diagnostic, RepoPath, Severity, Span, TypeDecl, UastDocument, UastKind,
-    UastNode, Validation,
+    CallableDecl, Config, Diagnostic, Language, RepoPath, Severity, Span, TypeDecl, UastDocument,
+    UastKind, UastNode, Validation,
 };
 
 struct Spec<'a> {
@@ -54,7 +54,15 @@ pub fn check_file_metrics(doc: &UastDocument, config: &Config) -> Validation<(),
     let mut diags = Vec::new();
     let limits = config.limits;
 
-    if doc.total_lines > limits.max_file_lines {
+    let enforce_line_cap = !matches!(
+        doc.language,
+        Language::Markdown
+            | Language::Json
+            | Language::Toml
+            | Language::Svg
+            | Language::BinaryAsset
+    );
+    if enforce_line_cap && doc.total_lines > limits.max_file_lines {
         diags.push(build_error(Spec {
             rule_id: "GF001",
             message: format!(
