@@ -30,10 +30,10 @@ jobs:
             os: windows-latest
             archive_ext: zip
           - target: x86_64-apple-darwin
-            os: macos-latest
+            os: macos-15-intel
             archive_ext: tar.gz
           - target: aarch64-apple-darwin
-            os: macos-latest
+            os: macos-15-intel
             archive_ext: tar.gz
     steps:
       - uses: actions/checkout@v4
