@@ -1,0 +1,26 @@
+# Rust / Cargo build artifacts
+/target/
+**/*.rs.bk
+
+# Garde-fou local cache
+/.garde-fou-cache/
+
+# Coverage & mutation testing artifacts
+/coverage/
+/lcov.info
+*.profraw
+*.profdata
+/mutants.out*/
+
+# Environment & local secrets
+.env
+.env.*
+
+# OS & Editor metadata
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+*~

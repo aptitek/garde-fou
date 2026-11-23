@@ -1,0 +1,32 @@
+# Configuration dogfooding initiale de Garde-fou
+schema_version = 1
+
+[project]
+name = "garde-fou"
+languages = ["rust"]
+
+[limits]
+max_file_lines = 250
+max_function_lines = 50
+max_cognitive_complexity = 10
+max_function_params = 4
+max_struct_bools = 2
+
+[rules]
+forbid_unsafe = true
+forbid_unwrap = true
+forbid_expect = true
+forbid_panic = true
+forbid_todo = true
+forbid_unimplemented = true
+forbid_dbg = true
+
+[architecture]
+no_std_crates = ["gf-core", "gf-rules"]
+io_allowed_crates = ["gf-engine", "gf-cli"]
+console_allowed_crates = ["gf-cli"]
+
+[cache]
+enabled = true
+directory = ".garde-fou-cache"
+hash = "blake3"

@@ -1,0 +1,77 @@
+version: "3"
+
+tasks:
+  setup:
+    desc: Install locked toolchain via mise and register Git hooks
+    cmds:
+      - mise install
+      - mise reshim
+      - lefthook install
+
+  fmt:
+    desc: Verify deterministic Rust formatting
+    cmds:
+      - cargo fmt --all -- --check
+
+  fmt:fix:
+    desc: Format all Rust files in workspace
+    cmds:
+      - cargo fmt --all
+
+  lint:
+    desc: Run strict Clippy lints across all workspace targets
+    cmds:
+      - cargo clippy --workspace --all-targets --all-features -- -D warnings
+
+  deps:
+    desc: Detect unused dependencies and audit supply-chain policies
+    cmds:
+      - cargo machete
+      - cargo deny check
+
+  secrets:
+    desc: Scan staged Git changes for leaked secrets
+    cmds:
+      - gitleaks git --pre-commit --redact --staged --no-banner
+
+  secrets:repo:
+    desc: Scan entire repository and Git history for leaked secrets
+    cmds:
+      - gitleaks dir . --redact --no-banner
+      - bash -euo pipefail -c 'if git rev-parse --verify HEAD >/dev/null 2>&1; then gitleaks git --redact --no-banner; fi'
+
+  test:
+    desc: Execute unit, integration, and architecture tests via nextest
+    cmds:
+      - cargo nextest run --workspace
+
+  cov:
+    desc: Verify workspace line coverage >= 85% via llvm-cov and nextest
+    cmds:
+      - cargo llvm-cov nextest --workspace --fail-under-lines 85
+
+  mutate:
+    desc: Run mutation testing on changes relative to main
+    cmds:
+      - bash -euo pipefail -c 'cargo mutants --in-diff <(git diff main)'
+
+  check:fast:
+    desc: Run fast verification suite in parallel (fmt, lint, secrets, test)
+    deps:
+      - fmt
+      - lint
+      - secrets
+      - test
+
+  check:full:
+    desc: Run complete quality, security, and coverage verification gates
+    cmds:
+      - task: check:fast
+      - task: deps
+      - task: cov
+      - osv-scanner scan source -r .
+
+  check:
+    desc: Alias for check:full
+    cmds:
+      - task: check:full

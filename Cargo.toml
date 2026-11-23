@@ -1,0 +1,45 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/gf-core",
+    "crates/gf-rules",
+    "crates/gf-parsers",
+    "crates/gf-engine",
+    "crates/gf-cli",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.88"
+license = "MIT OR Apache-2.0"
+authors = ["Garde-fou Contributors"]
+repository = "https://github.com/aptitek/garde-fou"
+publish = false
+
+[workspace.dependencies]
+gf-core = { version = "0.1.0", path = "crates/gf-core", default-features = false }
+gf-rules = { version = "0.1.0", path = "crates/gf-rules", default-features = false }
+gf-parsers = { version = "0.1.0", path = "crates/gf-parsers" }
+gf-engine = { version = "0.1.0", path = "crates/gf-engine" }
+blake3 = { version = "1.8", default-features = true }
+clap = { version = "4.5", features = ["derive"] }
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+missing_docs = "deny"
+
+[workspace.lints.clippy]
+all = { level = "deny", priority = -1 }
+pedantic = { level = "deny", priority = -1 }
+nursery = { level = "deny", priority = -1 }
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"
+todo = "deny"
+unimplemented = "deny"
+dbg_macro = "deny"
+print_stdout = "deny"
+print_stderr = "deny"
+allow_attributes = "deny"
+allow_attributes_without_reason = "deny"

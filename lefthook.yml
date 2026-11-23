@@ -1,0 +1,23 @@
+pre-commit:
+  parallel: true
+  commands:
+    fmt:
+      run: cargo fmt --all -- --check
+    clippy:
+      run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+    secrets:
+      run: gitleaks git --pre-commit --redact --staged --no-banner
+    test:
+      run: cargo nextest run --workspace
+
+pre-push:
+  parallel: true
+  commands:
+    deny:
+      run: cargo deny check
+    machete:
+      run: cargo machete
+    osv:
+      run: osv-scanner scan source -r .
+    coverage:
+      run: cargo llvm-cov nextest --workspace --fail-under-lines 85

@@ -1,0 +1,34 @@
+[package]
+name = "gf-cli"
+description = "Command-line interface and structured reporters for Garde-fou"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[[bin]]
+name = "garde-fou"
+path = "src/main.rs"
+
+[lib]
+name = "gf_cli"
+path = "src/lib.rs"
+
+[[test]]
+name = "architecture"
+path = "../../tests/architecture.rs"
+
+[[test]]
+name = "cli_smoke"
+path = "../../tests/cli_smoke.rs"
+
+[dependencies]
+clap = { workspace = true }
+gf-core = { workspace = true }
+gf-engine = { workspace = true }
+
+[lints]
+workspace = true
