@@ -362,6 +362,7 @@ dependencies = [
  "gf-rules",
  "globset",
  "ignore",
+ "proptest",
  "rayon",
  "serde",
  "serde_json",

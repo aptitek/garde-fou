@@ -42,7 +42,9 @@ impl RepoPath {
         if raw.is_empty() {
             return Err(RepoPathError::Empty);
         }
-        if raw.starts_with('/') || raw.starts_with('\\') {
+        let has_windows_drive = raw.as_bytes().first().is_some_and(u8::is_ascii_alphabetic)
+            && raw.as_bytes().get(1) == Some(&b':');
+        if raw.starts_with('/') || raw.starts_with('\\') || has_windows_drive {
             return Err(RepoPathError::Absolute);
         }
         if raw.split(['/', '\\']).any(|segment| segment == "..") {

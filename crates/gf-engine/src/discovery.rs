@@ -77,10 +77,10 @@ fn discover_staged(root: &Path, ignore_set: &GlobSet) -> Result<Vec<RepoPath>, E
     let stdout = String::from_utf8_lossy(&output.stdout);
     let mut paths = Vec::new();
     for line in stdout.lines().map(str::trim).filter(|l| !l.is_empty()) {
-        if !root.join(line).is_file() {
+        let repo_path = RepoPath::new(line)?;
+        if !root.join(repo_path.as_str()).is_file() {
             continue;
         }
-        let repo_path = RepoPath::new(line)?;
         if detect_language(&repo_path).is_code_analyzed()
             && !ignore_set.is_match(repo_path.as_str())
         {

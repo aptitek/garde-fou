@@ -87,12 +87,12 @@ pub enum Commands {
     Init(InitArgs),
 }
 
-/// Top-level `clap` parser for the `garde-fou` binary.
+/// Top-level `clap` parser for the `garde` binary.
 #[derive(Clone, Debug, Eq, PartialEq, Parser)]
 #[command(
-    name = "garde-fou",
+    name = "garde",
     version,
-    about = "Ultra-strict polyglot static analysis orchestrator"
+    about = "Ultra-strict polyglot static analysis orchestrator (Garde-fou)"
 )]
 pub struct Cli {
     /// Subcommand to execute.
@@ -190,7 +190,7 @@ mod tests {
     fn parses_enriched_cli_flags_and_bootstraps_clean_project()
     -> Result<(), Box<dyn std::error::Error>> {
         let parsed = Cli::try_parse_from([
-            "garde-fou",
+            "garde",
             "check",
             "--staged",
             "--no-cache",
@@ -218,7 +218,7 @@ mod tests {
         fs::create_dir_all(&dir)?;
 
         let init_cli = Cli::try_parse_from([
-            "garde-fou",
+            "garde",
             "init",
             "--name",
             "demo-svc",
@@ -231,7 +231,7 @@ mod tests {
         assert_eq!(init_code, ExitCode::SUCCESS);
         assert!(init_text.contains("demo-svc"));
 
-        let fresh_check = Cli::try_parse_from(["garde-fou", "check", "--no-cache"])?;
+        let fresh_check = Cli::try_parse_from(["garde", "check", "--no-cache"])?;
         let (_, check_code) = execute(&fresh_check, &dir)?;
         assert_eq!(check_code, ExitCode::SUCCESS);
 

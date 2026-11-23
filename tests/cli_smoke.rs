@@ -1,26 +1,26 @@
-//! End-to-end smoke tests exercising the compiled `garde-fou` binary.
+//! End-to-end smoke tests exercising the compiled `garde` binary.
 
 use std::fs;
 use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-const fn garde_fou_bin() -> &'static str {
-    env!("CARGO_BIN_EXE_garde-fou")
+const fn garde_bin() -> &'static str {
+    env!("CARGO_BIN_EXE_garde")
 }
 
 #[test]
 fn cli_help_and_version_succeed() -> Result<(), Box<dyn std::error::Error>> {
-    let help = Command::new(garde_fou_bin()).arg("--help").output()?;
+    let help = Command::new(garde_bin()).arg("--help").output()?;
     assert!(help.status.success());
     let help_stdout = String::from_utf8(help.stdout)?;
-    assert!(help_stdout.contains("garde-fou"));
+    assert!(help_stdout.contains("garde"));
     assert!(help_stdout.contains("check"));
     assert!(help_stdout.contains("init"));
 
-    let version = Command::new(garde_fou_bin()).arg("--version").output()?;
+    let version = Command::new(garde_bin()).arg("--version").output()?;
     assert!(version.status.success());
     let version_stdout = String::from_utf8(version.stdout)?;
-    assert!(version_stdout.contains("garde-fou"));
+    assert!(version_stdout.contains("garde"));
     Ok(())
 }
 
@@ -34,14 +34,15 @@ fn cli_init_no_cache_and_cache_hit_succeed() -> Result<(), Box<dyn std::error::E
         "/// Clean fn.\npub const fn id(x: u32) -> u32 {\n    x\n}\n",
     )?;
 
-    let init = Command::new(garde_fou_bin())
+    let init = Command::new(garde_bin())
         .arg("init")
         .current_dir(&dir)
         .output()?;
     assert!(init.status.success());
     assert!(dir.join("garde-fou.toml").is_file());
+    assert!(dir.join(".gitattributes").is_file());
 
-    let fresh = Command::new(garde_fou_bin())
+    let fresh = Command::new(garde_bin())
         .args(["check", "--no-cache", "--format", "agent"])
         .current_dir(&dir)
         .output()?;
@@ -49,7 +50,7 @@ fn cli_init_no_cache_and_cache_hit_succeed() -> Result<(), Box<dyn std::error::E
     let fresh_out = String::from_utf8(fresh.stdout)?;
     assert!(fresh_out.contains("`0` hits, `1` misses"));
 
-    let cached = Command::new(garde_fou_bin())
+    let cached = Command::new(garde_bin())
         .args(["check", "--format", "agent"])
         .current_dir(&dir)
         .output()?;
@@ -57,7 +58,7 @@ fn cli_init_no_cache_and_cache_hit_succeed() -> Result<(), Box<dyn std::error::E
     let cached_out = String::from_utf8(cached.stdout)?;
     assert!(cached_out.contains("`1` hits, `0` misses"));
 
-    let sarif = Command::new(garde_fou_bin())
+    let sarif = Command::new(garde_bin())
         .args(["check", "--format", "sarif"])
         .current_dir(&dir)
         .output()?;

@@ -181,6 +181,10 @@ fn collect_candidate_files(
 ) -> Vec<(String, String)> {
     let mut files = vec![
         (
+            String::from(".gitattributes"),
+            String::from(templates_infra::GITATTRIBUTES_TEMPLATE),
+        ),
+        (
             String::from(DEFAULT_CONFIG_FILENAME),
             templates_infra::render_garde_fou_toml(project_name, context),
         ),

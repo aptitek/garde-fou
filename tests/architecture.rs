@@ -77,7 +77,11 @@ fn enforces_max_250_lines_per_rust_file() -> Result<(), Box<dyn std::error::Erro
 fn enforces_no_std_and_imperative_shell_boundaries() -> Result<(), Box<dyn std::error::Error>> {
     let root = workspace_root()?;
     for pure_crate in ["gf-core", "gf-rules"] {
-        let lib_path = root.join("crates").join(pure_crate).join("src/lib.rs");
+        let lib_path = root
+            .join("crates")
+            .join(pure_crate)
+            .join("src")
+            .join("lib.rs");
         let lib_src = fs::read_to_string(&lib_path)?;
         assert!(
             lib_src.contains("#![no_std]"),
@@ -123,7 +127,11 @@ fn enforces_no_std_and_imperative_shell_boundaries() -> Result<(), Box<dyn std::
 #[test]
 fn enforces_console_output_and_no_allow_cheating() -> Result<(), Box<dyn std::error::Error>> {
     let root = workspace_root()?;
-    let allowed_output = root.join("crates/gf-cli/src/output.rs");
+    let allowed_output = root
+        .join("crates")
+        .join("gf-cli")
+        .join("src")
+        .join("output.rs");
     let print_macro = concat!("print", "ln!(");
     let eprint_macro = concat!("eprint", "ln!(");
     let allow_attr = concat!("#[", "allow(");

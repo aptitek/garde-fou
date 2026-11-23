@@ -127,10 +127,13 @@ pub fn compose_gitignore(ctx: &ProjectContext) -> String {
 /// preserving all user lines outside `# >>> garde-fou managed >>>` .. `# <<< garde-fou managed <<<`.
 #[must_use]
 pub fn merge_managed_block(existing: Option<&str>, managed: &str) -> String {
-    let clean_managed = managed.trim();
-    let Some(raw) = existing else {
+    let clean_managed = managed.replace("\r\n", "\n");
+    let clean_managed = clean_managed.trim();
+    let Some(raw_in) = existing else {
         return format!("{clean_managed}\n");
     };
+    let normalized = raw_in.replace("\r\n", "\n");
+    let raw = normalized.as_str();
     if raw.trim().is_empty() {
         return format!("{clean_managed}\n");
     }

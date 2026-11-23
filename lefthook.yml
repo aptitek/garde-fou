@@ -10,7 +10,7 @@ pre-commit:
     test:
       run: cargo nextest run --workspace
     dogfood:
-      run: cargo run -p gf-cli --quiet -- check --staged --format agent
+      run: cargo run -p gf-cli --bin garde --quiet -- check --staged --format agent
 
 pre-push:
   parallel: true
@@ -22,6 +22,6 @@ pre-push:
     osv:
       run: osv-scanner scan source -r .
     dogfood-fresh:
-      run: cargo run -p gf-cli --quiet -- check --no-cache --format agent
+      run: cargo run -p gf-cli --bin garde --quiet -- check --no-cache --format agent
     coverage:
       run: cargo llvm-cov nextest --workspace --fail-under-lines 85

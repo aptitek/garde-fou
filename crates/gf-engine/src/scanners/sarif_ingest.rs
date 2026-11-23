@@ -31,21 +31,45 @@ pub struct SarifMapping<'a> {
     pub remediation: &'a str,
 }
 
+fn strip_windows_file_slash(s: &str) -> &str {
+    let bytes = s.as_bytes();
+    if bytes.first() == Some(&b'/')
+        && bytes.get(1).is_some_and(u8::is_ascii_alphabetic)
+        && bytes.get(2) == Some(&b':')
+    {
+        &s[1..]
+    } else {
+        s
+    }
+}
+
 fn normalize_artifact_uri(
     uri: Option<&str>,
     workspace_root: &Path,
     fallback: &str,
 ) -> Result<RepoPath, EngineError> {
     let raw = uri.unwrap_or(fallback).trim();
-    let without_scheme = raw
+    let unescaped = raw
         .strip_prefix("file://")
         .unwrap_or(raw)
         .replace("%20", " ")
         .replace('\\', "/");
-    let root_str = workspace_root.to_string_lossy().replace('\\', "/");
-    let rel = without_scheme
-        .strip_prefix(root_str.as_str())
-        .unwrap_or(&without_scheme)
+    let without_scheme = strip_windows_file_slash(&unescaped);
+    let root_str = workspace_root
+        .to_string_lossy()
+        .replace('\\', "/")
+        .trim_end_matches('/')
+        .to_string();
+    let stripped_root = if !root_str.is_empty()
+        && without_scheme.len() >= root_str.len()
+        && without_scheme.is_char_boundary(root_str.len())
+        && without_scheme[..root_str.len()].eq_ignore_ascii_case(&root_str)
+    {
+        &without_scheme[root_str.len()..]
+    } else {
+        without_scheme
+    };
+    let rel = stripped_root
         .trim_start_matches("./")
         .trim_start_matches('/');
     let candidate = if rel.is_empty() { fallback } else { rel };

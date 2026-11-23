@@ -1,6 +1,6 @@
 # AGENTS.md — Règles Inviolables pour Garde-fou
 
-Ce dépôt implémente **Garde-fou** (`garde-fou`), un orchestrateur et analyseur statique polyglotte inspiré de l'architecture Hub-and-Spoke de Pandoc (`Tree-sitter` -> `UAST` -> Règles pures + Runners `SARIF` + Cache `BLAKE3`).
+Ce dépôt implémente **Garde-fou** (binaire CLI `garde`), un orchestrateur et analyseur statique polyglotte inspiré de l'architecture Hub-and-Spoke de Pandoc (`Tree-sitter` -> `UAST` -> Règles pures + Runners `SARIF` + Cache `BLAKE3`).
 Le projet s'applique ses propres règles dès le premier commit (**dogfooding intégral**).
 
 ---
@@ -15,7 +15,7 @@ Les frontières entre crates sont vérifiées par le compilateur et par les test
 | `gf-rules` | `#![no_std]` + `alloc` | Moteur de règles statiques pures (dépend **uniquement** de `gf-core`) | Interdit | Interdit |
 | `gf-parsers` | `std` pur (sans I/O) | Détecteurs de contexte et ponts `Tree-sitter` -> `Uast` | Interdit | Interdit |
 | `gf-engine` | Shell impératif | Cache `BLAKE3`, scope Git, scaffolding `init`, runners `SARIF` externes | Autorisé | Interdit |
-| `gf-cli` | Binaire `garde-fou` | Parsing CLI (`clap`) et reporters (`human`, `agent`, `sarif`) | Autorisé | Autorisé **uniquement** dans `src/output.rs` |
+| `gf-cli` | Binaire `garde` | Parsing CLI (`clap`) et reporters (`human`, `agent`, `sarif`) | Autorisé | Autorisé **uniquement** dans `src/output.rs` |
 
 - `gf-core` et `gf-rules` DOIVENT conserver `#![no_std]` et `extern crate alloc;` en tête de `src/lib.rs` (`#[cfg(test)] extern crate std;` est toléré uniquement pour les tests unitaires).
 - Aucune dépendance externe exigeant `std` n'est autorisée dans `gf-core` ni `gf-rules`.

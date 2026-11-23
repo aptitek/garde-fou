@@ -8,6 +8,11 @@ tasks:
       - mise reshim
       - lefthook install
 
+  install:
+    desc: Build and install the optimized `garde` binary locally via Cargo
+    cmds:
+      - cargo install --path crates/gf-cli --locked --force
+
   fmt:
     desc: Verify deterministic Rust formatting
     cmds:
@@ -26,12 +31,12 @@ tasks:
   dogfood:
     desc: Self-analyze Garde-fou repository using incremental BLAKE3 cache
     cmds:
-      - cargo run -p gf-cli --quiet -- check --format agent
+      - cargo run -p gf-cli --bin garde --quiet -- check --format agent
 
   dogfood:fresh:
     desc: Self-analyze Garde-fou repository from scratch (--no-cache)
     cmds:
-      - cargo run -p gf-cli --quiet -- check --no-cache --format agent
+      - cargo run -p gf-cli --bin garde --quiet -- check --no-cache --format agent
 
   deps:
     desc: Detect unused dependencies and audit supply-chain policies

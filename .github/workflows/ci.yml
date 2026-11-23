@@ -1,0 +1,157 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  quality-gate:
+    name: Full Quality, Security & LCOV Dogfooding
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up mise
+        uses: jdx/mise-action@v2
+        with:
+          install: false
+
+      - name: Install cargo-binstall and locked mise toolchain
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          MISE_CARGO_BINSTALL: "true"
+        run: |
+          mise trust
+          mise install rust cargo-binstall
+          mise reshim
+          mise install
+          mise reshim
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Run full verification suite (fmt, clippy, nextest, machete, deny, cov, scanners)
+        run: task check:full
+
+      - name: Generate LCOV report and run ultimate Garde-fou self-check
+        run: |
+          cargo llvm-cov nextest --workspace --lcov --output-path lcov.info
+          cargo run -p gf-cli --bin garde -- check --no-cache --strict-tools --lcov lcov.info
+
+  portability:
+    name: Portability & Installer Smoke (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Run workspace unit, proptest, CRLF & architecture tests
+        run: cargo test --workspace --locked
+
+      - name: Build release `garde` binary
+        run: cargo build --release --locked -p gf-cli --bin garde
+
+      - name: Smoke-test POSIX `install.sh` (valid + tampered SHA256SUMS)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          set -euo pipefail
+          case "$(uname -s)-$(uname -m)" in
+            Linux-x86_64|Linux-amd64) TARGET="x86_64-unknown-linux-musl" ;;
+            Linux-aarch64|Linux-arm64) TARGET="aarch64-unknown-linux-gnu" ;;
+            Darwin-x86_64|Darwin-amd64) TARGET="x86_64-apple-darwin" ;;
+            Darwin-arm64|Darwin-aarch64) TARGET="aarch64-apple-darwin" ;;
+            *) echo "Unexpected runner $(uname -s)-$(uname -m)" >&2; exit 1 ;;
+          esac
+
+          WORK="$(mktemp -d)"
+          mkdir -p "$WORK/stage" "$WORK/dist" "$WORK/bin" "$WORK/sample"
+          cp target/release/garde "$WORK/stage/garde"
+          cp README.md "$WORK/stage/README.md"
+          chmod 0755 "$WORK/stage/garde"
+          chmod 0644 "$WORK/stage/README.md"
+
+          ARCHIVE="garde-${TARGET}.tar.gz"
+          tar -czf "$WORK/dist/$ARCHIVE" -C "$WORK/stage" garde README.md
+          if command -v sha256sum >/dev/null 2>&1; then
+            (cd "$WORK/dist" && sha256sum "$ARCHIVE" > SHA256SUMS)
+          else
+            (cd "$WORK/dist" && shasum -a 256 "$ARCHIVE" > SHA256SUMS)
+          fi
+
+          sh scripts/install.sh --from-dir "$WORK/dist" --install-dir "$WORK/bin"
+          "$WORK/bin/garde" --version
+          "$WORK/bin/garde" init "$WORK/sample" --name smoke-svc --lang rust --feature docker
+          (cd "$WORK/sample" && "$WORK/bin/garde" check --no-cache)
+
+          printf '0000000000000000000000000000000000000000000000000000000000000000  %s\n' "$ARCHIVE" > "$WORK/dist/SHA256SUMS"
+          if sh scripts/install.sh --from-dir "$WORK/dist" --install-dir "$WORK/bin-bad"; then
+            echo "ERROR: install.sh succeeded despite tampered SHA256SUMS!" >&2
+            exit 1
+          fi
+          rm -rf "$WORK"
+
+      - name: Smoke-test PowerShell `install.ps1` (valid + tampered SHA256SUMS)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $Work = Join-Path ([System.IO.Path]::GetTempPath()) ("garde-ci-" + [System.Guid]::NewGuid().ToString("N"))
+          $Stage = Join-Path $Work "stage"
+          $Dist = Join-Path $Work "dist"
+          $Bin = Join-Path $Work "bin"
+          $Sample = Join-Path $Work "sample"
+          New-Item -ItemType Directory -Path $Stage, $Dist, $Bin, $Sample -Force | Out-Null
+
+          Copy-Item "target\release\garde.exe" (Join-Path $Stage "garde.exe")
+          Copy-Item "README.md" (Join-Path $Stage "README.md")
+
+          $Archive = "garde-x86_64-pc-windows-msvc.zip"
+          $ArchivePath = Join-Path $Dist $Archive
+          Compress-Archive -Path (Join-Path $Stage "garde.exe"), (Join-Path $Stage "README.md") -DestinationPath $ArchivePath -Force
+
+          $Hash = (Get-FileHash -LiteralPath $ArchivePath -Algorithm SHA256).Hash.ToLowerInvariant()
+          Set-Content -LiteralPath (Join-Path $Dist "SHA256SUMS") -Value "$Hash  $Archive" -Encoding Ascii
+
+          pwsh -File scripts/install.ps1 -FromDir $Dist -InstallDir $Bin -NoModifyPath
+          $GardeExe = Join-Path $Bin "garde.exe"
+          & $GardeExe --version
+          if ($LASTEXITCODE -ne 0) { throw "garde.exe --version failed" }
+
+          & $GardeExe init $Sample --name smoke-win --lang rust --feature docker
+          if ($LASTEXITCODE -ne 0) { throw "garde.exe init failed" }
+
+          Push-Location $Sample
+          try {
+            & $GardeExe check --no-cache
+            if ($LASTEXITCODE -ne 0) { throw "garde.exe check failed on initialized Windows project" }
+          } finally {
+            Pop-Location
+          }
+
+          Set-Content -LiteralPath (Join-Path $Dist "SHA256SUMS") -Value ("0" * 64 + "  $Archive") -Encoding Ascii
+          $TamperedFailed = $false
+          try {
+            pwsh -File scripts/install.ps1 -FromDir $Dist -InstallDir (Join-Path $Work "bin-bad") -NoModifyPath
+            if ($LASTEXITCODE -ne 0) { $TamperedFailed = $true }
+          } catch {
+            $TamperedFailed = $true
+          }
+          if (-not $TamperedFailed) {
+            throw "install.ps1 succeeded despite tampered SHA256SUMS!"
+          }
+          Remove-Item -LiteralPath $Work -Recurse -Force -ErrorAction SilentlyContinue

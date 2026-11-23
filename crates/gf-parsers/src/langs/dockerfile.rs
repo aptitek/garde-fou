@@ -184,7 +184,8 @@ fn lex_logical_instructions(source: &str) -> (Vec<(Span, String)>, Vec<SyntaxErr
     let mut blocks = Vec::new();
     let mut errors = Vec::new();
 
-    for (idx, raw) in source.lines().enumerate() {
+    for (idx, raw_line) in source.lines().enumerate() {
+        let raw = raw_line.trim_end_matches('\r');
         let line_no = idx.saturating_add(1);
         if !consume_heredoc_line(line_no, raw, &mut state, &mut blocks) {
             consume_standard_line(line_no, raw, &mut state, &mut blocks);

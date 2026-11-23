@@ -1,19 +1,25 @@
-//! Infrastructure & governance templates (`garde-fou.toml`, `AGENTS.md`, hardened
-//! multi-stage `Dockerfile`, `lefthook.yml`, `Taskfile.yml`, `.github/workflows/garde-fou.yml`).
+//! Infrastructure & governance templates (`garde-fou.toml`, `AGENTS.md`, `.gitattributes`,
+//! hardened multi-stage `Dockerfile`, `lefthook.yml`, `Taskfile.yml`, `.github/workflows/garde-fou.yml`).
 
 use gf_core::{FeatureId, LanguageId, ProjectContext};
+
+/// Default cross-OS line-ending policy written to `.gitattributes` by `garde init`.
+pub const GITATTRIBUTES_TEMPLATE: &str = "* text=auto eol=lf\n\
+*.ps1 text eol=crlf\n\
+*.bat text eol=crlf\n\
+*.cmd text eol=crlf\n";
 
 const LEFTHOOK_TEMPLATE: &str = "pre-commit:\n\
   parallel: true\n\
   commands:\n\
-    garde-fou:\n\
-      run: garde-fou check --staged --format agent\n\
+    garde:\n\
+      run: garde check --staged --format agent\n\
 \n\
 pre-push:\n\
   parallel: true\n\
   commands:\n\
-    garde-fou-full:\n\
-      run: garde-fou check --no-cache\n";
+    garde-full:\n\
+      run: garde check --no-cache\n";
 
 const TASKFILE_TEMPLATE: &str = "version: \"3\"\n\
 \n\
@@ -21,24 +27,32 @@ tasks:\n\
   check:\n\
     desc: Run full Garde-fou static analysis and security gates\n\
     cmds:\n\
-      - garde-fou check\n\
+      - garde check\n\
   check:staged:\n\
     desc: Run fast incremental check on staged Git changes\n\
     cmds:\n\
-      - garde-fou check --staged --format agent\n";
+      - garde check --staged --format agent\n";
 
 const GITHUB_WORKFLOW_TEMPLATE: &str = "name: garde-fou\n\
 on:\n\
   push:\n\
     branches: [main]\n\
   pull_request:\n\
+\n\
+permissions:\n\
+  contents: read\n\
+\n\
 jobs:\n\
   quality:\n\
     runs-on: ubuntu-latest\n\
     steps:\n\
       - uses: actions/checkout@v4\n\
+      - name: Install garde\n\
+        run: |\n\
+          curl -fsSL https://github.com/aptitek/garde-fou/releases/latest/download/install.sh | sh\n\
+          echo \"$HOME/.local/bin\" >> \"$GITHUB_PATH\"\n\
       - name: Run Garde-fou\n\
-        run: garde-fou check --no-cache\n";
+        run: garde check --no-cache\n";
 
 fn format_quoted_list<'a>(items: impl Iterator<Item = &'a str>) -> String {
     let quoted: Vec<String> = items.map(|s| format!("\"{s}\"")).collect();
@@ -124,7 +138,7 @@ pub fn render_agents_md(project_name: &str) -> String {
          1. Keep every source file `<= 250` lines and every function `<= 50` effective lines.\n\
          2. Keep cyclomatic and cognitive complexity `<= 10` and parameters `<= 4`.\n\
          3. Never commit hardcoded secrets, private keys, or unpinned `:latest` container images.\n\
-         4. Run `garde-fou check --format agent` before finishing any task and fix 100% of violations.\n"
+         4. Run `garde check --format agent` before finishing any task and fix 100% of violations.\n"
     )
 }
 

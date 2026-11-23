@@ -1,5 +1,6 @@
 //! Parallel `rayon` file analysis, external `SARIF` / `LCOV` gates, and workspace aggregation.
 
+use std::borrow::Cow;
 use std::collections::BTreeSet;
 use std::fs;
 use std::path::Path;
@@ -27,7 +28,12 @@ fn load_or_analyze_file(
     ctx: (&Config, CacheKey, Option<&DiskCache>, bool),
 ) -> Result<FileOutcome, EngineError> {
     let (config, config_hash, disk_cache, bypass_read) = ctx;
-    let source = fs::read_to_string(root.join(repo_path.as_str()))?;
+    let raw_source = fs::read_to_string(root.join(repo_path.as_str()))?;
+    let source: Cow<'_, str> = if raw_source.contains('\r') {
+        Cow::Owned(raw_source.replace("\r\n", "\n").replace('\r', "\n"))
+    } else {
+        Cow::Borrowed(raw_source.as_str())
+    };
     let content_hash = CacheKey::from_bytes(source.as_bytes());
     let file_key = CacheKey::for_file(
         env!("CARGO_PKG_VERSION"),
