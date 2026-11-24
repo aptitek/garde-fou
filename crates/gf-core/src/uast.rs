@@ -1,4 +1,4 @@
-//! Unified Abstract Syntax Tree (`UAST`) hub representations (`v4` fortress schema).
+//! Unified Abstract Syntax Tree (`UAST`) hub representations (`v5` schema).
 
 use alloc::collections::BTreeSet;
 use alloc::string::String;
@@ -17,6 +17,7 @@ use crate::metrics::{
     CallableDecl, ExportDecl, ImportDecl, SecretFinding, SyntaxErrorNode, TypeDecl,
 };
 use crate::path::RepoPath;
+use crate::tool_ingest::{LangRuleFinding, ToolConfigFinding};
 
 /// Source language, stylesheet, content, or asset format mapped into the `UAST`.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -173,6 +174,10 @@ pub struct UastDocument {
     pub contract_impls: BTreeSet<ContractImpl>,
     /// Unit/integration test cases with assertion counts and tautology flags (`GF076`).
     pub test_cases: Vec<TestCaseSummary>,
+    /// Tier 1 native language-idiom & security AST findings (`GF080`).
+    pub lang_rule_findings: Vec<LangRuleFinding>,
+    /// Tier 2 static tool-configuration hardening findings (`GF081`).
+    pub tool_config_findings: Vec<ToolConfigFinding>,
     /// Optional structured `Dockerfile` representation.
     pub docker: Option<DockerDocument>,
     /// Optional `Forme` stylesheet summary (`GF061`).
@@ -222,6 +227,8 @@ impl UastDocument {
             contracts: Vec::new(),
             contract_impls: BTreeSet::new(),
             test_cases: Vec::new(),
+            lang_rule_findings: Vec::new(),
+            tool_config_findings: Vec::new(),
             docker: None,
             forme: None,
             texte: None,

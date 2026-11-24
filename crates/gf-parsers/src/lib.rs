@@ -17,7 +17,7 @@ pub mod types;
 
 use gf_core::{
     AssetDocument, DomainKind, DomainLayoutConfig, Language, RepoPath, UastDocument, classify_path,
-    is_binary_asset_extension,
+    is_audited_tool_config_file, is_binary_asset_extension,
 };
 use langs::{
     asset::{collect_script_mentions, extract_svg_asset},
@@ -27,6 +27,7 @@ use langs::{
     markdown::MarkdownExtractor,
     python::PythonExtractor,
     rust::RustExtractor,
+    tool_config::extract_tool_config,
     typescript::{TsDialect, TypeScriptExtractor},
 };
 pub use types::{LanguageExtractor, ParseError, ProjectMarker};
@@ -141,9 +142,14 @@ fn dispatch_language_extractor(
     if let Some(dialect) = ts_dialect_for_language(lang) {
         return TypeScriptExtractor::new(dialect).extract(path, source);
     }
+    if is_audited_tool_config_file(path) {
+        return extract_tool_config(path, lang, source);
+    }
     match lang {
         Language::Rust => RustExtractor.extract(path, source),
-        Language::Python => PythonExtractor.extract(path, source),
+        Language::Python => {
+            PythonExtractor::extract_in_domain(path, source, classify_path(path, domains))
+        }
         Language::Dockerfile => DockerfileExtractor.extract(path, source),
         Language::Css => CssExtractor.extract(path, source),
         Language::Markdown => MarkdownExtractor.extract(path, source),

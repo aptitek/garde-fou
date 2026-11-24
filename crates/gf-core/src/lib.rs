@@ -29,6 +29,7 @@ pub mod metrics;
 pub mod path;
 pub mod policies;
 pub mod skills_catalog;
+pub mod tool_ingest;
 pub mod uast;
 pub mod validation;
 
@@ -74,5 +75,9 @@ pub use {
     skills_catalog::{
         AgenticSyncStatus, AgentsConfig, RemoteSkillSpec, ResolvedSkillSpec, SkillEntry,
         parse_extra_skill_spec, select_contextual_skills,
+    },
+    tool_ingest::{
+        ExternalToolFinding, ExternalToolId, LangRuleFinding, PythonToolsConfig, ToolConfigFinding,
+        ToolsConfig, is_audited_tool_config_file,
     },
 };

@@ -3,7 +3,7 @@
 use std::path::Path;
 use std::process::Command;
 
-use gf_core::{Config, DomainKind, Language, RepoPath, classify_path};
+use gf_core::{Config, DomainKind, Language, RepoPath, classify_path, is_audited_tool_config_file};
 use gf_parsers::detect_language;
 use globset::{Glob, GlobSet, GlobSetBuilder};
 use ignore::WalkBuilder;
@@ -34,6 +34,7 @@ fn should_descend(entry_path: &Path, root: &Path) -> bool {
 fn is_discovered_target(repo_path: &RepoPath, config: &Config) -> bool {
     let lang = detect_language(repo_path);
     lang.is_always_discovered()
+        || is_audited_tool_config_file(repo_path)
         || (matches!(lang, Language::Json | Language::Toml)
             && classify_path(repo_path, &config.domains) == DomainKind::Texte)
 }

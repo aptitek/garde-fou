@@ -15,6 +15,7 @@ use gf_rules::{
 };
 use rayon::prelude::*;
 
+use crate::adapters::run_language_tool_adapters;
 use crate::agents::verify_agentic_state;
 use crate::cache::{CacheKey, CachedFileArtifact, DiskCache};
 use crate::context_detector::detect_project_context;
@@ -122,12 +123,17 @@ fn load_or_analyze_file(
 
 fn collect_gate_diagnostics(
     root: &Path,
-    options: &CheckOptions,
-    config: &Config,
-    guards: (&ProjectContext, &LockStatus, bool),
+    env_cfg: (&CheckOptions, &Config),
+    scope_ctx: (&ProjectContext, Option<&BTreeSet<RepoPath>>),
+    guards: (&LockStatus, bool),
 ) -> Result<Vec<Diagnostic>, EngineError> {
-    let (context, lock_status, enforce_agentic) = guards;
+    let (options, config) = env_cfg;
+    let (context, staged_filter) = scope_ctx;
+    let (lock_status, enforce_agentic) = guards;
     let mut external_diags = run_external_gates(root, options, config)?;
+    external_diags.extend(run_language_tool_adapters(
+        root, scope_ctx, options, config,
+    )?);
     if let Validation::Invalid(lock_diags) = check_lock_integrity(lock_status) {
         external_diags.extend(lock_diags);
     }
@@ -137,10 +143,11 @@ fn collect_gate_diagnostics(
             external_diags.extend(agent_diags);
         }
     }
+    let _ = staged_filter;
     Ok(external_diags)
 }
 
-/// Executes file discovery, parallel `v4` cache/parse pass, workspace rules, and external gates.
+/// Executes file discovery, parallel `v5` cache/parse pass, workspace rules, and external gates.
 pub fn execute_pipeline(
     root: &Path,
     options: &CheckOptions,
@@ -150,17 +157,16 @@ pub fn execute_pipeline(
     let (disk_cache, lock_status, enforce_agentic) = runtime;
     let all_files = discover_files(root, ScanScope::All, config)?;
     let context = detect_project_context(root, &all_files, config);
-    let mut external_diags = collect_gate_diagnostics(
-        root,
-        options,
-        config,
-        (&context, lock_status, enforce_agentic),
-    )?;
-
     let staged_filter: Option<BTreeSet<RepoPath>> = (options.scope == ScanScope::StagedOnly)
         .then(|| discover_files(root, ScanScope::StagedOnly, config))
         .transpose()?
         .map(|v| v.into_iter().collect());
+    let mut external_diags = collect_gate_diagnostics(
+        root,
+        (options, config),
+        (&context, staged_filter.as_ref()),
+        (lock_status, enforce_agentic),
+    )?;
 
     if staged_filter.as_ref().is_some_and(BTreeSet::is_empty) {
         external_diags.sort();

@@ -61,7 +61,7 @@ fn populates_blake3_cache_and_serves_subsequent_hits() -> Result<(), Box<dyn std
         (2, 0, 2)
     );
     assert!(first.is_clean());
-    assert!(dir.join(".garde-fou-cache/v4").is_dir());
+    assert!(dir.join(".garde-fou-cache/v5").is_dir());
 
     let second = run_check_with_options(&dir, &CheckOptions::new(ScanScope::All, false))?;
     assert_eq!(

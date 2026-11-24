@@ -1,11 +1,12 @@
 //! Safe `Tree-sitter` extractor for Python (`.py`).
 
 use gf_core::{
-    CallableDecl, CallableKind, ExportDecl, ImportDecl, Language, RepoPath, TypeDecl, TypeKind,
-    UastDocument,
+    CallableDecl, CallableKind, DomainKind, DomainLayoutConfig, ExportDecl, ImportDecl, Language,
+    RepoPath, TypeDecl, TypeKind, UastDocument, classify_path,
 };
 use tree_sitter::Node;
 
+use super::python_guardrails::extract_python_guardrails;
 use crate::anti_cheat::populate_cst_fortress;
 use crate::complexity::ComplexityRules;
 use crate::cst::{
@@ -38,8 +39,17 @@ const PY_COMPLEXITY: ComplexityRules = ComplexityRules {
 #[derive(Clone, Copy, Debug, Default)]
 pub struct PythonExtractor;
 
-impl LanguageExtractor for PythonExtractor {
-    fn extract(&self, path: &RepoPath, source: &str) -> Result<UastDocument, ParseError> {
+impl PythonExtractor {
+    /// Extracts a Python [`UastDocument`] with explicit [`DomainKind`] classification (`GF080`).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ParseError`] if Tree-sitter Python grammar initialization or span creation fails.
+    pub fn extract_in_domain(
+        path: &RepoPath,
+        source: &str,
+        domain: DomainKind,
+    ) -> Result<UastDocument, ParseError> {
         let ts_lang = tree_sitter_python::LANGUAGE.into();
         let tree = parse_with_language(&ts_lang, source)?;
         let (total_lines, effective_lines) = line_metrics(source);
@@ -50,7 +60,15 @@ impl LanguageExtractor for PythonExtractor {
         doc.referenced_symbols = collect_referenced_symbols(root, source);
         walk_python(root, source, false, &mut doc);
         populate_cst_fortress(root, source, &mut doc);
+        extract_python_guardrails(root, source, domain, &mut doc);
         Ok(doc)
+    }
+}
+
+impl LanguageExtractor for PythonExtractor {
+    fn extract(&self, path: &RepoPath, source: &str) -> Result<UastDocument, ParseError> {
+        let domain = classify_path(path, &DomainLayoutConfig::strict_defaults());
+        Self::extract_in_domain(path, source, domain)
     }
 }
 

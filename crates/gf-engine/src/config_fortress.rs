@@ -2,8 +2,8 @@
 //! `[integrity]`, `[[boundaries]]`, `[clean_code]`, `[tdd]`, and `[commit]`.
 
 use gf_core::{
-    AgentsConfig, BoundaryRule, CleanCodeConfig, CommitConfig, IntegrityConfig, ScannerPolicy,
-    TddConfig, TddParityGates, YagniGates, parse_extra_skill_spec,
+    AgentsConfig, BoundaryRule, CleanCodeConfig, CommitConfig, IntegrityConfig, PythonToolsConfig,
+    ScannerPolicy, TddConfig, TddParityGates, ToolsConfig, YagniGates, parse_extra_skill_spec,
 };
 use serde::Deserialize;
 
@@ -60,6 +60,20 @@ pub struct AgentsSection {
     pub remote_skills: Option<bool>,
     pub extra_skills: Option<Vec<String>>,
     pub disabled_skills: Option<Vec<String>>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct PythonToolsSection {
+    ruff: Option<String>,
+    mypy: Option<String>,
+    pyright: Option<String>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ToolsSection {
+    python: Option<PythonToolsSection>,
 }
 
 pub fn merge_integrity(raw: Option<IntegritySection>) -> IntegrityConfig {
@@ -152,5 +166,37 @@ pub fn merge_agents(raw: Option<AgentsSection>) -> Result<AgentsConfig, EngineEr
         remote_skills: s.remote_skills.unwrap_or(base.remote_skills),
         extra_skills,
         disabled_skills: s.disabled_skills.unwrap_or(base.disabled_skills),
+    })
+}
+
+fn parse_opt_tool_policy(
+    raw: Option<String>,
+    default: ScannerPolicy,
+    field: &str,
+) -> Result<ScannerPolicy, EngineError> {
+    raw.map_or(Ok(default), |val| {
+        ScannerPolicy::from_config_str(&val).ok_or_else(|| {
+            EngineError::InvalidConfig(format!(
+                "invalid `{field}` policy `{val}` (expected `auto`, `required`, or `off`)"
+            ))
+        })
+    })
+}
+
+pub fn merge_tools(raw: Option<ToolsSection>) -> Result<ToolsConfig, EngineError> {
+    let base = ToolsConfig::defaults();
+    let Some(py) = raw.and_then(|t| t.python) else {
+        return Ok(base);
+    };
+    Ok(ToolsConfig {
+        python: PythonToolsConfig {
+            ruff: parse_opt_tool_policy(py.ruff, base.python.ruff, "tools.python.ruff")?,
+            mypy: parse_opt_tool_policy(py.mypy, base.python.mypy, "tools.python.mypy")?,
+            pyright: parse_opt_tool_policy(
+                py.pyright,
+                base.python.pyright,
+                "tools.python.pyright",
+            )?,
+        },
     })
 }

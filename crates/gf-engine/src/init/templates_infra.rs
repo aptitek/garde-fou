@@ -93,49 +93,51 @@ fn sanitize_slug(raw: &str, sep: char) -> String {
     }
 }
 
+const LIMITS_TOML_BLOCK: &str = "[limits]\n\
+max_file_lines = 250\n\
+max_function_lines = 50\n\
+max_parameters = 4\n\
+max_cyclomatic_complexity = 10\n\
+max_cognitive_complexity = 10\n\
+max_nesting_depth = 4\n\
+max_imports_per_file = 15\n\
+max_methods_per_type = 10\n\
+min_clone_lines = 15\n\
+min_clone_nodes = 40\n";
+
 /// Renders a strict `garde-fou.toml` tailored to `project_name` and `ctx`.
 pub fn render_garde_fou_toml(project_name: &str, ctx: &ProjectContext) -> String {
     let langs = format_quoted_list(ctx.languages.iter().map(|l| l.as_str()));
     let feats = format_quoted_list(ctx.features.iter().map(|f| f.as_str()));
     let fws = format_quoted_list(ctx.frameworks.iter().map(|fw| fw.as_str()));
 
+    let py_tools_block = if ctx.languages.contains(&LanguageId::Python) {
+        "[tools.python]\nruff = \"auto\"\nmypy = \"auto\"\npyright = \"off\"\n\n"
+    } else {
+        ""
+    };
+
     format!(
         "# Garde-fou configuration\n\
-         schema_version = 1\n\
-         \n\
+         schema_version = 1\n\n\
          [project]\n\
          name = \"{project_name}\"\n\
          languages = {langs}\n\
          features = {feats}\n\
-         frameworks = {fws}\n\
-         \n\
-         [limits]\n\
-         max_file_lines = 250\n\
-         max_function_lines = 50\n\
-         max_parameters = 4\n\
-         max_cyclomatic_complexity = 10\n\
-         max_cognitive_complexity = 10\n\
-         max_nesting_depth = 4\n\
-         max_imports_per_file = 15\n\
-         max_methods_per_type = 10\n\
-         min_clone_lines = 15\n\
-         min_clone_nodes = 40\n\
-         \n\
+         frameworks = {fws}\n\n\
+         {LIMITS_TOML_BLOCK}\n\
          [integrity]\n\
-         require_lock = true\n\
-         \n\
+         require_lock = true\n\n\
          [agents]\n\
          sync_policy = \"auto\"\n\
-         remote_skills = true\n\
-         \n\
+         remote_skills = true\n\n\
+         {py_tools_block}\
          [scanners]\n\
          secrets = \"auto\"\n\
-         vulns = \"auto\"\n\
-         \n\
+         vulns = \"auto\"\n\n\
          [paths]\n\
          ignore_paths = []\n\
-         entrypoints = []\n\
-         \n\
+         entrypoints = []\n\n\
          [cache]\n\
          enabled = true\n\
          directory = \".garde-fou-cache\"\n"

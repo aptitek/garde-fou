@@ -65,6 +65,20 @@ fn cli_init_no_cache_and_cache_hit_succeed() -> Result<(), Box<dyn std::error::E
     assert!(sarif.status.success());
     assert!(String::from_utf8(sarif.stdout)?.contains(r#""version":"2.1.0""#));
 
+    let sync = Command::new(garde_bin())
+        .args(["sync", "--offline"])
+        .current_dir(&dir)
+        .output()?;
+    assert!(sync.status.success());
+    assert!(String::from_utf8(sync.stdout)?.contains("garde: sync ok"));
+
+    let lock = Command::new(garde_bin())
+        .arg("lock")
+        .current_dir(&dir)
+        .output()?;
+    assert!(lock.status.success());
+    assert!(String::from_utf8(lock.stdout)?.contains("garde.lock"));
+
     let _ = fs::remove_dir_all(&dir);
     Ok(())
 }

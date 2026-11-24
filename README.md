@@ -1,6 +1,6 @@
 # Garde-fou (`garde`)
 
-**Garde-fou** est un orchestrateur et analyseur statique polyglotte ultra-strict inspiré de l'architecture Hub-and-Spoke de Pandoc (`Tree-sitter` -> `UAST` `#![no_std]` -> Règles pures + Ponts `SARIF` / `LCOV` + Cache incrémental `BLAKE3` `v3`).
+**Garde-fou** est un orchestrateur et analyseur statique polyglotte ultra-strict inspiré de l'architecture Hub-and-Spoke de Pandoc (`Tree-sitter` -> `UAST` `#![no_std]` -> Règles pures + Ingestion d'outils par langage + Ponts `SARIF` / `LCOV` + Cache incrémental `BLAKE3` `v5`).
 
 Le binaire CLI s'appelle **`garde`** (`garde.exe` sous Windows) et lit la configuration stricte `garde-fou.toml`.
 
@@ -92,7 +92,7 @@ garde commit-msg .git/COMMIT_EDITMSG
 
 ---
 
-## 4. Catalogue des Règles (`GF000`–`GF077`)
+## 4. Catalogue des Règles (`GF000`–`GF082`)
 
 | Règle | Domaine / Portée | Description | Seuil par défaut |
 | :--- | :--- | :--- | :--- |
@@ -133,6 +133,9 @@ garde commit-msg .git/COMMIT_EDITMSG
 | `GF075` | YAGNI (global) | Contrat comportemental (`trait` / `interface` / `Protocol` avec méthodes) hors `entrypoints` ayant `<= 1` implémentation | `>= 2` implémentations |
 | `GF076` | Forteresse TDD | Test sans assertion réelle, assertion tautologique (`assert!(true)`), ou absence de test/`stories` compagnon (`1:1`) | `>= 1` vraie assertion |
 | `GF077` | Git Hygiene | Message de commit non conforme aux Conventional Commits (`<type>(<scope>): <description>`) ou résumé vague (`wip`, `misc`) | `<= 100` caractères |
+| `GF080` | Langage AST (Tier 1) | Idiomes & sécurité AST natifs sans outil externe (`PY-B006`, `PY-E722`/`PY-B001`, `PY-S102`/`PY-S301`/`PY-S602`, `PY-ANN401` `: Any`, `PY-T201` `print`) | `0` |
+| `GF081` | Configs Outils (Tier 2) | Affaiblissement de `pyproject.toml` (`[tool.mypy] strict = false`), `ruff.toml` (`ignore = ["ALL"]`) ou `tsconfig.json` (`"strict": false`) | `0` |
+| `GF082` | Outils Écosystème (Tier 3) | Diagnostic ingéré depuis les vérificateurs externes (`ruff`, `mypy --strict`, `pyright`) résolus via `.venv` / `PATH` / `uv` | `0` |
 
 ---
 
@@ -140,8 +143,8 @@ garde commit-msg .git/COMMIT_EDITMSG
 
 | Crate | Environnement | Rôle |
 | :--- | :--- | :--- |
-| `gf-core` | `#![no_std]` + `alloc` | Modèle algébrique pur (`Span`, `RepoPath`, `DomainKind`, `BoundaryRule`, `CommitConfig`, `UastDocument`, `Validation`) |
-| `gf-rules` | `#![no_std]` + `alloc` | Moteur de règles locales, globales (`GF020`/`GF021`), Tarjan DAG (`GF071`), `[[boundaries]]` (`GF072`), KISS/YAGNI/TDD (`GF073`–`GF076`) |
-| `gf-parsers` | `std` pur (0 I/O) | Extracteurs `Tree-sitter` Safe Rust (`Rust`, `TS`/`TSX`/`JS`, `Python`), anti-bypass CST, `CSS`, `Markdown`/`MDX`, `i18n`, `SVG`, `Dockerfile` |
-| `gf-engine` | Shell impératif | Cache `BLAKE3` `.garde-fou-cache/v4/`, scellement `garde.lock`, `garde init`, découverte d'assets binaires, orchestration `SARIF` |
-| `gf-cli` | Binaire `garde` | Sous-commandes `check`, `init`, `lock`, `commit-msg` et formateurs (`human`, `agent` Markdown, `sarif` 2.1.0) |
+| `gf-core` | `#![no_std]` + `alloc` | Modèle algébrique pur (`Span`, `RepoPath`, `DomainKind`, `BoundaryRule`, `CommitConfig`, `ToolsConfig`, `UastDocument`, `Validation`) |
+| `gf-rules` | `#![no_std]` + `alloc` | Moteur de règles locales, globales (`GF020`/`GF021`), Tarjan DAG (`GF071`), `[[boundaries]]` (`GF072`), KISS/YAGNI/TDD (`GF073`–`GF076`), écosystème (`GF080`–`GF082`) |
+| `gf-parsers` | `std` pur (0 I/O) | Extracteurs `Tree-sitter` Safe Rust (`Rust`, `TS`/`TSX`/`JS`, `Python` + guardrails `GF080`), audit configs `GF081`, `CSS`, `Markdown`/`MDX`, `i18n`, `SVG`, `Dockerfile` |
+| `gf-engine` | Shell impératif | Cache `BLAKE3` `.garde-fou-cache/v5/`, `garde sync` (`AGENTS.md` + `skills.sh`), `garde.lock`, `garde init`, adaptateurs `uv`-aware (`GF082`), orchestration `SARIF` |
+| `gf-cli` | Binaire `garde` | Sous-commandes `check`, `init`, `sync`, `lock`, `commit-msg` et formateurs (`human`, `agent` Markdown, `sarif` 2.1.0) |

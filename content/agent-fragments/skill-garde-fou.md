@@ -1,6 +1,6 @@
 ---
 name: garde-fou
-description: Operate the `garde` static analysis and architectural governance CLI (`GF000`–`GF077`), remediate SRP/DRY/KISS/YAGNI/6-domain/TDD diagnostics at their root cause, and synchronize `AGENTS.md`, `.agents/skills/`, and `garde.lock`.
+description: Operate the `garde` static analysis and architectural governance CLI (`GF000`–`GF082`), remediate SRP/DRY/KISS/YAGNI/6-domain/TDD/ecosystem diagnostics at their root cause, and synchronize `AGENTS.md`, `.agents/skills/`, and `garde.lock`.
 ---
 
 # Garde-fou (`garde`) Agent Skill
@@ -10,13 +10,13 @@ Use this skill whenever working inside a repository governed by `garde-fou.toml`
 ## CLI Commands
 
 - `garde check --staged --format agent`: fast `BLAKE3`-cached check on staged Git changes with agent-ready Markdown remediation.
-- `garde check --no-cache`: full workspace evaluation from scratch (AST, 6-domain segregation, Tarjan DAG, `[[boundaries]]`, `SARIF`, and `LCOV`).
+- `garde check --no-cache`: full workspace evaluation from scratch (AST, 6-domain segregation, Tarjan DAG, `[[boundaries]]`, 3-tier ecosystem tool ingestion, `SARIF`, and `LCOV`).
 - `garde sync`: regenerate the `AGENTS.md` managed block, refresh `.agents/skills/garde-fou/SKILL.md`, fetch contextual `skills.sh` skills, and update `garde.lock` (`--offline` skips network).
 - `garde lock`: seal `garde-fou.toml` cryptographically into `garde.lock` (`GF070`).
 - `garde commit-msg <MSG_FILE>`: validate a Git commit message against Conventional Commits (`GF077`).
 - `garde init [PATH]`: bootstrap or non-destructively adopt a repository (`--lang`, `--feature`, `--framework`, `--offline`).
 
-## Diagnostic Reference & Root-Cause Remediation (`GF000`–`GF077`)
+## Diagnostic Reference & Root-Cause Remediation (`GF000`–`GF082`)
 
 | Rule | Category | Root-Cause Fix |
 | :--- | :--- | :--- |
@@ -33,3 +33,6 @@ Use this skill whenever working inside a repository governed by `garde-fou.toml`
 | `GF071`–`GF072` | DAG & Boundaries | Break circular imports via leaf `types` modules (Tarjan SCC) and respect `[[boundaries]]` / Atomic Design layers. |
 | `GF073`–`GF075` | KISS & YAGNI | Eliminate nested ternaries, Law of Demeter chains (`a.b.c.d.e`), wildcard `export *`, multi-boolean flag params, `TODO` markers, and single-implementation traits. |
 | `GF076`–`GF077` | TDD & Git Commits | Ensure every test has non-tautological assertions (plus companion tests/`.stories` when active) and format commits as `<type>(<scope>): <summary>`. |
+| `GF080` | Language AST Idioms & Security | Fix native language anti-patterns (`PY-B006` mutable defaults, `PY-E722`/`PY-B001` bare/silent `except`, `PY-S102`/`PY-S301`/`PY-S602` dangerous calls, `PY-ANN401` `: Any`, `PY-T201` `print`). |
+| `GF081` | Tool Config Hardening | Keep `[tool.mypy] strict = true`, avoid `ignore = ["ALL"]` in `pyproject.toml`/`ruff.toml`, and keep `"strict": true` in `tsconfig.json`. |
+| `GF082` | External Tool Ingestion | Resolve type-checker and linter errors (`[ruff:...]`, `[mypy:...]`, `[pyright:...]`) at their source rather than suppressing rules. |

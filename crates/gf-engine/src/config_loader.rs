@@ -10,6 +10,7 @@ use gf_core::{
 
 use crate::config_fortress::{
     merge_agents, merge_boundaries, merge_clean_code, merge_commit, merge_integrity, merge_tdd,
+    merge_tools,
 };
 use crate::config_schema::{
     CoverageSection, DomainsSection, LimitsSection, ProjectSection, RawManifest, RulesSection,
@@ -152,6 +153,7 @@ fn build_loaded_config(mut raw: RawManifest) -> Result<LoadedWorkspaceConfig, En
     let tdd = merge_tdd(raw.tdd.take());
     let commit = merge_commit(raw.commit.take());
     let agents = merge_agents(raw.agents.take())?;
+    let tools = merge_tools(raw.tools.take())?;
     let scanners = parse_scanners_section(raw.scanners.take())?;
     let coverage = parse_coverage_section(raw.coverage.take())?;
     let forbid_panicking_constructs = forbid_constructs_enabled(raw.rules.take());
@@ -168,6 +170,7 @@ fn build_loaded_config(mut raw: RawManifest) -> Result<LoadedWorkspaceConfig, En
             tdd,
             commit,
             agents,
+            tools,
             scanners,
             coverage,
             forbid_panicking_constructs,

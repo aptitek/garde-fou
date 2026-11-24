@@ -151,7 +151,7 @@ Les frontières entre crates sont vérifiées par le compilateur et par les test
 | Skill | Path | Purpose |
 | :--- | :--- | :--- |
 | `ast-grep` | `.agents/skills/ast-grep/SKILL.md` | Guide for writing ast-grep rules to perform structural code search and analysis. Use when users need to search codebases... |
-| `garde-fou` | `.agents/skills/garde-fou/SKILL.md` | Operate the `garde` static analysis and architectural governance CLI (`GF000`–`GF077`), remediate SRP/DRY/KISS/YAGNI/6-d... |
+| `garde-fou` | `.agents/skills/garde-fou/SKILL.md` | Operate the `garde` static analysis and architectural governance CLI (`GF000`–`GF082`), remediate SRP/DRY/KISS/YAGNI/6-d... |
 | `property-based-testing` | `.agents/skills/property-based-testing/SKILL.md` | Writes, reviews, and debugs property-based tests — Hypothesis, fast-check, proptest, jqwik, rapid, and Echidna or Medusa... |
 | `rust-best-practices` | `.agents/skills/rust-best-practices/SKILL.md` | Guide for writing idiomatic Rust code based on Apollo GraphQL's best practices handbook. Use this skill when: |
 | `rust-review` | `.agents/skills/rust-review/SKILL.md` | Performs comprehensive Rust security review for safe/unsafe boundary issues, memory safety in unsafe blocks, concurrency... |

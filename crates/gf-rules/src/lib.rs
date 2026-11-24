@@ -22,6 +22,7 @@ mod kiss_yagni_checks;
 mod security_checks;
 mod tarjan;
 mod tdd_checks;
+mod tool_checks;
 mod workspace_checks;
 
 use alloc::vec::Vec;
@@ -39,11 +40,13 @@ use kiss_yagni_checks::{check_local_kiss_yagni_and_bypass, check_single_impl_con
 use security_checks::check_native_secrets;
 use tarjan::check_dependency_cycles;
 use tdd_checks::{check_local_test_assertions, check_workspace_tdd};
+use tool_checks::check_local_tool_and_lang_rules;
 use workspace_checks::{check_dead_exports, check_type2_clones};
 pub use {
     security_checks::evaluate_lcov_coverage,
     tarjan::find_scc_cycles,
     tdd_checks::{check_agentic_governance, check_lock_integrity},
+    tool_checks::convert_external_tool_findings,
 };
 
 /// Evaluates all pure single-file rules applicatively without short-circuiting.
@@ -62,6 +65,7 @@ pub fn evaluate_document_validated(
         check_single_file_domains(doc, config),
         check_local_kiss_yagni_and_bypass(doc, config),
         check_local_test_assertions(doc, config),
+        check_local_tool_and_lang_rules(doc, config),
     ])
 }
 

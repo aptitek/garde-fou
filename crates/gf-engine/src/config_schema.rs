@@ -4,6 +4,7 @@ use serde::Deserialize;
 
 use crate::config_fortress::{
     AgentsSection, BoundarySection, CleanCodeSection, CommitSection, IntegritySection, TddSection,
+    ToolsSection,
 };
 
 #[derive(Deserialize)]
@@ -28,6 +29,8 @@ pub struct RawManifest {
     pub commit: Option<CommitSection>,
     #[serde(default)]
     pub agents: Option<AgentsSection>,
+    #[serde(default)]
+    pub tools: Option<ToolsSection>,
     #[serde(default)]
     pub scanners: Option<ScannersSection>,
     #[serde(default)]

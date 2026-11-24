@@ -169,6 +169,14 @@ const SKILL_REACT_BP: RemoteSkillSpec = RemoteSkillSpec {
     summary: "React & Next.js component composition and rendering performance.",
 };
 
+const SKILL_MODERN_PYTHON: RemoteSkillSpec = RemoteSkillSpec {
+    id: "modern-python",
+    repo: "trailofbits/skills",
+    skill_path: "plugins/modern-python/skills/modern-python",
+    skills_sh_url: "https://skills.sh/trailofbits/skills/modern-python",
+    summary: "Modern Python workflows with uv, ruff, pytest, and strict type checking.",
+};
+
 /// Parses a custom `"owner/repo@skill"` string from `[agents] extra_skills`.
 ///
 /// # Errors
@@ -217,6 +225,9 @@ pub fn select_contextual_skills(
     if ctx.languages.contains(&LanguageId::Rust) {
         insert(SKILL_RUST_BP.into());
         insert(SKILL_RUST_REVIEW.into());
+    }
+    if ctx.languages.contains(&LanguageId::Python) {
+        insert(SKILL_MODERN_PYTHON.into());
     }
     if ctx.languages.contains(&LanguageId::TypeScript) || ctx.features.contains(&FeatureId::Ui) {
         insert(SKILL_WEB_DESIGN.into());

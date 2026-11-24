@@ -88,7 +88,7 @@ fn extract_header_line(raw: &str) -> Option<&str> {
         .find(|l| !l.trim().is_empty())
 }
 
-fn is_valid_kebab_scope(scope: &str) -> bool {
+fn is_single_kebab_scope(scope: &str) -> bool {
     !scope.is_empty()
         && !scope.starts_with('-')
         && !scope.ends_with('-')
@@ -96,6 +96,10 @@ fn is_valid_kebab_scope(scope: &str) -> bool {
         && scope
             .bytes()
             .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-' || b == b'/')
+}
+
+fn is_valid_kebab_scope(scope: &str) -> bool {
+    !scope.is_empty() && scope.split(',').all(is_single_kebab_scope)
 }
 
 fn parse_header_prefix(prefix: &str) -> Result<(&str, Option<&str>), &'static str> {
@@ -144,7 +148,11 @@ fn check_type_and_scope(
             1,
             0,
         ));
-    } else if !cfg.allowed_scopes.is_empty() && !cfg.allowed_scopes.iter().any(|s| s == sc) {
+    } else if !cfg.allowed_scopes.is_empty()
+        && !sc
+            .split(',')
+            .all(|part| cfg.allowed_scopes.iter().any(|s| s == part))
+    {
         diags.push(commit_diag(
             format!(
                 "commit scope `{sc}` is not in allowed_scopes ({})",
