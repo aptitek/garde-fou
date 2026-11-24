@@ -1,8 +1,9 @@
-//! Pure Safe-Rust `Dockerfile` / `Containerfile` parser (directives, continuations, heredocs).
+//! Pure Safe-Rust `Dockerfile` / `Containerfile` parser (directives, continuations, heredocs,
+//! and bridged Shell/PowerShell `RUN` AST extraction).
 
 use gf_core::{DockerDocument, Language, RepoPath, Span, SyntaxErrorNode, UastDocument};
 
-use super::dockerfile_instr::parse_instruction;
+use super::dockerfile_instr::{InstrParseCtx, parse_instruction};
 use crate::anti_cheat::scan_hash_line_comments;
 use crate::cst::line_metrics;
 use crate::types::{LanguageExtractor, ParseError};
@@ -20,11 +21,22 @@ impl LanguageExtractor for DockerfileExtractor {
             total_lines,
             effective_lines,
         )?;
-        let (logical_blocks, mut syntax_errors) = lex_logical_instructions(source);
+        let LexedDockerfile {
+            blocks: logical_blocks,
+            mut syntax_errors,
+            escape,
+        } = lex_logical_instructions(source);
+        let source_lines: Vec<&str> = source.lines().collect();
         let mut docker = DockerDocument::default();
+        let mut ctx = InstrParseCtx {
+            doc: &mut docker,
+            source_lines: &source_lines,
+            escape,
+            bridged_findings: &mut doc.lang_rule_findings,
+        };
 
         for (span, raw_instr) in logical_blocks {
-            if let Err(err_msg) = parse_instruction(&raw_instr, span, &mut docker) {
+            if let Err(err_msg) = parse_instruction(&raw_instr, span, &mut ctx) {
                 syntax_errors.push(SyntaxErrorNode {
                     message: err_msg,
                     span,
@@ -66,7 +78,7 @@ fn detect_heredoc_delimiter(text: &str) -> Option<String> {
         .unwrap_or_else(|| trimmed.split_whitespace().next().unwrap_or(""));
     let clean: String = unquoted
         .chars()
-        .take_while(|c| c.is_ascii_alphanumeric() || *c == '_' || *c == '-')
+        .take_while(|c| c.is_ascii_alphanumeric() || matches!(*c, '_' | '-'))
         .collect();
     (!clean.is_empty()).then_some(clean)
 }
@@ -181,10 +193,16 @@ fn consume_standard_line(
     ));
 }
 
-fn lex_logical_instructions(source: &str) -> (Vec<(Span, String)>, Vec<SyntaxErrorNode>) {
+struct LexedDockerfile {
+    blocks: Vec<(Span, String)>,
+    syntax_errors: Vec<SyntaxErrorNode>,
+    escape: char,
+}
+
+fn lex_logical_instructions(source: &str) -> LexedDockerfile {
     let mut state = LexState::new();
     let mut blocks = Vec::new();
-    let mut errors = Vec::new();
+    let mut syntax_errors = Vec::new();
 
     for (idx, raw_line) in source.lines().enumerate() {
         let raw = raw_line.trim_end_matches('\r');
@@ -195,12 +213,16 @@ fn lex_logical_instructions(source: &str) -> (Vec<(Span, String)>, Vec<SyntaxErr
     }
 
     if state.heredoc_eof.is_some() {
-        errors.push(SyntaxErrorNode {
+        syntax_errors.push(SyntaxErrorNode {
             message: String::from("unterminated Dockerfile heredoc"),
             span: make_span(state.start_line, state.end_line),
         });
     } else if !state.buf.trim().is_empty() {
         blocks.push((make_span(state.start_line, state.end_line), state.buf));
     }
-    (blocks, errors)
+    LexedDockerfile {
+        blocks,
+        syntax_errors,
+        escape: state.escape,
+    }
 }

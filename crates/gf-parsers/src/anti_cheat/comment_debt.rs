@@ -22,7 +22,18 @@ const CODE_LINE_PREFIXES: &[&str] = &[
 
 pub fn is_rust_doc_comment(raw: &str) -> bool {
     let t = raw.trim_start();
-    t.starts_with("///") || t.starts_with("//!") || t.starts_with("/**") || t.starts_with("/*!")
+    if t.starts_with("///") || t.starts_with("//!") || t.starts_with("/**") || t.starts_with("/*!")
+    {
+        return true;
+    }
+    if t.starts_with("<#") {
+        let upper = t.to_ascii_uppercase();
+        return upper.contains(".SYNOPSIS")
+            || upper.contains(".DESCRIPTION")
+            || upper.contains(".PARAMETER")
+            || upper.contains(".EXAMPLE");
+    }
+    false
 }
 
 pub fn strip_comment_line(line: &str) -> &str {
@@ -30,11 +41,13 @@ pub fn strip_comment_line(line: &str) -> &str {
     let without_open = t
         .strip_prefix("//")
         .or_else(|| t.strip_prefix("/*"))
+        .or_else(|| t.strip_prefix("<#"))
         .or_else(|| t.strip_prefix('#'))
         .or_else(|| t.strip_prefix('*'))
         .unwrap_or(t);
     without_open
         .strip_suffix("*/")
+        .or_else(|| without_open.strip_suffix("#>"))
         .unwrap_or(without_open)
         .trim()
 }

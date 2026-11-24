@@ -24,8 +24,8 @@ const COMMENT_BYPASS_PREFIXES: &[&str] = &[
     "@ts-nocheck",
     "biome-ignore",
     "nolint",
-    "hadolint ignore",
-    "shellcheck disable",
+    "hadolint global ignore",
+    "hadolint stage ignore",
     "ruff: noqa",
     "flake8: noqa",
     "pylint: disable",
@@ -43,6 +43,39 @@ const COMMENT_BYPASS_PREFIXES: &[&str] = &[
     "cosmic-ray: disable",
 ];
 
+fn has_min_justification(reason: &str) -> bool {
+    reason.trim().chars().count() >= 10 && reason.chars().any(char::is_alphanumeric)
+}
+
+fn is_single_prefixed_four_digit_code(code: &str, prefixes: &[&str]) -> bool {
+    code.len() == 6
+        && prefixes
+            .iter()
+            .any(|pfx| code[..2].eq_ignore_ascii_case(pfx))
+        && code[2..].bytes().all(|b| b.is_ascii_digit())
+}
+
+fn check_justified_kv_pragma(
+    seg: &str,
+    pragma_prefix: &str,
+    code_prefixes: &[&str],
+) -> Option<String> {
+    let lower = seg.to_ascii_lowercase();
+    let after = lower.strip_prefix(pragma_prefix)?;
+    let orig_after = &seg[pragma_prefix.len()..];
+    if !after.is_empty() && !after.starts_with(|c: char| c.is_whitespace() || c == '=') {
+        return None;
+    }
+    let rhs = orig_after.trim_start().strip_prefix('=')?.trim();
+    if let Some((code_part, reason)) = rhs.split_once("--")
+        && is_single_prefixed_four_digit_code(code_part.trim(), code_prefixes)
+        && has_min_justification(reason)
+    {
+        return None;
+    }
+    Some(String::from(pragma_prefix))
+}
+
 fn is_unjustified_ts_expect_error(clean: &str) -> bool {
     let Some(after) = clean.strip_prefix("@ts-expect-error") else {
         return false;
@@ -52,7 +85,7 @@ fn is_unjustified_ts_expect_error(clean: &str) -> bool {
         .strip_prefix(':')
         .or_else(|| trimmed.strip_prefix("--"))
         .map_or("", str::trim);
-    reason.chars().count() < 10 || !reason.chars().any(char::is_alphanumeric)
+    !has_min_justification(reason)
 }
 
 fn is_valid_prefix_tail(prefix: &str, rest: &str) -> bool {
@@ -61,7 +94,43 @@ fn is_valid_prefix_tail(prefix: &str, rest: &str) -> bool {
         || rest.starts_with(|c: char| !c.is_ascii_alphanumeric() && c != '_')
 }
 
+enum PragmaVerdict {
+    Exempted,
+    Blocked(String),
+    Unmatched,
+}
+
+fn match_justified_kv_pragma(seg: &str) -> PragmaVerdict {
+    let norm: String = seg.split_whitespace().collect::<Vec<_>>().join(" ");
+    let norm_low = norm.to_ascii_lowercase();
+    let matched = if norm_low.starts_with("shellcheck disable") {
+        Some(check_justified_kv_pragma(
+            &norm,
+            "shellcheck disable",
+            &["sc"],
+        ))
+    } else if norm_low.starts_with("hadolint ignore") {
+        Some(check_justified_kv_pragma(
+            &norm,
+            "hadolint ignore",
+            &["dl", "sc"],
+        ))
+    } else {
+        None
+    };
+    match matched {
+        None => PragmaVerdict::Unmatched,
+        Some(None) => PragmaVerdict::Exempted,
+        Some(Some(d)) => PragmaVerdict::Blocked(d),
+    }
+}
+
 fn match_single_bypass_segment(seg: &str, skip_doc_clippy: bool) -> Option<String> {
+    match match_justified_kv_pragma(seg) {
+        PragmaVerdict::Exempted => return None,
+        PragmaVerdict::Blocked(d) => return Some(d),
+        PragmaVerdict::Unmatched => {}
+    }
     let lower = seg.to_ascii_lowercase();
     for &prefix in COMMENT_BYPASS_PREFIXES {
         if prefix == "clippy::" && skip_doc_clippy {
@@ -143,7 +212,7 @@ fn walk_anti_cheat(node: Node<'_>, source: &str, doc: &mut UastDocument) {
     }
 }
 
-/// Scans `#` comment lines in `Dockerfile` or `Shell` sources for `hadolint`/`shellcheck` bypasses.
+/// Scans `#` comment lines in `Dockerfile` sources for `hadolint` / `shellcheck` bypasses.
 pub fn scan_hash_line_comments(source: &str, doc: &mut UastDocument) {
     for (idx, line) in source.lines().enumerate() {
         let trimmed = line.trim_start();

@@ -1,10 +1,13 @@
-//! Workspace file discovery via `ignore` (`.gitignore`-aware) and `git diff --cached`.
+//! Workspace file discovery via `ignore` (`.gitignore`-aware), extensionless shebang probing,
+//! and `git diff --cached`.
 
+use std::fs::File;
+use std::io::Read as _;
 use std::path::Path;
 use std::process::Command;
 
 use gf_core::{Config, DomainKind, Language, RepoPath, classify_path, is_audited_tool_config_file};
-use gf_parsers::detect_language;
+use gf_parsers::{detect_language, detect_shebang_language};
 use globset::{Glob, GlobSet, GlobSetBuilder};
 use ignore::WalkBuilder;
 
@@ -26,23 +29,54 @@ fn should_descend(entry_path: &Path, root: &Path) -> bool {
         return true;
     };
     !rel.components().any(|comp| {
-        let s = comp.as_os_str();
-        s == ".git"
-            || s == ".garde-fou-cache"
-            || s == "target"
-            || s == "node_modules"
-            || s == ".agents"
-            || s == "mutants.out"
-            || s == ".stryker-tmp"
+        let Some(s) = comp.as_os_str().to_str() else {
+            return false;
+        };
+        matches!(
+            s,
+            ".git"
+                | ".garde-fou-cache"
+                | "target"
+                | "node_modules"
+                | ".venv"
+                | "venv"
+                | "__pycache__"
+                | ".mypy_cache"
+                | ".ruff_cache"
+                | ".pytest_cache"
+                | ".agents"
+                | "mutants.out"
+                | ".stryker-tmp"
+        )
     })
 }
 
-fn is_discovered_target(repo_path: &RepoPath, config: &Config) -> bool {
+/// Reads at most 128 header bytes of an extensionless file to detect `#!` `sh`/`bash`/`pwsh` scripts.
+#[must_use]
+pub fn peek_extensionless_shebang(full_path: &Path) -> Option<Language> {
+    let mut file = File::open(full_path).ok()?;
+    let mut buf = [0_u8; 128];
+    let n = file.read(&mut buf).ok()?;
+    let head = buf.get(..n)?;
+    if !head.starts_with(b"#!") {
+        return None;
+    }
+    let text = core::str::from_utf8(head).ok()?;
+    let first_line = text.lines().next()?;
+    detect_shebang_language(first_line)
+}
+
+fn is_discovered_target(root: &Path, repo_path: &RepoPath, config: &Config) -> bool {
     let lang = detect_language(repo_path);
-    lang.is_always_discovered()
+    if lang.is_always_discovered()
         || is_audited_tool_config_file(repo_path)
         || (matches!(lang, Language::Json | Language::Toml)
             && classify_path(repo_path, &config.domains) == DomainKind::Texte)
+    {
+        return true;
+    }
+    repo_path.extension().is_none()
+        && peek_extensionless_shebang(&root.join(repo_path.as_str())).is_some()
 }
 
 fn discover_all(
@@ -72,7 +106,9 @@ fn discover_all(
             continue;
         };
         let repo_path = RepoPath::new(rel_str)?;
-        if is_discovered_target(&repo_path, config) && !ignore_set.is_match(repo_path.as_str()) {
+        if is_discovered_target(root, &repo_path, config)
+            && !ignore_set.is_match(repo_path.as_str())
+        {
             paths.push(repo_path);
         }
     }
@@ -101,7 +137,9 @@ fn discover_staged(
         if !root.join(repo_path.as_str()).is_file() {
             continue;
         }
-        if is_discovered_target(&repo_path, config) && !ignore_set.is_match(repo_path.as_str()) {
+        if is_discovered_target(root, &repo_path, config)
+            && !ignore_set.is_match(repo_path.as_str())
+        {
             paths.push(repo_path);
         }
     }

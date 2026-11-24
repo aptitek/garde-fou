@@ -4,8 +4,9 @@ use std::collections::BTreeSet;
 use std::slice;
 
 use gf_core::{
-    Config, DockerDocument, DockerInstruction, DockerInstructionKind, FeatureId, FromStage,
-    Language, LanguageId, ProjectContext, RepoPath, Span, UastDocument,
+    Config, DockerCommandForm, DockerDocument, DockerInstruction, DockerInstructionKind,
+    DockerStageShell, FeatureId, FromStage, Language, LanguageId, ProjectContext, RepoPath, Span,
+    UastDocument,
 };
 use gf_rules::evaluate_workspace_sorted;
 
@@ -24,6 +25,7 @@ fn stage(image: &str, tag: Option<&str>, digest: Option<&str>, user: Option<&str
         digest: digest.map(String::from),
         alias: None,
         effective_user: user.map(String::from),
+        effective_shell: DockerStageShell::default_posix(),
         span: Span::FIRST,
     }
 }
@@ -139,6 +141,8 @@ fn docker_instructions_enforce_gf032_and_gf033_exact_guards() -> Res {
             }),
             mk(DockerInstructionKind::Run {
                 command: "sudo apt-get install -y curl && pip install flask".into(),
+                form: DockerCommandForm::ShellForm,
+                has_unguarded_pipe: false,
             }),
             mk(DockerInstructionKind::Env {
                 bindings: vec![("API_KEY".into(), "hardcoded".into())],
@@ -155,13 +159,28 @@ fn docker_instructions_enforce_gf032_and_gf033_exact_guards() -> Res {
     let diags = evaluate_workspace_sorted(&[bad], &ctx, &Config::default());
     assert_eq!(diags.iter().filter(|d| d.rule_id == "GF032").count(), 4);
     assert_eq!(diags.iter().filter(|d| d.rule_id == "GF033").count(), 3);
+    verify_clean_docker_instructions(&ctx)
+}
 
+fn verify_clean_docker_instructions(ctx: &ProjectContext) -> Res {
+    let mk = |kind: DockerInstructionKind| DockerInstruction {
+        kind,
+        span: Span::FIRST,
+    };
     let clean = make_df(DockerDocument {
         stages: vec![stage("alpine", Some("3.20"), None, Some("app"))],
         instructions: vec![
             mk(DockerInstructionKind::Add { operands: vec!["https://x.io/a".into(), "http://x.io/b".into(), "p.tar.gz".into(), "/app/".into()] }),
-            mk(DockerInstructionKind::Run { command: "my-sudo my_sudo apt-get install -y x && rm -rf /var/lib/apt/lists/* && pip install --no-cache-dir y".into() }),
-            mk(DockerInstructionKind::Run { command: "--mount=type=cache apt-get install -y x && pip install y".into() }),
+            mk(DockerInstructionKind::Run {
+                command: "my-sudo my_sudo apt-get install -y x && rm -rf /var/lib/apt/lists/* && pip install --no-cache-dir y".into(),
+                form: DockerCommandForm::ShellForm,
+                has_unguarded_pipe: false,
+            }),
+            mk(DockerInstructionKind::Run {
+                command: "--mount=type=cache apt-get install -y x && pip install y".into(),
+                form: DockerCommandForm::ShellForm,
+                has_unguarded_pipe: false,
+            }),
             mk(DockerInstructionKind::Env { bindings: vec![("API_KEY".into(), String::new()), ("API_KEY".into(), "$ENV_KEY".into()), ("PORT".into(), "8080".into())] }),
             mk(DockerInstructionKind::Arg { name: "SECRET_TOKEN".into(), default_value: Some("$TOK".into()) }),
             mk(DockerInstructionKind::Workdir { path: "/app".into() }),
@@ -169,7 +188,7 @@ fn docker_instructions_enforce_gf032_and_gf033_exact_guards() -> Res {
         ],
     })?;
     assert_eq!(
-        evaluate_workspace_sorted(&[clean], &ctx, &Config::default()),
+        evaluate_workspace_sorted(&[clean], ctx, &Config::default()),
         Vec::new()
     );
     Ok(())

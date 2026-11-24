@@ -32,6 +32,8 @@ serde = { version = "1.0", default-features = false, features = ["derive", "allo
 serde_json = { version = "1.0" }
 toml = { version = "0.8", default-features = false, features = ["parse"] }
 tree-sitter = { version = "0.26" }
+tree-sitter-bash = { version = "0.25" }
+tree-sitter-powershell = { version = "0.26" }
 tree-sitter-python = { version = "0.25" }
 tree-sitter-rust = { version = "0.24" }
 tree-sitter-typescript = { version = "0.23" }

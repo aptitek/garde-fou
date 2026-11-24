@@ -36,9 +36,13 @@ pub enum ExternalToolKind {
     Oxlint,
     /// `biome` fast Rust-native JS/TS/JSX analyzer (`biome check --reporter=json`).
     Biome,
+    /// `hadolint` Dockerfile & embedded `ShellCheck` linter (`hadolint --format json`).
+    Hadolint,
+    /// `PSScriptAnalyzer` PowerShell AST static analyzer (`Invoke-ScriptAnalyzer`).
+    PsScriptAnalyzer,
 }
 
-const TOOL_NAMES: [&str; 12] = [
+const TOOL_NAMES: [&str; 14] = [
     "ruff",
     "mypy",
     "pyright",
@@ -51,11 +55,13 @@ const TOOL_NAMES: [&str; 12] = [
     "stryker",
     "oxlint",
     "biome",
+    "hadolint",
+    "psscriptanalyzer",
 ];
 
 impl ExternalToolKind {
     /// All known ecosystem tool identifiers in deterministic order.
-    pub const ALL: [Self; 12] = [
+    pub const ALL: [Self; 14] = [
         Self::Ruff,
         Self::Mypy,
         Self::Pyright,
@@ -68,6 +74,8 @@ impl ExternalToolKind {
         Self::Stryker,
         Self::Oxlint,
         Self::Biome,
+        Self::Hadolint,
+        Self::PsScriptAnalyzer,
     ];
 
     /// Canonical lowercase CLI/config name of the tool.
@@ -110,8 +118,10 @@ pub enum Language {
     Json,
     /// TOML configuration or `i18n` dictionary (`.toml`).
     Toml,
-    /// Shell / PowerShell automation script (`.sh`, `.bash`, `.ps1`).
+    /// POSIX/Bash Shell script (`.sh`, `.bash`, or extensionless `sh`/`bash` shebang).
     Shell,
+    /// PowerShell automation script or module (`.ps1`, `.psm1`, `.psd1`).
+    PowerShell,
     /// Scalable Vector Graphics XML asset (`.svg`).
     Svg,
     /// Non-text binary media or font asset (`.png`, `.woff2`, `.pdf`, etc.).
@@ -121,7 +131,7 @@ pub enum Language {
 }
 
 impl Language {
-    /// Returns `true` if `gf-parsers` provides a programming-language / Dockerfile AST extractor.
+    /// Returns `true` if `gf-parsers` provides a programming-language / script / Dockerfile AST extractor.
     #[must_use]
     pub const fn is_code_analyzed(self) -> bool {
         matches!(
@@ -132,6 +142,8 @@ impl Language {
                 | Self::Tsx
                 | Self::JavaScript
                 | Self::Jsx
+                | Self::Shell
+                | Self::PowerShell
                 | Self::Dockerfile
         )
     }
@@ -142,7 +154,7 @@ impl Language {
         self.is_code_analyzed()
             || matches!(
                 self,
-                Self::Css | Self::Markdown | Self::Shell | Self::Svg | Self::BinaryAsset
+                Self::Css | Self::Markdown | Self::Svg | Self::BinaryAsset
             )
     }
 }

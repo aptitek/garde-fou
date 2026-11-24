@@ -1,4 +1,4 @@
-//! Unified Abstract Syntax Tree (`UAST`) hub representations (`v8` schema).
+//! Unified Abstract Syntax Tree (`UAST`) hub representations (`v9` schema).
 
 use alloc::collections::BTreeSet;
 use alloc::string::String;
@@ -69,7 +69,7 @@ impl UastNode {
     }
 }
 
-/// Normalized `UAST` document produced by `gf-parsers`, cached in `.garde-fou-cache/v8/`,
+/// Normalized `UAST` document produced by `gf-parsers`, cached in `.garde-fou-cache/v9/`,
 /// and analyzed locally and globally by `gf-rules`.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct UastDocument {

@@ -100,13 +100,19 @@ fn count_switch_arms(node: Node<'_>, rules: &ComplexityRules) -> u32 {
     }
 }
 
+fn matches_bool_op(tok: &str, rules: &ComplexityRules) -> bool {
+    rules.bool_ops.iter().any(|op| op.eq_ignore_ascii_case(tok))
+}
+
 fn has_short_circuit_op(node: Node<'_>, source: &str, rules: &ComplexityRules) -> bool {
     if let Some(op_node) = node.child_by_field_name("operator") {
-        return rules.bool_ops.contains(&node_text(op_node, source));
+        return matches_bool_op(node_text(op_node, source), rules);
     }
     let mut cursor = node.walk();
-    node.children(&mut cursor)
-        .any(|child| !child.is_named() && rules.bool_ops.contains(&node_text(child, source)))
+    node.children(&mut cursor).any(|child| {
+        (!child.is_named() || child.kind().ends_with("operator"))
+            && matches_bool_op(node_text(child, source), rules)
+    })
 }
 
 impl Accumulator<'_> {

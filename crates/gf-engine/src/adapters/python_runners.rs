@@ -1,15 +1,19 @@
-//! Declarative `ExternalAdapter` sum type and `uv` / `.venv` Python tool resolver (`GF082`).
+//! Declarative `ExternalAdapter` sum type across Python, TypeScript/React, Shell,
+//! PowerShell, and Docker ecosystems (`GF082`, zero `dyn Trait`).
 
-use std::path::{Path, PathBuf};
-use std::process::{Command, Output};
+use std::path::Path;
 
 use gf_core::{Config, ExternalToolFinding, ExternalToolKind, ScannerPolicy};
 use gf_parsers::{
-    ToolParseError, parse_biome_json, parse_mypy_ndjson, parse_oxlint_json, parse_pyright_json,
-    parse_ruff_json, parse_tsc_output,
+    ToolParseError, parse_biome_json, parse_hadolint_json, parse_mypy_ndjson, parse_oxlint_json,
+    parse_psscriptanalyzer_json, parse_pyright_json, parse_ruff_json, parse_shellcheck_json,
+    parse_tsc_output,
 };
 
-use crate::types::EngineError;
+pub use super::tool_resolvers::{
+    ResolvedPythonTool, resolve_pwsh_analyzer, resolve_python_tool, resolve_python_tool_with_uv,
+    resolve_system_binary,
+};
 
 /// Closed sum type of external ecosystem verifiers orchestrated without `dyn Trait` (`GF082`).
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -26,51 +30,98 @@ pub enum ExternalAdapter {
     Biome,
     /// `tsc --noEmit --pretty false`.
     Tsc,
+    /// `shellcheck --format=json1 -- <files...>`.
+    Shellcheck,
+    /// `hadolint --format json --no-color <Dockerfiles...>`.
+    Hadolint,
+    /// `pwsh -NoLogo -NoProfile -NonInteractive -Command ... -- <files...>`.
+    PsScriptAnalyzer,
 }
+
+const PSSA_COMMAND: &str = "& { \
+    $res = if ($args.Count -gt 0) { foreach ($f in $args) { Invoke-ScriptAnalyzer -Path $f } } \
+    else { Invoke-ScriptAnalyzer -Path . -Recurse }; \
+    if ($null -ne $res) { $res | Select-Object RuleName,ScriptPath,Line,Column,Message,Severity | ConvertTo-Json -Compress } \
+}";
 
 struct AdapterTableEntry {
     tool: ExternalToolKind,
     prefix_args: &'static [&'static str],
     accepts_file_targets: bool,
+    dot_when_empty: bool,
     install_hint: &'static str,
 }
 
-const ADAPTER_TABLE: [AdapterTableEntry; 6] = [
+const ADAPTER_TABLE: [AdapterTableEntry; 9] = [
     AdapterTableEntry {
         tool: ExternalToolKind::Ruff,
         prefix_args: &["check", "--output-format", "json", "--no-fix", "--"],
         accepts_file_targets: true,
+        dot_when_empty: true,
         install_hint: "Install `ruff` in `.venv` (`uv add --dev ruff`) or system PATH.",
     },
     AdapterTableEntry {
         tool: ExternalToolKind::Mypy,
         prefix_args: &["--strict", "--output", "json", "--no-error-summary", "--"],
         accepts_file_targets: true,
+        dot_when_empty: true,
         install_hint: "Install `mypy` in `.venv` (`uv add --dev mypy`) or system PATH.",
     },
     AdapterTableEntry {
         tool: ExternalToolKind::Pyright,
         prefix_args: &["--outputjson"],
         accepts_file_targets: true,
+        dot_when_empty: true,
         install_hint: "Install `pyright` in `.venv` (`uv add --dev pyright`) or system PATH.",
     },
     AdapterTableEntry {
         tool: ExternalToolKind::Oxlint,
         prefix_args: &["--format", "json"],
         accepts_file_targets: true,
+        dot_when_empty: true,
         install_hint: "Install `oxlint` (`pnpm add -D oxlint`) in `node_modules/.bin` or system PATH.",
     },
     AdapterTableEntry {
         tool: ExternalToolKind::Biome,
         prefix_args: &["check", "--reporter=json"],
         accepts_file_targets: true,
+        dot_when_empty: true,
         install_hint: "Install `@biomejs/biome` (`pnpm add -D @biomejs/biome`) in `node_modules/.bin` or system PATH.",
     },
     AdapterTableEntry {
         tool: ExternalToolKind::Tsc,
         prefix_args: &["--noEmit", "--pretty", "false"],
         accepts_file_targets: false,
+        dot_when_empty: false,
         install_hint: "Install `typescript` (`pnpm add -D typescript`) in `node_modules/.bin` or system PATH.",
+    },
+    AdapterTableEntry {
+        tool: ExternalToolKind::Shellcheck,
+        prefix_args: &["--format=json1", "--"],
+        accepts_file_targets: true,
+        dot_when_empty: false,
+        install_hint: "Install `shellcheck` (`apt install shellcheck` / `brew install shellcheck`) on system PATH.",
+    },
+    AdapterTableEntry {
+        tool: ExternalToolKind::Hadolint,
+        prefix_args: &["--format", "json", "--no-color"],
+        accepts_file_targets: true,
+        dot_when_empty: false,
+        install_hint: "Install `hadolint` (`brew install hadolint` / GitHub release binary) on system PATH.",
+    },
+    AdapterTableEntry {
+        tool: ExternalToolKind::PsScriptAnalyzer,
+        prefix_args: &[
+            "-NoLogo",
+            "-NoProfile",
+            "-NonInteractive",
+            "-Command",
+            PSSA_COMMAND,
+            "--",
+        ],
+        accepts_file_targets: true,
+        dot_when_empty: false,
+        install_hint: "Install `pwsh` and module `PSScriptAnalyzer` (`Install-Module PSScriptAnalyzer -Scope CurrentUser`).",
     },
 ];
 
@@ -97,6 +148,12 @@ impl ExternalAdapter {
         matches!(self, Self::Ruff | Self::Mypy | Self::Pyright)
     }
 
+    /// Returns `true` for Node/TypeScript ecosystem adapters (`oxlint`, `biome`, `tsc`).
+    #[must_use]
+    pub const fn is_typescript(self) -> bool {
+        matches!(self, Self::Oxlint | Self::Biome | Self::Tsc)
+    }
+
     /// Reads the configured [`ScannerPolicy`] for this adapter from `config`.
     #[must_use]
     pub const fn configured_policy(self, config: &Config) -> ScannerPolicy {
@@ -107,6 +164,9 @@ impl ExternalAdapter {
             Self::Oxlint => config.tools.typescript.oxlint,
             Self::Biome => config.tools.typescript.biome,
             Self::Tsc => config.tools.typescript.tsc,
+            Self::Shellcheck => config.tools.shell.shellcheck,
+            Self::Hadolint => config.tools.docker.hadolint,
+            Self::PsScriptAnalyzer => config.tools.powershell.psscriptanalyzer,
         }
     }
 
@@ -116,7 +176,7 @@ impl ExternalAdapter {
         self.spec().install_hint
     }
 
-    /// Builds argv slice targeting `targets` (empty slice means full workspace `.` when supported).
+    /// Builds argv slice targeting `targets` (zero shell interpolation).
     #[must_use]
     pub fn build_args(self, targets: &[String]) -> Vec<String> {
         let entry = self.spec();
@@ -128,7 +188,9 @@ impl ExternalAdapter {
             .collect();
         if entry.accepts_file_targets {
             if targets.is_empty() {
-                args.push(String::from("."));
+                if entry.dot_when_empty {
+                    args.push(String::from("."));
+                }
             } else {
                 args.extend(targets.iter().cloned());
             }
@@ -153,94 +215,9 @@ impl ExternalAdapter {
             Self::Oxlint => parse_oxlint_json(stdout, root),
             Self::Biome => parse_biome_json(stdout, root),
             Self::Tsc => parse_tsc_output(stdout, root),
+            Self::Shellcheck => parse_shellcheck_json(stdout, root),
+            Self::Hadolint => parse_hadolint_json(stdout, root),
+            Self::PsScriptAnalyzer => parse_psscriptanalyzer_json(stdout, root),
         }
     }
-}
-
-/// Resolved execution strategy for an external CLI tool without invoking `sh -c`.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum ResolvedPythonTool {
-    /// Direct path to `.venv`/`node_modules/.bin` binary or binary name resolved on `PATH`.
-    Direct(PathBuf),
-    /// Executed via `<uv_bin> run --no-sync <tool> ...` against an existing `.venv`.
-    UvNoSync {
-        /// Path or binary name for `uv`.
-        uv_bin: PathBuf,
-        /// Target Python tool name (`ruff`, `mypy`, `pyright`).
-        tool: String,
-    },
-}
-
-impl ResolvedPythonTool {
-    /// Executes the resolved tool in `root` with `args`.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`EngineError::Io`] if spawning the process fails.
-    pub fn execute(&self, root: &Path, args: &[String]) -> Result<Output, EngineError> {
-        let output = match self {
-            Self::Direct(program) => Command::new(program)
-                .args(args)
-                .current_dir(root)
-                .output()?,
-            Self::UvNoSync { uv_bin, tool } => Command::new(uv_bin)
-                .args(["run", "--no-sync", tool.as_str()])
-                .args(args)
-                .current_dir(root)
-                .output()?,
-        };
-        Ok(output)
-    }
-}
-
-fn probe_venv_binary(root: &Path, tool_name: &str) -> Option<PathBuf> {
-    let unix_bin = root.join(".venv").join("bin").join(tool_name);
-    if unix_bin.is_file() {
-        return Some(unix_bin);
-    }
-    let win_bin = root
-        .join(".venv")
-        .join("Scripts")
-        .join(format!("{tool_name}.exe"));
-    win_bin.is_file().then_some(win_bin)
-}
-
-/// Resolves `tool_name` in `.venv`, then `PATH`, then `<uv_bin> run --no-sync` (when `.venv` exists).
-#[must_use]
-pub fn resolve_python_tool_with_uv(
-    root: &Path,
-    tool_name: &str,
-    uv_bin: &Path,
-) -> Option<ResolvedPythonTool> {
-    if let Some(venv_bin) = probe_venv_binary(root, tool_name) {
-        return Some(ResolvedPythonTool::Direct(venv_bin));
-    }
-    let in_path = Command::new(tool_name)
-        .arg("--version")
-        .output()
-        .is_ok_and(|o| o.status.success());
-    if in_path {
-        return Some(ResolvedPythonTool::Direct(PathBuf::from(tool_name)));
-    }
-    let has_uv_project = (root.join("uv.lock").is_file() || root.join("pyproject.toml").is_file())
-        && root.join(".venv").is_dir();
-    if has_uv_project
-        && Command::new(uv_bin)
-            .args(["run", "--no-sync", tool_name, "--version"])
-            .current_dir(root)
-            .output()
-            .is_ok_and(|o| o.status.success())
-    {
-        return Some(ResolvedPythonTool::UvNoSync {
-            uv_bin: uv_bin.to_path_buf(),
-            tool: String::from(tool_name),
-        });
-    }
-    None
-}
-
-/// Resolves `tool_name` in `.venv`, then `PATH`, then `uv run --no-sync` (when `.venv` exists).
-#[must_use]
-pub fn resolve_python_tool(root: &Path, tool_name: &str) -> Option<ResolvedPythonTool> {
-    resolve_python_tool_with_uv(root, tool_name, Path::new("uv"))
 }

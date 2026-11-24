@@ -8,6 +8,8 @@ use crate::diagnostic::Span;
 pub use crate::language_meta::ExternalToolKind;
 use crate::path::RepoPath;
 use crate::policies::ScannerPolicy;
+use crate::shell_ps_tools::{DockerToolsConfig, PowerShellToolsConfig, ShellToolsConfig};
+pub use crate::shell_ps_tools::{is_audited_tool_config_file, is_tsconfig_filename};
 use crate::tool_config_violations::ToolConfigViolation;
 use crate::ts_violations::LangRuleViolation;
 
@@ -17,7 +19,7 @@ pub type ExternalToolId = ExternalToolKind;
 /// Tier 1 native AST language rule violation (`GF080`), requiring zero external binaries.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct LangRuleFinding {
-    /// Closed algebraic language AST violation (`Python`, `TypeScript`, or `React`).
+    /// Closed algebraic language AST violation (`Python`, `TypeScript`, `React`, `Shell`, `PowerShell`).
     pub violation: LangRuleViolation,
     /// 1-based source line span of the offending AST construct.
     pub span: Span,
@@ -40,7 +42,7 @@ impl LangRuleFinding {
         }
     }
 
-    /// Canonical ecosystem rule code (`"PY-..."`, `"TS-..."`, or `"REACT-..."`).
+    /// Canonical ecosystem rule code (`"PY-..."`, `"TS-..."`, `"REACT-..."`, `"SH-..."`, `"PS-..."`).
     #[must_use]
     pub const fn code(&self) -> &'static str {
         self.violation.code()
@@ -53,8 +55,7 @@ impl LangRuleFinding {
     }
 }
 
-/// Tier 2 static configuration weakening finding (`GF081`) in `pyproject.toml`,
-/// `ruff.toml`, `.ruff.toml`, `tsconfig*.json`, `biome.json*`, `mutants.toml`, or `stryker.config.json`.
+/// Tier 2 static configuration weakening finding (`GF081`).
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct ToolConfigFinding {
     /// Closed algebraic configuration weakening category.
@@ -96,7 +97,7 @@ pub struct ExternalToolFinding {
     pub line: u32,
     /// 1-based column offset (`>= 1`).
     pub column: u32,
-    /// Native rule or error code (e.g. `"F401"`, `"TS2322"`, `"lint/suspicious/noExplicitAny"`).
+    /// Native rule or error code (e.g. `"F401"`, `"TS2322"`, `"SC2086"`, `"DL4006"`).
     pub native_code: String,
     /// Primary diagnostic message reported by the tool.
     pub message: String,
@@ -134,7 +135,7 @@ impl PythonToolsConfig {
             "py(r={},m={},p={})",
             self.ruff.as_str(),
             self.mypy.as_str(),
-            self.pyright.as_str(),
+            self.pyright.as_str()
         )
     }
 }
@@ -175,7 +176,7 @@ impl TypeScriptToolsConfig {
             "ts(o={},b={},t={})",
             self.oxlint.as_str(),
             self.biome.as_str(),
-            self.tsc.as_str(),
+            self.tsc.as_str()
         )
     }
 }
@@ -195,6 +196,15 @@ pub struct ToolsConfig {
     /// TypeScript/React linter and type-checker policies (`[tools.typescript]`).
     #[serde(default)]
     pub typescript: TypeScriptToolsConfig,
+    /// POSIX/Bash `ShellCheck` policy (`[tools.shell]`).
+    #[serde(default)]
+    pub shell: ShellToolsConfig,
+    /// PowerShell `PSScriptAnalyzer` policy (`[tools.powershell]`).
+    #[serde(default)]
+    pub powershell: PowerShellToolsConfig,
+    /// Docker `hadolint` policy (`[tools.docker]`).
+    #[serde(default)]
+    pub docker: DockerToolsConfig,
 }
 
 impl ToolsConfig {
@@ -204,6 +214,9 @@ impl ToolsConfig {
         Self {
             python: PythonToolsConfig::defaults(),
             typescript: TypeScriptToolsConfig::defaults(),
+            shell: ShellToolsConfig::defaults(),
+            powershell: PowerShellToolsConfig::defaults(),
+            docker: DockerToolsConfig::defaults(),
         }
     }
 
@@ -211,37 +224,12 @@ impl ToolsConfig {
     #[must_use]
     pub fn canonical_fragment(self) -> String {
         format!(
-            "tl({},{})",
+            "tl({},{},{},{},{})",
             self.python.canonical_fragment(),
             self.typescript.canonical_fragment(),
+            self.shell.canonical_fragment(),
+            self.powershell.canonical_fragment(),
+            self.docker.canonical_fragment(),
         )
     }
-}
-
-/// Returns `true` if `file_name` is `tsconfig.json` or a profile variant (`tsconfig.*.json`).
-#[must_use]
-pub fn is_tsconfig_filename(file_name: &str) -> bool {
-    file_name.eq_ignore_ascii_case("tsconfig.json")
-        || (file_name.starts_with("tsconfig.")
-            && file_name
-                .rsplit_once('.')
-                .is_some_and(|(_, ext)| ext.eq_ignore_ascii_case("json")))
-}
-
-/// Returns `true` if `path` is a language-tool configuration file audited by Tier 2 (`GF081`).
-#[must_use]
-pub fn is_audited_tool_config_file(path: &RepoPath) -> bool {
-    let name = path.file_name();
-    is_tsconfig_filename(name)
-        || matches!(
-            name,
-            "pyproject.toml"
-                | "ruff.toml"
-                | ".ruff.toml"
-                | "biome.json"
-                | "biome.jsonc"
-                | "mutants.toml"
-                | "stryker.config.json"
-                | "stryker.conf.json"
-        )
 }

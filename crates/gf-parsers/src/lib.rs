@@ -15,6 +15,8 @@ mod test_inspector;
 mod test_inspector_py;
 mod test_inspector_script;
 pub mod tool_output;
+mod tool_output_pssa;
+pub mod tool_output_shell;
 pub mod tool_output_ts;
 pub mod types;
 
@@ -22,6 +24,7 @@ use gf_core::{
     AssetDocument, DomainKind, DomainLayoutConfig, Language, RepoPath, UastDocument, classify_path,
     is_audited_tool_config_file, is_binary_asset_extension,
 };
+pub use langs::shell::dialect::detect_shebang_language;
 pub use langs::ts::is_hook_identifier;
 use langs::{
     asset::{collect_script_mentions, extract_svg_asset},
@@ -29,12 +32,17 @@ use langs::{
     dockerfile::DockerfileExtractor,
     i18n_dict::extract_i18n_dictionary,
     markdown::MarkdownExtractor,
+    powershell::PowerShellExtractor,
     python::PythonExtractor,
     rust::RustExtractor,
+    shell::ShellExtractor,
     tool_config::extract_tool_config,
     ts::{TsDialect, TypeScriptExtractor},
 };
 pub use tool_output::{ToolParseError, parse_mypy_ndjson, parse_pyright_json, parse_ruff_json};
+pub use tool_output_shell::{
+    parse_hadolint_json, parse_psscriptanalyzer_json, parse_shellcheck_json,
+};
 pub use tool_output_ts::{parse_biome_json, parse_oxlint_json, parse_tsc_output};
 pub use types::{LanguageExtractor, ParseError, ProjectMarker};
 
@@ -61,7 +69,9 @@ const EXT_LANGUAGES: &[(&str, Language)] = &[
     ("toml", Language::Toml),
     ("sh", Language::Shell),
     ("bash", Language::Shell),
-    ("ps1", Language::Shell),
+    ("ps1", Language::PowerShell),
+    ("psm1", Language::PowerShell),
+    ("psd1", Language::PowerShell),
     ("svg", Language::Svg),
 ];
 
@@ -99,6 +109,23 @@ pub fn detect_language(path: &RepoPath) -> Language {
     Language::Unknown
 }
 
+/// Resolves [`Language`] from `path`, falling back to line-1 `#!` shebang inspection
+/// for extensionless scripts (`#!/bin/sh`, `#!/usr/bin/env bash`, `#!/usr/bin/env pwsh`).
+#[must_use]
+pub fn detect_language_or_shebang(path: &RepoPath, source: &str) -> Language {
+    let by_path = detect_language(path);
+    if by_path != Language::Unknown {
+        return by_path;
+    }
+    if path.extension().is_none()
+        && let Some(first_line) = source.lines().next()
+        && let Some(lang) = detect_shebang_language(first_line)
+    {
+        return lang;
+    }
+    Language::Unknown
+}
+
 /// Detects well-known project ecosystem manifest files from a [`RepoPath`].
 #[must_use]
 pub fn detect_project_marker(path: &RepoPath) -> Option<ProjectMarker> {
@@ -132,23 +159,13 @@ pub fn build_binary_asset_document(
     Ok(doc)
 }
 
-fn dispatch_language_extractor(
+fn dispatch_non_code_domain(
     lang: Language,
     path: &RepoPath,
     source: &str,
-    domains: &DomainLayoutConfig,
+    domain: DomainKind,
 ) -> Result<UastDocument, ParseError> {
-    if is_audited_tool_config_file(path) {
-        return extract_tool_config(path, lang, source);
-    }
-    let domain = classify_path(path, domains);
-    if let Some(dialect) = TsDialect::from_path_and_lang(path, lang) {
-        return TypeScriptExtractor::new(dialect).extract_in_domain(path, source, domain);
-    }
     match lang {
-        Language::Rust => RustExtractor.extract(path, source),
-        Language::Python => PythonExtractor::extract_in_domain(path, source, domain),
-        Language::Dockerfile => DockerfileExtractor.extract(path, source),
         Language::Css => CssExtractor.extract(path, source),
         Language::Markdown => MarkdownExtractor.extract(path, source),
         Language::Svg => extract_svg_asset(path, source),
@@ -167,6 +184,29 @@ fn dispatch_language_extractor(
     }
 }
 
+fn dispatch_language_extractor(
+    lang: Language,
+    path: &RepoPath,
+    source: &str,
+    domains: &DomainLayoutConfig,
+) -> Result<UastDocument, ParseError> {
+    if is_audited_tool_config_file(path) {
+        return extract_tool_config(path, lang, source);
+    }
+    let domain = classify_path(path, domains);
+    if let Some(dialect) = TsDialect::from_path_and_lang(path, lang) {
+        return TypeScriptExtractor::new(dialect).extract_in_domain(path, source, domain);
+    }
+    match lang {
+        Language::Rust => RustExtractor.extract(path, source),
+        Language::Python => PythonExtractor::extract_in_domain(path, source, domain),
+        Language::Shell => ShellExtractor.extract(path, source),
+        Language::PowerShell => PowerShellExtractor.extract(path, source),
+        Language::Dockerfile => DockerfileExtractor.extract(path, source),
+        other => dispatch_non_code_domain(other, path, source, domain),
+    }
+}
+
 /// Parses `source` with explicit [`DomainLayoutConfig`] (enabling `Texte` `.json`/`.toml` parsing).
 ///
 /// # Errors
@@ -177,15 +217,15 @@ pub fn parse_source_with_domains(
     source: &str,
     domains: &DomainLayoutConfig,
 ) -> Result<UastDocument, ParseError> {
-    let lang = detect_language(path);
+    let lang = detect_language_or_shebang(path, source);
     let mut doc = dispatch_language_extractor(lang, path, source, domains)?;
-    if lang == Language::Shell {
-        anti_cheat::scan_hash_line_comments(source, &mut doc);
-    }
     doc.secret_findings = secrets::extract_secret_findings(path, source);
     if classify_path(path, domains) == DomainKind::Tests
         && (TsDialect::from_path_and_lang(path, lang).is_some()
-            || matches!(lang, Language::Rust | Language::Python))
+            || matches!(
+                lang,
+                Language::Rust | Language::Python | Language::Shell | Language::PowerShell
+            ))
     {
         doc.script_refs = collect_script_mentions(source);
     }

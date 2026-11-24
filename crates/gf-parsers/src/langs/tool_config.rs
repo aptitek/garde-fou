@@ -9,6 +9,8 @@ use gf_core::{
 };
 
 use super::jsonc::{audit_stryker_json, line_span_containing, push_cfg_violation};
+use super::powershell::psd1_config::audit_psscriptanalyzer_psd1;
+use super::shell_docker_config::{audit_hadolint_yaml, audit_shellcheckrc};
 use super::tool_config_py::{audit_mypy_table, audit_ruff_tables, section_key_span};
 use super::ts::tsconfig_jsonc::{audit_biome_jsonc, audit_tsconfig_jsonc};
 use crate::cst::line_metrics;
@@ -176,6 +178,15 @@ pub fn extract_tool_config(
     let mut doc = UastDocument::new(path.clone(), lang, total_lines, effective_lines)?;
     match path.file_name() {
         name if is_tsconfig_filename(name) => audit_tsconfig_jsonc(name, source, &mut doc),
+        name if name.eq_ignore_ascii_case("psscriptanalyzersettings.psd1") => {
+            audit_psscriptanalyzer_psd1(source, &mut doc);
+        }
+        ".shellcheckrc" | "shellcheckrc" => {
+            audit_shellcheckrc(source, &mut doc.tool_config_findings);
+        }
+        ".hadolint.yaml" | ".hadolint.yml" | "hadolint.yaml" | "hadolint.yml" => {
+            audit_hadolint_yaml(source, &mut doc.tool_config_findings);
+        }
         name @ ("biome.json" | "biome.jsonc") => audit_biome_jsonc(name, source, &mut doc),
         name @ ("stryker.config.json" | "stryker.conf.json") => {
             audit_stryker_json(name, source, &mut doc);

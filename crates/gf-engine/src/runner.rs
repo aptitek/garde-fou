@@ -51,6 +51,7 @@ fn collect_gate_diagnostics(
         root: env.root,
         context,
         staged_filter,
+        docs,
         options: env.options,
         config: env.config,
     };

@@ -43,7 +43,7 @@ function Resolve-GardeRepo {
                 return $Matches[1]
             }
         } catch {
-            # Fallback to default repository outside a Garde-fou checkout.
+            Write-Verbose "git remote lookup skipped outside repository: $_"
         }
     }
     return $DefaultRepo

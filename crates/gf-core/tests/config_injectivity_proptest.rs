@@ -128,7 +128,7 @@ fn verify_fortress_injectivity(base: &Config, base_s: &str, seen: &mut BTreeSet<
 }
 
 fn verify_policies_and_gates(base: &Config, base_s: &str, seen: &mut BTreeSet<String>) {
-    let pol_fns: [fn(&mut Config); 28] = [
+    let pol_fns: [fn(&mut Config); 31] = [
         |c| c.commit.allowed_types = vec![String::from("feat")],
         |c| c.commit.allowed_scopes = vec![String::from("core")],
         |c| c.commit.max_header_len = 72,
@@ -142,6 +142,9 @@ fn verify_policies_and_gates(base: &Config, base_s: &str, seen: &mut BTreeSet<St
         |c| c.tools.typescript.oxlint = ScannerPolicy::Off,
         |c| c.tools.typescript.biome = ScannerPolicy::Auto,
         |c| c.tools.typescript.tsc = ScannerPolicy::Required,
+        |c| c.tools.shell.shellcheck = ScannerPolicy::Off,
+        |c| c.tools.powershell.psscriptanalyzer = ScannerPolicy::Required,
+        |c| c.tools.docker.hadolint = ScannerPolicy::Off,
         |c| c.scanners.secrets = ScannerPolicy::Required,
         |c| c.scanners.vulns = ScannerPolicy::Off,
         |c| c.coverage.min_line_coverage = Some(85),

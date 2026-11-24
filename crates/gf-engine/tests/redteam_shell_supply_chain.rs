@@ -112,7 +112,7 @@ fn external_scanners_fail_closed_on_exit_2_with_empty_stdout() -> TestResult {
     }
 
     let ws = fresh_ws("scanners")?;
-    let bin = ws.join("fake-bin");
+    let bin = fresh_ws("scanners-bin")?;
     put_str(
         &ws,
         "src/lib.rs",
@@ -142,6 +142,7 @@ fn external_scanners_fail_closed_on_exit_2_with_empty_stdout() -> TestResult {
     write_exec(&bin, "osv-scanner", osv_ok)?;
     spawn_scanner_probe(&bin, &ws, "clean")?;
     fs::remove_dir_all(&ws)?;
+    fs::remove_dir_all(&bin)?;
     Ok(())
 }
 

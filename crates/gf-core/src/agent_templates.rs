@@ -22,6 +22,10 @@ pub const fn language_fragment(lang: LanguageId) -> &'static str {
             include_str!("../../../content/agent-fragments/lang-typescript.md")
         }
         LanguageId::Python => include_str!("../../../content/agent-fragments/lang-python.md"),
+        LanguageId::Shell => include_str!("../../../content/agent-fragments/lang-shell.md"),
+        LanguageId::PowerShell => {
+            include_str!("../../../content/agent-fragments/lang-powershell.md")
+        }
     }
 }
 

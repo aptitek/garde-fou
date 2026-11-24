@@ -1,5 +1,5 @@
 //! Imperative shell orchestrating strict `TOML` config, `garde lock`, `uv`-style `init`,
-//! parallel `rayon` analysis, `.garde-fou-cache/v8/` caching, and `SARIF` / `LCOV` gates.
+//! parallel `rayon` analysis, `.garde-fou-cache/v9/` caching, and `SARIF` / `LCOV` gates.
 
 pub mod adapters;
 pub mod agents;
@@ -24,7 +24,8 @@ use gf_core::{Config, LockStatus, ScannerPolicy};
 
 pub use adapters::{
     AdapterCtx, ExternalAdapter, ResolvedPythonTool, ToolParseError, parse_biome_json,
-    parse_mypy_ndjson, parse_oxlint_json, parse_pyright_json, parse_ruff_json, parse_tsc_output,
+    parse_hadolint_json, parse_mypy_ndjson, parse_oxlint_json, parse_psscriptanalyzer_json,
+    parse_pyright_json, parse_ruff_json, parse_shellcheck_json, parse_tsc_output,
     resolve_node_tool, resolve_python_tool, resolve_python_tool_with_uv,
 };
 pub use agents::{

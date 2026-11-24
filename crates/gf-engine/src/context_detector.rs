@@ -10,6 +10,8 @@ use gf_core::{
 };
 use gf_parsers::detect_language;
 
+use crate::discovery::peek_extensionless_shebang;
+
 const DOCKER_ROOT_MARKERS: &[&str] = &[
     "Dockerfile",
     "Containerfile",
@@ -29,21 +31,20 @@ const TASK_RUNNER_MARKERS: &[&str] = &[
     "mise.toml",
 ];
 
-fn detect_languages_into(root: &Path, files: &[RepoPath], out: &mut BTreeSet<LanguageId>) {
-    for path in files {
-        match detect_language(path) {
-            Language::Rust => {
-                out.insert(LanguageId::Rust);
-            }
-            Language::TypeScript | Language::Tsx | Language::JavaScript | Language::Jsx => {
-                out.insert(LanguageId::TypeScript);
-            }
-            Language::Python => {
-                out.insert(LanguageId::Python);
-            }
-            _ => {}
+const fn language_id_for_source(lang: Language) -> Option<LanguageId> {
+    match lang {
+        Language::Rust => Some(LanguageId::Rust),
+        Language::TypeScript | Language::Tsx | Language::JavaScript | Language::Jsx => {
+            Some(LanguageId::TypeScript)
         }
+        Language::Python => Some(LanguageId::Python),
+        Language::Shell => Some(LanguageId::Shell),
+        Language::PowerShell => Some(LanguageId::PowerShell),
+        _ => None,
     }
+}
+
+fn detect_manifest_languages(root: &Path, out: &mut BTreeSet<LanguageId>) {
     if root.join("Cargo.toml").is_file() {
         out.insert(LanguageId::Rust);
     }
@@ -53,6 +54,21 @@ fn detect_languages_into(root: &Path, files: &[RepoPath], out: &mut BTreeSet<Lan
     if root.join("pyproject.toml").is_file() || root.join("requirements.txt").is_file() {
         out.insert(LanguageId::Python);
     }
+}
+
+fn detect_languages_into(root: &Path, files: &[RepoPath], out: &mut BTreeSet<LanguageId>) {
+    for path in files {
+        let lang = match detect_language(path) {
+            Language::Unknown if path.extension().is_none() => {
+                peek_extensionless_shebang(&root.join(path.as_str())).unwrap_or(Language::Unknown)
+            }
+            known => known,
+        };
+        if let Some(id) = language_id_for_source(lang) {
+            out.insert(id);
+        }
+    }
+    detect_manifest_languages(root, out);
 }
 
 fn detect_features_into(root: &Path, files: &[RepoPath], out: &mut BTreeSet<FeatureId>) {

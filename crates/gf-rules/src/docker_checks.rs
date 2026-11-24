@@ -1,18 +1,71 @@
 //! Contextual rules for `FeatureId::Docker`: stage pinning (`GF030`), non-root `USER` (`GF031`),
-//! and `.dockerignore` project coherence (`GF034`).
+//! instruction security/hygiene (`GF032`–`GF033`), and `.dockerignore` coherence (`GF034`).
 
-use alloc::collections::BTreeSet;
+use alloc::collections::{BTreeMap, BTreeSet};
 use alloc::format;
 use alloc::string::String;
 use alloc::vec::Vec;
 
 use gf_core::{
-    Diagnostic, DockerDocument, FeatureId, FromStage, LanguageId, ProjectContext, RepoPath, Span,
-    UastDocument, Validation,
+    Diagnostic, DockerDocument, DockerInstructionKind, FeatureId, FromStage, LanguageId,
+    ProjectContext, RepoPath, Span, UastDocument, Validation,
 };
 
 use crate::checks::{SourceLoc, rule_error as docker_error};
-use crate::docker_instr_checks::check_instruction;
+use crate::docker_instr_checks::{DockerInstrCtx, check_instruction};
+
+fn resolve_inherited_pipefail(
+    stage_index: usize,
+    stages: &[FromStage],
+    stage_pipefail: &BTreeMap<usize, bool>,
+) -> bool {
+    let Some(stage) = stages.get(stage_index) else {
+        return false;
+    };
+    if stage.tag.is_some() || stage.digest.is_some() || stage.image.contains('/') {
+        return false;
+    }
+    stages
+        .iter()
+        .take(stage_index)
+        .enumerate()
+        .rfind(|(_, prior)| {
+            prior
+                .alias
+                .as_deref()
+                .is_some_and(|a| a.eq_ignore_ascii_case(&stage.image))
+        })
+        .and_then(|(idx, _)| stage_pipefail.get(&idx).copied())
+        .unwrap_or(false)
+}
+
+fn check_all_instructions(path: &RepoPath, docker: &DockerDocument, out: &mut Vec<Diagnostic>) {
+    let mut stage_pipefail: BTreeMap<usize, bool> = BTreeMap::new();
+    let mut cur_stage_idx = 0_usize;
+    let mut active_pipefail = false;
+
+    for instr in &docker.instructions {
+        match &instr.kind {
+            DockerInstructionKind::From { stage_index } => {
+                cur_stage_idx = *stage_index;
+                active_pipefail =
+                    resolve_inherited_pipefail(cur_stage_idx, &docker.stages, &stage_pipefail);
+                stage_pipefail.insert(cur_stage_idx, active_pipefail);
+            }
+            DockerInstructionKind::Shell { shell, .. } => {
+                active_pipefail = shell.pipefail_enabled;
+                stage_pipefail.insert(cur_stage_idx, active_pipefail);
+            }
+            _ => {}
+        }
+        let ctx = DockerInstrCtx {
+            path,
+            stages: &docker.stages,
+            active_pipefail,
+        };
+        check_instruction(&ctx, instr, out);
+    }
+}
 
 /// Evaluates `GF030`–`GF034` whenever `ctx.features` contains [`FeatureId::Docker`].
 pub fn check_docker_feature(
@@ -34,9 +87,7 @@ pub fn check_docker_feature(
             first_dockerfile = Some(&doc.path);
         }
         check_stages(&doc.path, docker, &mut diags);
-        for instr in &docker.instructions {
-            check_instruction(&doc.path, instr, &mut diags);
-        }
+        check_all_instructions(&doc.path, docker, &mut diags);
     }
 
     if let Some(df_path) = first_dockerfile {

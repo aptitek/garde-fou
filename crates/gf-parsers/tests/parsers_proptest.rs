@@ -28,6 +28,7 @@ fn arbitrary_utf8_never_panics_across_all_grammars() -> Result<(), String> {
         "fuzz.svg",
         "fuzz.json",
         "fuzz.sh",
+        "fuzz.ps1",
         "Dockerfile",
     ];
     let strat = (0..paths.len(), ".*");
@@ -85,8 +86,22 @@ fn structured_nested_ifs_monotonically_increase_complexity() -> Result<(), Strin
 
 #[test]
 fn multibyte_utf8_comments_never_panic_anti_cheat() -> Result<(), Box<dyn std::error::Error>> {
-    for sample in ["//\"ࠀ", "//\"𪌴", "/* ࠀ:x */", "# \"ࠀ"] {
-        for ext in ["fuzz.rs", "fuzz.ts", "fuzz.py", "fuzz.sh", "Dockerfile"] {
+    for sample in [
+        "//\"ࠀ",
+        "//\"𪌴",
+        "/* ࠀ:x */",
+        "# \"ࠀ",
+        "{\u{107897}\u{1ebb8}/~𧶷𤦳",
+        "{1..\u{107897}}",
+    ] {
+        for ext in [
+            "fuzz.rs",
+            "fuzz.ts",
+            "fuzz.py",
+            "fuzz.sh",
+            "fuzz.ps1",
+            "Dockerfile",
+        ] {
             let path = RepoPath::new(ext)?;
             let doc = parse_source(&path, sample)?;
             assert_eq!(doc.bypass_findings, Vec::new());

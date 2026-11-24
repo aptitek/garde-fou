@@ -1,23 +1,31 @@
 //! Tier 3 language ecosystem tool ingestion orchestrator (`GF082` & `GF043`).
 
 pub mod python_runners;
+mod tool_resolvers;
 pub mod ts_runners;
 
 use std::collections::BTreeSet;
 use std::path::Path;
 
 use gf_core::{
-    Config, Diagnostic, LanguageId, ProjectContext, RepoPath, ScannerPolicy, is_tsconfig_filename,
+    Config, Diagnostic, FeatureId, Language, LanguageId, ProjectContext, RepoPath, ScannerPolicy,
+    UastDocument,
 };
 pub use gf_parsers::{
-    ToolParseError, parse_biome_json, parse_mypy_ndjson, parse_oxlint_json, parse_pyright_json,
-    parse_ruff_json, parse_tsc_output,
+    ToolParseError, parse_biome_json, parse_hadolint_json, parse_mypy_ndjson, parse_oxlint_json,
+    parse_psscriptanalyzer_json, parse_pyright_json, parse_ruff_json, parse_shellcheck_json,
+    parse_tsc_output,
 };
 use gf_rules::convert_external_tool_findings;
 use rayon::prelude::*;
 
 pub use python_runners::{
-    ExternalAdapter, ResolvedPythonTool, resolve_python_tool, resolve_python_tool_with_uv,
+    ExternalAdapter, ResolvedPythonTool, resolve_pwsh_analyzer, resolve_python_tool,
+    resolve_python_tool_with_uv, resolve_system_binary,
+};
+use tool_resolvers::{
+    is_hadolint_config_name, is_pssa_config_name, is_python_config_name, is_shellcheck_config_name,
+    is_ts_config_name, resolve_explicit_doc_targets, resolve_staged_targets,
 };
 pub use ts_runners::resolve_node_tool;
 
@@ -34,6 +42,8 @@ pub struct AdapterCtx<'a> {
     pub context: &'a ProjectContext,
     /// Optional staged file set when running `garde check --staged`.
     pub staged_filter: Option<&'a BTreeSet<RepoPath>>,
+    /// Parsed workspace documents (enabling exact target lists for `shellcheck`/`hadolint`/`pwsh`).
+    pub docs: &'a [UastDocument],
     /// CLI check options (`strict_tools`, etc.).
     pub options: &'a CheckOptions,
     /// Validated pure analyzer configuration.
@@ -48,47 +58,6 @@ fn effective_policy(configured: ScannerPolicy, strict_tools: bool) -> ScannerPol
     }
 }
 
-fn is_python_config_name(name: &str) -> bool {
-    matches!(name, "pyproject.toml" | "ruff.toml" | ".ruff.toml")
-}
-
-fn is_ts_config_name(name: &str) -> bool {
-    is_tsconfig_filename(name)
-        || matches!(
-            name,
-            "package.json" | "biome.json" | "biome.jsonc" | ".oxlintrc.json"
-        )
-}
-
-fn resolve_staged_targets(
-    staged_filter: Option<&BTreeSet<RepoPath>>,
-    exts: &[&str],
-    is_cfg_fn: fn(&str) -> bool,
-) -> Option<Vec<String>> {
-    let Some(staged) = staged_filter else {
-        return Some(Vec::new());
-    };
-    let mut matched_files = Vec::new();
-    let mut config_changed = false;
-    for path in staged {
-        if path
-            .extension()
-            .is_some_and(|ext| exts.iter().any(|cand| cand.eq_ignore_ascii_case(ext)))
-        {
-            matched_files.push(String::from(path.as_str()));
-        } else if is_cfg_fn(path.file_name()) {
-            config_changed = true;
-        }
-    }
-    if matched_files.is_empty() && !config_changed {
-        None
-    } else if config_changed {
-        Some(Vec::new())
-    } else {
-        Some(matched_files)
-    }
-}
-
 fn resolve_adapter_launcher(
     adapter: ExternalAdapter,
     policy: ScannerPolicy,
@@ -98,14 +67,20 @@ fn resolve_adapter_launcher(
     if adapter.is_python() {
         return resolve_python_tool(root, tool_name);
     }
-    if adapter == ExternalAdapter::Tsc
-        && policy == ScannerPolicy::Auto
-        && root.join("package.json").is_file()
-        && !root.join("node_modules").is_dir()
-    {
-        return None;
+    if adapter.is_typescript() {
+        if adapter == ExternalAdapter::Tsc
+            && policy == ScannerPolicy::Auto
+            && root.join("package.json").is_file()
+            && !root.join("node_modules").is_dir()
+        {
+            return None;
+        }
+        return resolve_node_tool(root, tool_name).map(ResolvedPythonTool::Direct);
     }
-    resolve_node_tool(root, tool_name).map(ResolvedPythonTool::Direct)
+    if adapter == ExternalAdapter::PsScriptAnalyzer {
+        return resolve_pwsh_analyzer().map(ResolvedPythonTool::Direct);
+    }
+    resolve_system_binary(tool_name).map(ResolvedPythonTool::Direct)
 }
 
 fn run_single_adapter(
@@ -156,6 +131,42 @@ fn run_single_adapter(
     Ok(convert_external_tool_findings(&findings))
 }
 
+fn push_script_and_docker_jobs(
+    ctx: &AdapterCtx<'_>,
+    jobs: &mut Vec<(ExternalAdapter, Vec<String>)>,
+) {
+    if ctx.context.languages.contains(&LanguageId::Shell)
+        && let Some(sh_targets) = resolve_explicit_doc_targets(
+            ctx.docs,
+            ctx.staged_filter,
+            Language::Shell,
+            is_shellcheck_config_name,
+        )
+    {
+        jobs.push((ExternalAdapter::Shellcheck, sh_targets));
+    }
+    if ctx.context.languages.contains(&LanguageId::PowerShell)
+        && let Some(ps_targets) = resolve_explicit_doc_targets(
+            ctx.docs,
+            ctx.staged_filter,
+            Language::PowerShell,
+            is_pssa_config_name,
+        )
+    {
+        jobs.push((ExternalAdapter::PsScriptAnalyzer, ps_targets));
+    }
+    if ctx.context.features.contains(&FeatureId::Docker)
+        && let Some(dk_targets) = resolve_explicit_doc_targets(
+            ctx.docs,
+            ctx.staged_filter,
+            Language::Dockerfile,
+            is_hadolint_config_name,
+        )
+    {
+        jobs.push((ExternalAdapter::Hadolint, dk_targets));
+    }
+}
+
 /// Runs active Tier 3 language tool adapters in parallel, converting findings to `GF082`.
 ///
 /// # Errors
@@ -179,6 +190,7 @@ pub fn run_language_tool_adapters(ctx: &AdapterCtx<'_>) -> Result<Vec<Diagnostic
             active_jobs.push((adapter, ts_targets.clone()));
         }
     }
+    push_script_and_docker_jobs(ctx, &mut active_jobs);
     if active_jobs.is_empty() {
         return Ok(Vec::new());
     }

@@ -4,6 +4,8 @@ use core::fmt;
 use serde::{Deserialize, Serialize};
 
 use crate::language_meta::ExternalToolKind;
+pub use crate::mutation_config_issues::{MutantsConfigIssue, StrykerConfigIssue};
+use crate::shell_ps_tools::ShellInfraConfigIssue;
 
 /// Specific `[tool.mypy]` configuration weakening (`GF081`).
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
@@ -22,13 +24,14 @@ pub enum MypyConfigIssue {
 
 impl MypyConfigIssue {
     const fn key(self) -> &'static str {
-        match self {
-            Self::MissingOrFalseStrict => "tool.mypy.strict",
-            Self::IgnoreErrors => "tool.mypy.ignore_errors",
-            Self::DisallowUntypedDefsFalse => "tool.mypy.disallow_untyped_defs",
-            Self::WarnReturnAnyFalse => "tool.mypy.warn_return_any",
-            Self::ProductionOverrideWeakened => "tool.mypy.overrides",
-        }
+        const KEYS: [&str; 5] = [
+            "tool.mypy.strict",
+            "tool.mypy.ignore_errors",
+            "tool.mypy.disallow_untyped_defs",
+            "tool.mypy.warn_return_any",
+            "tool.mypy.overrides",
+        ];
+        KEYS[self as usize]
     }
 }
 
@@ -51,14 +54,15 @@ pub enum RuffConfigIssue {
 
 impl RuffConfigIssue {
     const fn key(self) -> &'static str {
-        match self {
-            Self::PyprojectBlanketIgnore => "tool.ruff.ignore",
-            Self::PyprojectBlanketExtendIgnore => "tool.ruff.extend-ignore",
-            Self::PyprojectEmptySelect => "tool.ruff.select",
-            Self::StandaloneBlanketIgnore => "ignore",
-            Self::StandaloneBlanketExtendIgnore => "extend-ignore",
-            Self::StandaloneEmptySelect => "select",
-        }
+        const KEYS: [&str; 6] = [
+            "tool.ruff.ignore",
+            "tool.ruff.extend-ignore",
+            "tool.ruff.select",
+            "ignore",
+            "extend-ignore",
+            "select",
+        ];
+        KEYS[self as usize]
     }
 
     const fn remediation(self) -> &'static str {
@@ -130,51 +134,12 @@ impl TsconfigIssue {
     }
 }
 
-/// Specific `mutants.toml` scope sabotage (`GF081`).
-#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
-pub enum MutantsConfigIssue {
-    /// `examine_globs = []`.
-    EmptyExamineGlobs,
-    /// `examine_re = []`.
-    EmptyExamineRe,
-    /// Broad wildcard `exclude_globs` entry (`*`, `**`, `src/**`, `crates/**`).
-    BroadExcludeGlobs,
-}
-
-impl MutantsConfigIssue {
-    const fn key(self) -> &'static str {
-        match self {
-            Self::EmptyExamineGlobs => "examine_globs",
-            Self::EmptyExamineRe => "examine_re",
-            Self::BroadExcludeGlobs => "exclude_globs",
-        }
-    }
-}
-
-/// Specific `stryker.config.json` mutation gate weakening (`GF081`).
-#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
-pub enum StrykerConfigIssue {
-    /// `"mutate": []`.
-    EmptyMutate,
-    /// `"thresholds.break": 0` or `null`.
-    DisabledBreakThreshold,
-}
-
-impl StrykerConfigIssue {
-    const fn key(self) -> &'static str {
-        match self {
-            Self::EmptyMutate => "mutate",
-            Self::DisabledBreakThreshold => "thresholds.break",
-        }
-    }
-}
-
 /// Closed sum type of Tier 2 ecosystem tool configuration weakenings (`GF081`).
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
 pub enum ToolConfigViolation {
-    /// `[tool.mypy]` without `strict = true` or weakened overrides (`MypyNotStrict`).
+    /// `[tool.mypy]` without `strict = true` or weakened overrides.
     MypyNotStrict(MypyConfigIssue),
-    /// `[tool.ruff]` / `ruff.toml` blanket ignore or empty select (`RuffWeakened`).
+    /// `[tool.ruff]` / `ruff.toml` blanket ignore or empty select.
     RuffWeakened(RuffConfigIssue),
     /// `[tool.pytest.ini_options]` `--no-cov` or lowered `[tool.coverage.report]` `fail_under`.
     PytestOrCoverageWeakened(PytestCoverageIssue),
@@ -186,6 +151,8 @@ pub enum ToolConfigViolation {
     StrykerWeakened(StrykerConfigIssue),
     /// `biome.json` / `biome.jsonc` disabling `"linter": { "enabled": false }`.
     BiomeLinterDisabled,
+    /// `.shellcheckrc`, `.hadolint.yaml`, or `PSScriptAnalyzerSettings.psd1` weakened.
+    ShellInfra(ShellInfraConfigIssue),
 }
 
 impl ToolConfigViolation {
@@ -200,6 +167,7 @@ impl ToolConfigViolation {
             Self::MutantsScopeWeakened(_) => ExternalToolKind::CargoMutants,
             Self::StrykerWeakened(_) => ExternalToolKind::Stryker,
             Self::BiomeLinterDisabled => ExternalToolKind::Biome,
+            Self::ShellInfra(k) => k.tool(),
         }
     }
 
@@ -214,6 +182,7 @@ impl ToolConfigViolation {
             Self::MutantsScopeWeakened(k) => k.key(),
             Self::StrykerWeakened(k) => k.key(),
             Self::BiomeLinterDisabled => "linter.enabled",
+            Self::ShellInfra(k) => k.key(),
         }
     }
 
@@ -228,6 +197,7 @@ impl ToolConfigViolation {
             Self::MutantsScopeWeakened(_) => REM_CFG_MUTANTS,
             Self::StrykerWeakened(_) => REM_CFG_STRYKER,
             Self::BiomeLinterDisabled => REM_CFG_BIOME,
+            Self::ShellInfra(k) => k.remediation(),
         }
     }
 }

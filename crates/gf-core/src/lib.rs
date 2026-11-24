@@ -23,15 +23,19 @@ pub mod diagnostic;
 pub mod docker;
 pub mod domain_summaries;
 pub mod domains;
+pub mod framework_id;
 pub mod gitignore;
 pub mod glob;
 pub mod language_meta;
 pub mod lcov;
 pub mod metrics;
 pub mod mutation;
+pub mod mutation_config_issues;
 pub mod path;
 pub mod policies;
 pub mod python_violations;
+pub mod shell_ps_tools;
+pub mod shell_ps_violations;
 pub mod skills_catalog;
 pub mod tool_config_violations;
 pub mod tool_ingest;
@@ -45,7 +49,10 @@ pub use config::{
 };
 pub use context::{FeatureId, FrameworkId, LanguageId, ProjectContext};
 pub use diagnostic::{Diagnostic, Severity, Span, SpanError};
-pub use docker::{DockerDocument, DockerInstruction, DockerInstructionKind, FromStage};
+pub use docker::{
+    DockerCommandForm, DockerDocument, DockerInstruction, DockerInstructionKind, DockerShellKind,
+    DockerStageShell, FromStage,
+};
 pub use domain_summaries::{
     AssetDocument, AssetHazard, AssetHazardKind, ContenusDocument, ContenusIssue,
     ContenusIssueKind, FormeDocument, FormeFinding, FormeFindingKind, StyleLeakFinding,
@@ -86,6 +93,11 @@ pub use {
     python_violations::{
         CoverageFailUnder, DebugArtifactKind, ExceptViolationKind, PythonViolation, UnsafeExecKind,
     },
+    shell_ps_tools::{
+        DockerToolsConfig, HadolintConfigIssue, PowerShellToolsConfig, PsScriptAnalyzerConfigIssue,
+        ShellInfraConfigIssue, ShellToolsConfig, ShellcheckConfigIssue,
+    },
+    shell_ps_violations::{PowerShellViolation, ShellDialect, ShellViolation},
     skills_catalog::{
         AgenticSyncStatus, AgentsConfig, RemoteSkillSpec, ResolvedSkillSpec, SkillEntry,
         parse_extra_skill_spec, select_contextual_skills,

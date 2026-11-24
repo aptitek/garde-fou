@@ -7,7 +7,16 @@ use alloc::vec::Vec;
 use core::fmt;
 use serde::{Deserialize, Serialize};
 
-/// Primary programming languages active in a project.
+pub use crate::framework_id::FrameworkId;
+
+fn lookup_alias<T: Copy>(table: &[(&str, T)], raw: &str) -> Option<T> {
+    table
+        .iter()
+        .find(|(alias, _)| raw.eq_ignore_ascii_case(alias))
+        .map(|(_, id)| *id)
+}
+
+/// Primary programming and automation languages active in a project.
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
 pub enum LanguageId {
     /// Rust ecosystem (`.rs`, `Cargo.toml`).
@@ -16,8 +25,13 @@ pub enum LanguageId {
     TypeScript,
     /// Python ecosystem (`.py`, `pyproject.toml`).
     Python,
+    /// POSIX Shell / Bash ecosystem (`.sh`, `.bash`, extensionless `sh`/`bash` shebangs).
+    Shell,
+    /// PowerShell automation ecosystem (`.ps1`, `.psm1`, `.psd1`).
+    PowerShell,
 }
 
+const LANG_NAMES: [&str; 5] = ["rust", "typescript", "python", "shell", "powershell"];
 const LANGUAGE_ALIASES: &[(&str, LanguageId)] = &[
     ("rust", LanguageId::Rust),
     ("typescript", LanguageId::TypeScript),
@@ -26,26 +40,25 @@ const LANGUAGE_ALIASES: &[(&str, LanguageId)] = &[
     ("js", LanguageId::TypeScript),
     ("python", LanguageId::Python),
     ("py", LanguageId::Python),
+    ("shell", LanguageId::Shell),
+    ("sh", LanguageId::Shell),
+    ("bash", LanguageId::Shell),
+    ("powershell", LanguageId::PowerShell),
+    ("pwsh", LanguageId::PowerShell),
+    ("ps1", LanguageId::PowerShell),
 ];
 
 impl LanguageId {
     /// Parses a case-insensitive language identifier from configuration.
     #[must_use]
     pub fn from_config_str(raw: &str) -> Option<Self> {
-        LANGUAGE_ALIASES
-            .iter()
-            .find(|(alias, _)| raw.eq_ignore_ascii_case(alias))
-            .map(|(_, id)| *id)
+        lookup_alias(LANGUAGE_ALIASES, raw)
     }
 
     /// Canonical kebab-case identifier.
     #[must_use]
     pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::Rust => "rust",
-            Self::TypeScript => "typescript",
-            Self::Python => "python",
-        }
+        LANG_NAMES[self as usize]
     }
 }
 
@@ -68,15 +81,27 @@ pub enum FeatureId {
     TaskRunner,
     /// Design Tokens & static UI accessibility (`styles/`, `tokens/`, `GF060`/`GF061`/`GF066`).
     Ui,
-    /// Internationalization `Texte` dictionaries & strict `t(...)` JSX check (`locales/`, `GF062`).
+    /// Internationalization `Texte` dictionaries (`locales/`, `GF062`).
     I18n,
     /// Editorial `Contenus` pure Markdown/MDX (`content/`, `courses/`, `docs/`, `GF063`).
     Content,
-    /// Strict `1:1` companion unit-test enforcement across `Code` modules (`GF076`).
+    /// Strict `1:1` companion unit-test enforcement (`GF076`).
     Tdd,
-    /// Storybook `.stories.tsx` parity enforcement for Atomic Design components (`GF076`).
+    /// Storybook `.stories.tsx` parity enforcement (`GF076`).
     Storybook,
 }
+
+const FEATURE_NAMES: [&str; 9] = [
+    "docker",
+    "git-hooks",
+    "ci-github",
+    "task-runner",
+    "ui",
+    "i18n",
+    "content",
+    "tdd",
+    "storybook",
+];
 
 const FEATURE_ALIASES: &[(&str, FeatureId)] = &[
     ("docker", FeatureId::Docker),
@@ -105,115 +130,17 @@ impl FeatureId {
     /// Parses a case-insensitive feature identifier from configuration.
     #[must_use]
     pub fn from_config_str(raw: &str) -> Option<Self> {
-        FEATURE_ALIASES
-            .iter()
-            .find(|(alias, _)| raw.eq_ignore_ascii_case(alias))
-            .map(|(_, id)| *id)
+        lookup_alias(FEATURE_ALIASES, raw)
     }
 
     /// Canonical kebab-case identifier.
     #[must_use]
     pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::Docker => "docker",
-            Self::GitHooks => "git-hooks",
-            Self::CiGithub => "ci-github",
-            Self::TaskRunner => "task-runner",
-            Self::Ui => "ui",
-            Self::I18n => "i18n",
-            Self::Content => "content",
-            Self::Tdd => "tdd",
-            Self::Storybook => "storybook",
-        }
+        FEATURE_NAMES[self as usize]
     }
 }
 
 impl fmt::Display for FeatureId {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(self.as_str())
-    }
-}
-
-/// Application or workspace frameworks informing implicit entrypoint routing.
-#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
-pub enum FrameworkId {
-    /// Multi-crate or single-crate Cargo workspace.
-    CargoWorkspace,
-    /// React component library or SPA.
-    React,
-    /// Astro content/SSR framework (`src/pages/**`).
-    Astro,
-    /// Next.js Pages/App Router framework (`src/pages/**`, `src/app/**`).
-    NextJs,
-    /// `FastAPI` Python ASGI service.
-    FastApi,
-    /// Django Python web framework.
-    Django,
-}
-
-const FRAMEWORK_ALIASES: &[(&str, FrameworkId)] = &[
-    ("cargo-workspace", FrameworkId::CargoWorkspace),
-    ("cargo", FrameworkId::CargoWorkspace),
-    ("react", FrameworkId::React),
-    ("astro", FrameworkId::Astro),
-    ("nextjs", FrameworkId::NextJs),
-    ("next", FrameworkId::NextJs),
-    ("fastapi", FrameworkId::FastApi),
-    ("django", FrameworkId::Django),
-];
-
-impl FrameworkId {
-    /// Parses a case-insensitive framework identifier from configuration.
-    #[must_use]
-    pub fn from_config_str(raw: &str) -> Option<Self> {
-        FRAMEWORK_ALIASES
-            .iter()
-            .find(|(alias, _)| raw.eq_ignore_ascii_case(alias))
-            .map(|(_, id)| *id)
-    }
-
-    /// Canonical kebab-case identifier.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::CargoWorkspace => "cargo-workspace",
-            Self::React => "react",
-            Self::Astro => "astro",
-            Self::NextJs => "nextjs",
-            Self::FastApi => "fastapi",
-            Self::Django => "django",
-        }
-    }
-
-    /// Returns implicit entrypoint path globs associated with this framework.
-    #[must_use]
-    pub const fn implicit_entrypoints(self) -> &'static [&'static str] {
-        match self {
-            Self::CargoWorkspace => &[
-                "src/lib.rs",
-                "src/main.rs",
-                "crates/*/src/lib.rs",
-                "crates/*/src/main.rs",
-                "crates/*/tests/**",
-                "tests/**",
-            ],
-            Self::React => &["src/index.*", "src/main.*", "src/App.*"],
-            Self::Astro => &["src/pages/**", "src/middleware.*", "astro.config.*"],
-            Self::NextJs => &[
-                "pages/**",
-                "src/pages/**",
-                "app/**",
-                "src/app/**",
-                "middleware.*",
-                "src/middleware.*",
-            ],
-            Self::FastApi => &["main.py", "app/main.py", "src/main.py", "**/routers/**"],
-            Self::Django => &["manage.py", "**/views.py", "**/urls.py", "**/admin.py"],
-        }
-    }
-}
-
-impl fmt::Display for FrameworkId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(self.as_str())
     }

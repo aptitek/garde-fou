@@ -82,7 +82,10 @@ fn requires_companion_test(doc: &UastDocument, ctx: &ProjectContext, config: &Co
     let exempt_stem = matches!(stem, "lib" | "main" | "mod" | "index" | "__init__");
     classify_path(&doc.path, &config.domains) == DomainKind::Code
         && doc.language.is_code_analyzed()
-        && doc.language != Language::Dockerfile
+        && !matches!(
+            doc.language,
+            Language::Dockerfile | Language::Shell | Language::PowerShell
+        )
         && !is_ts_declaration_path(raw_path)
         && !raw_path.contains(".stories.")
         && !doc.callables.is_empty()
