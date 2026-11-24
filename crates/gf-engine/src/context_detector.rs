@@ -6,7 +6,7 @@ use std::path::Path;
 
 use gf_core::{
     Config, DomainKind, FeatureId, FrameworkId, Language, LanguageId, ProjectContext, RepoPath,
-    classify_path,
+    YamlFlavor, classify_path, classify_yaml_flavor,
 };
 use gf_parsers::detect_language;
 
@@ -40,6 +40,7 @@ const fn language_id_for_source(lang: Language) -> Option<LanguageId> {
         Language::Python => Some(LanguageId::Python),
         Language::Shell => Some(LanguageId::Shell),
         Language::PowerShell => Some(LanguageId::PowerShell),
+        Language::Yaml => Some(LanguageId::Yaml),
         _ => None,
     }
 }
@@ -72,11 +73,12 @@ fn detect_languages_into(root: &Path, files: &[RepoPath], out: &mut BTreeSet<Lan
 }
 
 fn detect_features_into(root: &Path, files: &[RepoPath], out: &mut BTreeSet<FeatureId>) {
-    let has_dockerfile = files
-        .iter()
-        .any(|p| detect_language(p) == Language::Dockerfile)
-        || DOCKER_ROOT_MARKERS.iter().any(|m| root.join(m).is_file());
-    if has_dockerfile {
+    let has_dockerfile_or_compose =
+        files.iter().any(|p| {
+            detect_language(p) == Language::Dockerfile
+                || matches!(classify_yaml_flavor(p), YamlFlavor::DockerCompose { .. })
+        }) || DOCKER_ROOT_MARKERS.iter().any(|m| root.join(m).is_file());
+    if has_dockerfile_or_compose {
         out.insert(FeatureId::Docker);
     }
     if GIT_HOOK_MARKERS.iter().any(|m| root.join(m).is_file()) || root.join(".husky").is_dir() {

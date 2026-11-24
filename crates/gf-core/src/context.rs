@@ -29,9 +29,18 @@ pub enum LanguageId {
     Shell,
     /// PowerShell automation ecosystem (`.ps1`, `.psm1`, `.psd1`).
     PowerShell,
+    /// YAML 1.2, Docker Compose, and GitHub Actions workflow ecosystem (`.yml`, `.yaml`).
+    Yaml,
 }
 
-const LANG_NAMES: [&str; 5] = ["rust", "typescript", "python", "shell", "powershell"];
+const LANG_NAMES: [&str; 6] = [
+    "rust",
+    "typescript",
+    "python",
+    "shell",
+    "powershell",
+    "yaml",
+];
 const LANGUAGE_ALIASES: &[(&str, LanguageId)] = &[
     ("rust", LanguageId::Rust),
     ("typescript", LanguageId::TypeScript),
@@ -46,6 +55,8 @@ const LANGUAGE_ALIASES: &[(&str, LanguageId)] = &[
     ("powershell", LanguageId::PowerShell),
     ("pwsh", LanguageId::PowerShell),
     ("ps1", LanguageId::PowerShell),
+    ("yaml", LanguageId::Yaml),
+    ("yml", LanguageId::Yaml),
 ];
 
 impl LanguageId {
@@ -59,6 +70,15 @@ impl LanguageId {
     #[must_use]
     pub const fn as_str(self) -> &'static str {
         LANG_NAMES[self as usize]
+    }
+
+    /// Returns `true` for primary code/automation languages (`Rust`, `TypeScript`, `Python`, `Shell`, `PowerShell`).
+    #[must_use]
+    pub const fn is_programming_language(self) -> bool {
+        matches!(
+            self,
+            Self::Rust | Self::TypeScript | Self::Python | Self::Shell | Self::PowerShell
+        )
     }
 }
 

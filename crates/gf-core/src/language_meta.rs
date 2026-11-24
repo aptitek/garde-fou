@@ -40,9 +40,17 @@ pub enum ExternalToolKind {
     Hadolint,
     /// `PSScriptAnalyzer` PowerShell AST static analyzer (`Invoke-ScriptAnalyzer`).
     PsScriptAnalyzer,
+    /// `yamllint` YAML 1.2 linter (`yamllint -f parsable`).
+    Yamllint,
+    /// `dclint` Docker Compose linter (`dclint -f json`).
+    Dclint,
+    /// `actionlint` GitHub Actions workflow verifier (`actionlint -format '{{json .}}'`).
+    Actionlint,
+    /// `zizmor` GitHub Actions security scanner (`zizmor --format sarif`).
+    Zizmor,
 }
 
-const TOOL_NAMES: [&str; 14] = [
+const TOOL_NAMES: [&str; 18] = [
     "ruff",
     "mypy",
     "pyright",
@@ -57,11 +65,15 @@ const TOOL_NAMES: [&str; 14] = [
     "biome",
     "hadolint",
     "psscriptanalyzer",
+    "yamllint",
+    "dclint",
+    "actionlint",
+    "zizmor",
 ];
 
 impl ExternalToolKind {
     /// All known ecosystem tool identifiers in deterministic order.
-    pub const ALL: [Self; 14] = [
+    pub const ALL: [Self; 18] = [
         Self::Ruff,
         Self::Mypy,
         Self::Pyright,
@@ -76,6 +88,10 @@ impl ExternalToolKind {
         Self::Biome,
         Self::Hadolint,
         Self::PsScriptAnalyzer,
+        Self::Yamllint,
+        Self::Dclint,
+        Self::Actionlint,
+        Self::Zizmor,
     ];
 
     /// Canonical lowercase CLI/config name of the tool.
@@ -118,6 +134,8 @@ pub enum Language {
     Json,
     /// TOML configuration or `i18n` dictionary (`.toml`).
     Toml,
+    /// YAML 1.2 document, Docker Compose spec, or GitHub Actions workflow (`.yml`, `.yaml`).
+    Yaml,
     /// POSIX/Bash Shell script (`.sh`, `.bash`, or extensionless `sh`/`bash` shebang).
     Shell,
     /// PowerShell automation script or module (`.ps1`, `.psm1`, `.psd1`).
@@ -154,7 +172,7 @@ impl Language {
         self.is_code_analyzed()
             || matches!(
                 self,
-                Self::Css | Self::Markdown | Self::Svg | Self::BinaryAsset
+                Self::Yaml | Self::Css | Self::Markdown | Self::Svg | Self::BinaryAsset
             )
     }
 }

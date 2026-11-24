@@ -26,6 +26,7 @@ pub const fn language_fragment(lang: LanguageId) -> &'static str {
         LanguageId::PowerShell => {
             include_str!("../../../content/agent-fragments/lang-powershell.md")
         }
+        LanguageId::Yaml => include_str!("../../../content/agent-fragments/lang-yaml.md"),
     }
 }
 

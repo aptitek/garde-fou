@@ -71,7 +71,7 @@ struct PyrightReport {
     general_diagnostics: Vec<PyrightDiagnostic>,
 }
 
-fn parse_non_empty_json<T: DeserializeOwned>(
+pub(crate) fn parse_non_empty_json<T: DeserializeOwned>(
     raw: &str,
     tool: ExternalToolKind,
 ) -> Result<Option<T>, ToolParseError> {

@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 use crate::language_meta::ExternalToolKind;
 pub use crate::mutation_config_issues::{MutantsConfigIssue, StrykerConfigIssue};
 use crate::shell_ps_tools::ShellInfraConfigIssue;
+use crate::yaml_tools::YamlCiConfigIssue;
 
 /// Specific `[tool.mypy]` configuration weakening (`GF081`).
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
@@ -153,6 +154,8 @@ pub enum ToolConfigViolation {
     BiomeLinterDisabled,
     /// `.shellcheckrc`, `.hadolint.yaml`, or `PSScriptAnalyzerSettings.psd1` weakened.
     ShellInfra(ShellInfraConfigIssue),
+    /// `.yamllint*`, `.dclintrc*`, or `zizmor.yml` weakened.
+    YamlCi(YamlCiConfigIssue),
 }
 
 impl ToolConfigViolation {
@@ -168,6 +171,7 @@ impl ToolConfigViolation {
             Self::StrykerWeakened(_) => ExternalToolKind::Stryker,
             Self::BiomeLinterDisabled => ExternalToolKind::Biome,
             Self::ShellInfra(k) => k.tool(),
+            Self::YamlCi(k) => k.tool(),
         }
     }
 
@@ -183,6 +187,7 @@ impl ToolConfigViolation {
             Self::StrykerWeakened(k) => k.key(),
             Self::BiomeLinterDisabled => "linter.enabled",
             Self::ShellInfra(k) => k.key(),
+            Self::YamlCi(k) => k.key(),
         }
     }
 
@@ -198,6 +203,7 @@ impl ToolConfigViolation {
             Self::StrykerWeakened(_) => REM_CFG_STRYKER,
             Self::BiomeLinterDisabled => REM_CFG_BIOME,
             Self::ShellInfra(k) => k.remediation(),
+            Self::YamlCi(k) => k.remediation(),
         }
     }
 }

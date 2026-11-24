@@ -1,15 +1,12 @@
 //! Declarative `ExternalAdapter` sum type across Python, TypeScript/React, Shell,
-//! PowerShell, and Docker ecosystems (`GF082`, zero `dyn Trait`).
+//! PowerShell, Docker, and YAML/Compose/CI ecosystems (`GF082`, zero `dyn Trait`).
 
 use std::path::Path;
 
 use gf_core::{Config, ExternalToolFinding, ExternalToolKind, ScannerPolicy};
-use gf_parsers::{
-    ToolParseError, parse_biome_json, parse_hadolint_json, parse_mypy_ndjson, parse_oxlint_json,
-    parse_psscriptanalyzer_json, parse_pyright_json, parse_ruff_json, parse_shellcheck_json,
-    parse_tsc_output,
-};
+use gf_parsers::ToolParseError;
 
+use super::adapter_table::{ADAPTER_TABLE, AdapterTableEntry};
 pub use super::tool_resolvers::{
     ResolvedPythonTool, resolve_pwsh_analyzer, resolve_python_tool, resolve_python_tool_with_uv,
     resolve_system_binary,
@@ -36,94 +33,15 @@ pub enum ExternalAdapter {
     Hadolint,
     /// `pwsh -NoLogo -NoProfile -NonInteractive -Command ... -- <files...>`.
     PsScriptAnalyzer,
+    /// `yamllint -f parsable -- <files...>`.
+    Yamllint,
+    /// `dclint -f json <compose-files...>`.
+    Dclint,
+    /// `actionlint -format '{{json .}}' <workflow-files...>`.
+    Actionlint,
+    /// `zizmor --format sarif <workflow-files...>`.
+    Zizmor,
 }
-
-const PSSA_COMMAND: &str = "& { \
-    $res = if ($args.Count -gt 0) { foreach ($f in $args) { Invoke-ScriptAnalyzer -Path $f } } \
-    else { Invoke-ScriptAnalyzer -Path . -Recurse }; \
-    if ($null -ne $res) { $res | Select-Object RuleName,ScriptPath,Line,Column,Message,Severity | ConvertTo-Json -Compress } \
-}";
-
-struct AdapterTableEntry {
-    tool: ExternalToolKind,
-    prefix_args: &'static [&'static str],
-    accepts_file_targets: bool,
-    dot_when_empty: bool,
-    install_hint: &'static str,
-}
-
-const ADAPTER_TABLE: [AdapterTableEntry; 9] = [
-    AdapterTableEntry {
-        tool: ExternalToolKind::Ruff,
-        prefix_args: &["check", "--output-format", "json", "--no-fix", "--"],
-        accepts_file_targets: true,
-        dot_when_empty: true,
-        install_hint: "Install `ruff` in `.venv` (`uv add --dev ruff`) or system PATH.",
-    },
-    AdapterTableEntry {
-        tool: ExternalToolKind::Mypy,
-        prefix_args: &["--strict", "--output", "json", "--no-error-summary", "--"],
-        accepts_file_targets: true,
-        dot_when_empty: true,
-        install_hint: "Install `mypy` in `.venv` (`uv add --dev mypy`) or system PATH.",
-    },
-    AdapterTableEntry {
-        tool: ExternalToolKind::Pyright,
-        prefix_args: &["--outputjson"],
-        accepts_file_targets: true,
-        dot_when_empty: true,
-        install_hint: "Install `pyright` in `.venv` (`uv add --dev pyright`) or system PATH.",
-    },
-    AdapterTableEntry {
-        tool: ExternalToolKind::Oxlint,
-        prefix_args: &["--format", "json"],
-        accepts_file_targets: true,
-        dot_when_empty: true,
-        install_hint: "Install `oxlint` (`pnpm add -D oxlint`) in `node_modules/.bin` or system PATH.",
-    },
-    AdapterTableEntry {
-        tool: ExternalToolKind::Biome,
-        prefix_args: &["check", "--reporter=json"],
-        accepts_file_targets: true,
-        dot_when_empty: true,
-        install_hint: "Install `@biomejs/biome` (`pnpm add -D @biomejs/biome`) in `node_modules/.bin` or system PATH.",
-    },
-    AdapterTableEntry {
-        tool: ExternalToolKind::Tsc,
-        prefix_args: &["--noEmit", "--pretty", "false"],
-        accepts_file_targets: false,
-        dot_when_empty: false,
-        install_hint: "Install `typescript` (`pnpm add -D typescript`) in `node_modules/.bin` or system PATH.",
-    },
-    AdapterTableEntry {
-        tool: ExternalToolKind::Shellcheck,
-        prefix_args: &["--format=json1", "--"],
-        accepts_file_targets: true,
-        dot_when_empty: false,
-        install_hint: "Install `shellcheck` (`apt install shellcheck` / `brew install shellcheck`) on system PATH.",
-    },
-    AdapterTableEntry {
-        tool: ExternalToolKind::Hadolint,
-        prefix_args: &["--format", "json", "--no-color"],
-        accepts_file_targets: true,
-        dot_when_empty: false,
-        install_hint: "Install `hadolint` (`brew install hadolint` / GitHub release binary) on system PATH.",
-    },
-    AdapterTableEntry {
-        tool: ExternalToolKind::PsScriptAnalyzer,
-        prefix_args: &[
-            "-NoLogo",
-            "-NoProfile",
-            "-NonInteractive",
-            "-Command",
-            PSSA_COMMAND,
-            "--",
-        ],
-        accepts_file_targets: true,
-        dot_when_empty: false,
-        install_hint: "Install `pwsh` and module `PSScriptAnalyzer` (`Install-Module PSScriptAnalyzer -Scope CurrentUser`).",
-    },
-];
 
 impl ExternalAdapter {
     /// All active Python external adapters in deterministic execution order.
@@ -142,32 +60,25 @@ impl ExternalAdapter {
         self.spec().tool
     }
 
-    /// Returns `true` for Python ecosystem adapters (`ruff`, `mypy`, `pyright`).
+    /// Returns `true` for tools resolvable via `.venv` / `uv` (`ruff`, `mypy`, `pyright`, `yamllint`, `zizmor`).
     #[must_use]
     pub const fn is_python(self) -> bool {
-        matches!(self, Self::Ruff | Self::Mypy | Self::Pyright)
+        matches!(
+            self,
+            Self::Ruff | Self::Mypy | Self::Pyright | Self::Yamllint | Self::Zizmor
+        )
     }
 
-    /// Returns `true` for Node/TypeScript ecosystem adapters (`oxlint`, `biome`, `tsc`).
+    /// Returns `true` for Node/npm CLI adapters (`oxlint`, `biome`, `tsc`, `dclint`).
     #[must_use]
     pub const fn is_typescript(self) -> bool {
-        matches!(self, Self::Oxlint | Self::Biome | Self::Tsc)
+        matches!(self, Self::Oxlint | Self::Biome | Self::Tsc | Self::Dclint)
     }
 
     /// Reads the configured [`ScannerPolicy`] for this adapter from `config`.
     #[must_use]
-    pub const fn configured_policy(self, config: &Config) -> ScannerPolicy {
-        match self {
-            Self::Ruff => config.tools.python.ruff,
-            Self::Mypy => config.tools.python.mypy,
-            Self::Pyright => config.tools.python.pyright,
-            Self::Oxlint => config.tools.typescript.oxlint,
-            Self::Biome => config.tools.typescript.biome,
-            Self::Tsc => config.tools.typescript.tsc,
-            Self::Shellcheck => config.tools.shell.shellcheck,
-            Self::Hadolint => config.tools.docker.hadolint,
-            Self::PsScriptAnalyzer => config.tools.powershell.psscriptanalyzer,
-        }
+    pub fn configured_policy(self, config: &Config) -> ScannerPolicy {
+        (self.spec().get_policy)(config)
     }
 
     /// Actionable install guidance emitted in `GF043` when required and absent.
@@ -202,22 +113,12 @@ impl ExternalAdapter {
     ///
     /// # Errors
     ///
-    /// Returns [`ToolParseError`] when `stdout` is malformed JSON/NDJSON.
+    /// Returns [`ToolParseError`] when `stdout` is malformed JSON/SARIF.
     pub fn parse_output(
         self,
         stdout: &str,
         root: &Path,
     ) -> Result<Vec<ExternalToolFinding>, ToolParseError> {
-        match self {
-            Self::Ruff => parse_ruff_json(stdout, root),
-            Self::Mypy => parse_mypy_ndjson(stdout, root),
-            Self::Pyright => parse_pyright_json(stdout, root),
-            Self::Oxlint => parse_oxlint_json(stdout, root),
-            Self::Biome => parse_biome_json(stdout, root),
-            Self::Tsc => parse_tsc_output(stdout, root),
-            Self::Shellcheck => parse_shellcheck_json(stdout, root),
-            Self::Hadolint => parse_hadolint_json(stdout, root),
-            Self::PsScriptAnalyzer => parse_psscriptanalyzer_json(stdout, root),
-        }
+        (self.spec().parse_fn)(stdout, root)
     }
 }

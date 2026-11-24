@@ -1,0 +1,155 @@
+//! Declarative CLI argv, policy getter, output parser, and install-hint table for
+//! [`super::python_runners::ExternalAdapter`].
+
+use std::path::Path;
+
+use gf_core::{Config, ExternalToolFinding, ExternalToolKind, ScannerPolicy};
+use gf_parsers::{
+    ToolParseError, parse_actionlint_json, parse_biome_json, parse_dclint_json,
+    parse_hadolint_json, parse_mypy_ndjson, parse_oxlint_json, parse_psscriptanalyzer_json,
+    parse_pyright_json, parse_ruff_json, parse_shellcheck_json, parse_tsc_output,
+    parse_yamllint_parsable, parse_zizmor_sarif,
+};
+
+const PSSA_COMMAND: &str = "& { \
+    $res = if ($args.Count -gt 0) { foreach ($f in $args) { Invoke-ScriptAnalyzer -Path $f } } \
+    else { Invoke-ScriptAnalyzer -Path . -Recurse }; \
+    if ($null -ne $res) { $res | Select-Object RuleName,ScriptPath,Line,Column,Message,Severity | ConvertTo-Json -Compress } \
+}";
+
+pub(super) struct AdapterTableEntry {
+    pub tool: ExternalToolKind,
+    pub prefix_args: &'static [&'static str],
+    pub accepts_file_targets: bool,
+    pub dot_when_empty: bool,
+    pub get_policy: fn(&Config) -> ScannerPolicy,
+    pub parse_fn: fn(&str, &Path) -> Result<Vec<ExternalToolFinding>, ToolParseError>,
+    pub install_hint: &'static str,
+}
+
+pub(super) const ADAPTER_TABLE: [AdapterTableEntry; 13] = [
+    AdapterTableEntry {
+        tool: ExternalToolKind::Ruff,
+        prefix_args: &["check", "--output-format", "json", "--no-fix", "--"],
+        accepts_file_targets: true,
+        dot_when_empty: true,
+        get_policy: |c| c.tools.python.ruff,
+        parse_fn: parse_ruff_json,
+        install_hint: "Install `ruff` in `.venv` (`uv add --dev ruff`) or system PATH.",
+    },
+    AdapterTableEntry {
+        tool: ExternalToolKind::Mypy,
+        prefix_args: &["--strict", "--output", "json", "--no-error-summary", "--"],
+        accepts_file_targets: true,
+        dot_when_empty: true,
+        get_policy: |c| c.tools.python.mypy,
+        parse_fn: parse_mypy_ndjson,
+        install_hint: "Install `mypy` in `.venv` (`uv add --dev mypy`) or system PATH.",
+    },
+    AdapterTableEntry {
+        tool: ExternalToolKind::Pyright,
+        prefix_args: &["--outputjson"],
+        accepts_file_targets: true,
+        dot_when_empty: true,
+        get_policy: |c| c.tools.python.pyright,
+        parse_fn: parse_pyright_json,
+        install_hint: "Install `pyright` in `.venv` (`uv add --dev pyright`) or system PATH.",
+    },
+    AdapterTableEntry {
+        tool: ExternalToolKind::Oxlint,
+        prefix_args: &["--format", "json"],
+        accepts_file_targets: true,
+        dot_when_empty: true,
+        get_policy: |c| c.tools.typescript.oxlint,
+        parse_fn: parse_oxlint_json,
+        install_hint: "Install `oxlint` (`pnpm add -D oxlint`) in `node_modules/.bin` or system PATH.",
+    },
+    AdapterTableEntry {
+        tool: ExternalToolKind::Biome,
+        prefix_args: &["check", "--reporter=json"],
+        accepts_file_targets: true,
+        dot_when_empty: true,
+        get_policy: |c| c.tools.typescript.biome,
+        parse_fn: parse_biome_json,
+        install_hint: "Install `@biomejs/biome` (`pnpm add -D @biomejs/biome`) in `node_modules/.bin` or system PATH.",
+    },
+    AdapterTableEntry {
+        tool: ExternalToolKind::Tsc,
+        prefix_args: &["--noEmit", "--pretty", "false"],
+        accepts_file_targets: false,
+        dot_when_empty: false,
+        get_policy: |c| c.tools.typescript.tsc,
+        parse_fn: parse_tsc_output,
+        install_hint: "Install `typescript` (`pnpm add -D typescript`) in `node_modules/.bin` or system PATH.",
+    },
+    AdapterTableEntry {
+        tool: ExternalToolKind::Shellcheck,
+        prefix_args: &["--format=json1", "--"],
+        accepts_file_targets: true,
+        dot_when_empty: false,
+        get_policy: |c| c.tools.shell.shellcheck,
+        parse_fn: parse_shellcheck_json,
+        install_hint: "Install `shellcheck` (`apt install shellcheck` / `brew install shellcheck`) on system PATH.",
+    },
+    AdapterTableEntry {
+        tool: ExternalToolKind::Hadolint,
+        prefix_args: &["--format", "json", "--no-color"],
+        accepts_file_targets: true,
+        dot_when_empty: false,
+        get_policy: |c| c.tools.docker.hadolint,
+        parse_fn: parse_hadolint_json,
+        install_hint: "Install `hadolint` (`brew install hadolint` / GitHub release binary) on system PATH.",
+    },
+    AdapterTableEntry {
+        tool: ExternalToolKind::PsScriptAnalyzer,
+        prefix_args: &[
+            "-NoLogo",
+            "-NoProfile",
+            "-NonInteractive",
+            "-Command",
+            PSSA_COMMAND,
+            "--",
+        ],
+        accepts_file_targets: true,
+        dot_when_empty: false,
+        get_policy: |c| c.tools.powershell.psscriptanalyzer,
+        parse_fn: parse_psscriptanalyzer_json,
+        install_hint: "Install `pwsh` and module `PSScriptAnalyzer` (`Install-Module PSScriptAnalyzer -Scope CurrentUser`).",
+    },
+    AdapterTableEntry {
+        tool: ExternalToolKind::Yamllint,
+        prefix_args: &["-f", "parsable", "--"],
+        accepts_file_targets: true,
+        dot_when_empty: true,
+        get_policy: |c| c.tools.yaml.yamllint,
+        parse_fn: parse_yamllint_parsable,
+        install_hint: "Install `yamllint` (`pip install yamllint` / `apt install yamllint`) on system PATH or `.venv`.",
+    },
+    AdapterTableEntry {
+        tool: ExternalToolKind::Dclint,
+        prefix_args: &["-f", "json"],
+        accepts_file_targets: true,
+        dot_when_empty: false,
+        get_policy: |c| c.tools.yaml.dclint,
+        parse_fn: parse_dclint_json,
+        install_hint: "Install `dclint` (`pnpm add -D dclint`) in `node_modules/.bin` or system PATH.",
+    },
+    AdapterTableEntry {
+        tool: ExternalToolKind::Actionlint,
+        prefix_args: &["-format", "{{json .}}"],
+        accepts_file_targets: true,
+        dot_when_empty: false,
+        get_policy: |c| c.tools.yaml.actionlint,
+        parse_fn: parse_actionlint_json,
+        install_hint: "Install `actionlint` (`brew install actionlint` / GitHub release binary) on system PATH.",
+    },
+    AdapterTableEntry {
+        tool: ExternalToolKind::Zizmor,
+        prefix_args: &["--format", "sarif"],
+        accepts_file_targets: true,
+        dot_when_empty: false,
+        get_policy: |c| c.tools.yaml.zizmor,
+        parse_fn: parse_zizmor_sarif,
+        install_hint: "Install `zizmor` (`cargo install zizmor` / `uv tool install zizmor`) on system PATH.",
+    },
+];

@@ -52,7 +52,7 @@ impl LanguageExtractor for PowerShellExtractor {
 /// # Errors
 ///
 /// Returns [`ParseError`] if configuring `tree-sitter-powershell` fails.
-pub(super) fn analyze_dockerfile_powershell_run(
+pub(crate) fn analyze_dockerfile_powershell_run(
     script: &str,
 ) -> Result<Vec<LangRuleFinding>, ParseError> {
     let ts_lang = tree_sitter_powershell::LANGUAGE.into();

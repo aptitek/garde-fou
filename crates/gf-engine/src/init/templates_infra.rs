@@ -9,63 +9,69 @@ pub const GITATTRIBUTES_TEMPLATE: &str = "* text=auto eol=lf\n\
 *.bat text eol=crlf\n\
 *.cmd text eol=crlf\n";
 
-const LEFTHOOK_TEMPLATE: &str = "pre-commit:\n\
-  parallel: true\n\
-  commands:\n\
-    garde:\n\
-      run: garde check --staged --format agent\n\
-\n\
-commit-msg:\n\
-  commands:\n\
-    conventional:\n\
-      run: garde commit-msg {1}\n\
-\n\
-pre-push:\n\
-  parallel: true\n\
-  commands:\n\
-    garde-full:\n\
-      run: garde check --no-cache\n";
+const LEFTHOOK_TEMPLATE: &str = "\
+pre-commit:
+  parallel: true
+  commands:
+    garde:
+      run: garde check --staged --format agent
 
-const TASKFILE_TEMPLATE: &str = "version: \"3\"\n\
-\n\
-tasks:\n\
-  check:\n\
-    desc: Run full Garde-fou static analysis and security gates\n\
-    cmds:\n\
-      - garde check\n\
-  check:staged:\n\
-    desc: Run fast incremental check on staged Git changes\n\
-    cmds:\n\
-      - garde check --staged --format agent\n";
+commit-msg:
+  commands:
+    conventional:
+      run: garde commit-msg {1}
 
-const GITHUB_WORKFLOW_TEMPLATE: &str = "name: garde-fou\n\
-on:\n\
-  push:\n\
-    branches: [main]\n\
-  pull_request:\n\
-\n\
-permissions:\n\
-  contents: read\n\
-\n\
-jobs:\n\
-  quality:\n\
-    runs-on: ubuntu-latest\n\
-    steps:\n\
-      - uses: actions/checkout@v4\n\
-      - name: Install garde (SHA-256 verified)\n\
-        run: |\n\
-          set -euo pipefail\n\
-          BASE_URL=\"https://github.com/aptitek/garde-fou/releases/latest/download\"\n\
-          ARCHIVE=\"garde-x86_64-unknown-linux-gnu.tar.gz\"\n\
-          curl -fsSLO \"${BASE_URL}/${ARCHIVE}\"\n\
-          curl -fsSLO \"${BASE_URL}/${ARCHIVE}.sha256\"\n\
-          sha256sum -c \"${ARCHIVE}.sha256\"\n\
-          mkdir -p \"$HOME/.local/bin\"\n\
-          tar -xzf \"${ARCHIVE}\" -C \"$HOME/.local/bin\" garde\n\
-          rm -f \"${ARCHIVE}\" \"${ARCHIVE}.sha256\"\n\
-          echo \"$HOME/.local/bin\" >> \"$GITHUB_PATH\"\n\
-      - name: Run Garde-fou\n\
-        run: garde check --no-cache\n";
+pre-push:
+  parallel: true
+  commands:
+    garde-full:
+      run: garde check --no-cache
+";
+
+const TASKFILE_TEMPLATE: &str = "\
+version: \"3\"
+
+tasks:
+  check:
+    desc: Run full Garde-fou static analysis and security gates
+    cmds:
+      - garde check
+  check:staged:
+    desc: Run fast incremental check on staged Git changes
+    cmds:
+      - garde check --staged --format agent
+";
+
+const GITHUB_WORKFLOW_TEMPLATE: &str = "\
+name: garde-fou
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install garde (SHA-256 verified)
+        run: |
+          set -euo pipefail
+          BASE_URL=\"https://github.com/aptitek/garde-fou/releases/latest/download\"
+          ARCHIVE=\"garde-x86_64-unknown-linux-gnu.tar.gz\"
+          curl -fsSLO \"${BASE_URL}/${ARCHIVE}\"
+          curl -fsSLO \"${BASE_URL}/${ARCHIVE}.sha256\"
+          sha256sum -c \"${ARCHIVE}.sha256\"
+          mkdir -p \"$HOME/.local/bin\"
+          tar -xzf \"${ARCHIVE}\" -C \"$HOME/.local/bin\" garde
+          rm -f \"${ARCHIVE}\" \"${ARCHIVE}.sha256\"
+          echo \"$HOME/.local/bin\" >> \"$GITHUB_PATH\"
+      - name: Run Garde-fou
+        run: garde check --no-cache
+";
 
 fn format_quoted_list<'a>(items: impl Iterator<Item = &'a str>) -> String {
     let quoted: Vec<String> = items.map(|s| format!("\"{s}\"")).collect();

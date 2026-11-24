@@ -1,4 +1,4 @@
-//! Content-addressed `BLAKE3` `.garde-fou-cache/v9/` storing `UastDocument` + diagnostics.
+//! Content-addressed `BLAKE3` `.garde-fou-cache/v10/` storing `UastDocument` + diagnostics.
 
 use std::fs;
 use std::io::Read as _;
@@ -90,7 +90,7 @@ impl DiskCache {
     #[must_use]
     pub fn new(workspace_root: &Path, cache_dir: &str) -> Self {
         Self {
-            base_dir: workspace_root.join(cache_dir).join("v9"),
+            base_dir: workspace_root.join(cache_dir).join("v10"),
         }
     }
 

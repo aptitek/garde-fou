@@ -5,13 +5,14 @@ use alloc::string::String;
 use serde::{Deserialize, Serialize};
 
 use crate::diagnostic::Span;
+use crate::lang_rule_violation::LangRuleViolation;
 pub use crate::language_meta::ExternalToolKind;
 use crate::path::RepoPath;
 use crate::policies::ScannerPolicy;
 use crate::shell_ps_tools::{DockerToolsConfig, PowerShellToolsConfig, ShellToolsConfig};
 pub use crate::shell_ps_tools::{is_audited_tool_config_file, is_tsconfig_filename};
 use crate::tool_config_violations::ToolConfigViolation;
-use crate::ts_violations::LangRuleViolation;
+use crate::yaml_tools::YamlToolsConfig;
 
 /// Type alias preserving compatibility with [`ExternalToolKind`].
 pub type ExternalToolId = ExternalToolKind;
@@ -205,6 +206,9 @@ pub struct ToolsConfig {
     /// Docker `hadolint` policy (`[tools.docker]`).
     #[serde(default)]
     pub docker: DockerToolsConfig,
+    /// YAML, Docker Compose, and GitHub Actions policies (`[tools.yaml]`).
+    #[serde(default)]
+    pub yaml: YamlToolsConfig,
 }
 
 impl ToolsConfig {
@@ -217,6 +221,7 @@ impl ToolsConfig {
             shell: ShellToolsConfig::defaults(),
             powershell: PowerShellToolsConfig::defaults(),
             docker: DockerToolsConfig::defaults(),
+            yaml: YamlToolsConfig::defaults(),
         }
     }
 
@@ -224,12 +229,13 @@ impl ToolsConfig {
     #[must_use]
     pub fn canonical_fragment(self) -> String {
         format!(
-            "tl({},{},{},{},{})",
+            "tl({},{},{},{},{},{})",
             self.python.canonical_fragment(),
             self.typescript.canonical_fragment(),
             self.shell.canonical_fragment(),
             self.powershell.canonical_fragment(),
             self.docker.canonical_fragment(),
+            self.yaml.canonical_fragment(),
         )
     }
 }

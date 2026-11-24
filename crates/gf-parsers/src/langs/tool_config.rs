@@ -13,6 +13,9 @@ use super::powershell::psd1_config::audit_psscriptanalyzer_psd1;
 use super::shell_docker_config::{audit_hadolint_yaml, audit_shellcheckrc};
 use super::tool_config_py::{audit_mypy_table, audit_ruff_tables, section_key_span};
 use super::ts::tsconfig_jsonc::{audit_biome_jsonc, audit_tsconfig_jsonc};
+use super::yaml::yaml_tool_config::{
+    audit_dclint_config, audit_yamllint_config, audit_zizmor_config,
+};
 use crate::cst::line_metrics;
 use crate::types::ParseError;
 
@@ -186,6 +189,19 @@ pub fn extract_tool_config(
         }
         ".hadolint.yaml" | ".hadolint.yml" | "hadolint.yaml" | "hadolint.yml" => {
             audit_hadolint_yaml(source, &mut doc.tool_config_findings);
+        }
+        name if matches!(
+            name.to_ascii_lowercase().as_str(),
+            ".yamllint" | ".yamllint.yml" | ".yamllint.yaml"
+        ) =>
+        {
+            audit_yamllint_config(source, &mut doc);
+        }
+        name if name.to_ascii_lowercase().starts_with(".dclintrc") => {
+            audit_dclint_config(name, source, &mut doc);
+        }
+        name if name.eq_ignore_ascii_case("zizmor.yml") => {
+            audit_zizmor_config(source, &mut doc);
         }
         name @ ("biome.json" | "biome.jsonc") => audit_biome_jsonc(name, source, &mut doc),
         name @ ("stryker.config.json" | "stryker.conf.json") => {

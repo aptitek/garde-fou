@@ -2,7 +2,7 @@
 
 use gf_core::{
     DockerToolsConfig, PowerShellToolsConfig, PythonToolsConfig, ScannerPolicy, ShellToolsConfig,
-    ToolsConfig, TypeScriptToolsConfig,
+    ToolsConfig, TypeScriptToolsConfig, YamlToolsConfig,
 };
 use serde::Deserialize;
 
@@ -44,12 +44,22 @@ struct DockerToolsSection {
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
+struct YamlToolsSection {
+    yamllint: Option<String>,
+    dclint: Option<String>,
+    actionlint: Option<String>,
+    zizmor: Option<String>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ToolsSection {
     python: Option<PythonToolsSection>,
     typescript: Option<TypeScriptToolsSection>,
     shell: Option<ShellToolsSection>,
     powershell: Option<PowerShellToolsSection>,
     docker: Option<DockerToolsSection>,
+    yaml: Option<YamlToolsSection>,
 }
 
 fn parse_opt_tool_policy(
@@ -91,6 +101,25 @@ fn merge_ts_tools(
         oxlint: parse_opt_tool_policy(ts.oxlint, base.oxlint, "tools.typescript.oxlint")?,
         biome: parse_opt_tool_policy(ts.biome, base.biome, "tools.typescript.biome")?,
         tsc: parse_opt_tool_policy(ts.tsc, base.tsc, "tools.typescript.tsc")?,
+    })
+}
+
+fn merge_yaml_tools(
+    raw: Option<YamlToolsSection>,
+    base: YamlToolsConfig,
+) -> Result<YamlToolsConfig, EngineError> {
+    let Some(yml) = raw else {
+        return Ok(base);
+    };
+    Ok(YamlToolsConfig {
+        yamllint: parse_opt_tool_policy(yml.yamllint, base.yamllint, "tools.yaml.yamllint")?,
+        dclint: parse_opt_tool_policy(yml.dclint, base.dclint, "tools.yaml.dclint")?,
+        actionlint: parse_opt_tool_policy(
+            yml.actionlint,
+            base.actionlint,
+            "tools.yaml.actionlint",
+        )?,
+        zizmor: parse_opt_tool_policy(yml.zizmor, base.zizmor, "tools.yaml.zizmor")?,
     })
 }
 
@@ -138,5 +167,6 @@ pub fn merge_tools(raw: Option<ToolsSection>) -> Result<ToolsConfig, EngineError
         shell,
         powershell,
         docker,
+        yaml: merge_yaml_tools(section.yaml, base.yaml)?,
     })
 }

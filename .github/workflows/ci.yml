@@ -186,7 +186,7 @@ jobs:
           pwsh -File scripts/install.ps1 -FromDir $Dist -InstallDir (Join-Path $Work "bin-bad") -NoModifyPath
           $BadExit = $LASTEXITCODE
           $PSNativeCommandUseErrorActionPreference = $PrevNativePref
-          $global:LASTEXITCODE = 0
+          cmd /c "exit 0"
           if ($BadExit -eq 0) {
             throw "install.ps1 succeeded despite tampered SHA256SUMS!"
           }

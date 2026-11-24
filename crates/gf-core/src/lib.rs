@@ -26,6 +26,7 @@ pub mod domains;
 pub mod framework_id;
 pub mod gitignore;
 pub mod glob;
+pub mod lang_rule_violation;
 pub mod language_meta;
 pub mod lcov;
 pub mod metrics;
@@ -42,6 +43,8 @@ pub mod tool_ingest;
 pub mod ts_violations;
 pub mod uast;
 pub mod validation;
+pub mod yaml_tools;
+pub mod yaml_violations;
 
 pub use config::{
     ArchitectureConfig, Config, CoverageConfig, ForbiddenRuleKind, ForbiddenRulesConfig,
@@ -87,6 +90,7 @@ pub use {
         KissYagniKind, TddConfig, TddParityGate, TestCaseSummary, YagniRule,
     },
     commit_msg::{CommitConfig, validate_commit_message},
+    lang_rule_violation::LangRuleViolation,
     language_meta::{
         TsconfigStrictState, TsconfigSummary, is_known_strict_preset, is_ts_declaration_path,
     },
@@ -111,7 +115,12 @@ pub use {
         ToolConfigFinding, ToolsConfig, TypeScriptToolsConfig, is_audited_tool_config_file,
         is_tsconfig_filename,
     },
-    ts_violations::{
-        AsyncHazardKind, LangRuleViolation, ReactViolation, TsDebugKind, TypescriptViolation,
+    ts_violations::{AsyncHazardKind, ReactViolation, TsDebugKind, TypescriptViolation},
+    yaml_tools::{
+        DclintConfigIssue, YamlCiConfigIssue, YamlToolsConfig, YamllintConfigIssue,
+        ZizmorConfigIssue, is_yaml_tool_config_file,
+    },
+    yaml_violations::{
+        ComposeViolation, WorkflowViolation, YamlFlavor, YamlViolation, classify_yaml_flavor,
     },
 };

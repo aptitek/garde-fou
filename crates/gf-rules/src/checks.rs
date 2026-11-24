@@ -91,7 +91,8 @@ pub fn check_file_metrics(doc: &UastDocument, config: &Config) -> Validation<(),
 
     let enforce_line_cap = !matches!(
         doc.language,
-        Language::Markdown
+        Language::Yaml
+            | Language::Markdown
             | Language::Json
             | Language::Toml
             | Language::Svg

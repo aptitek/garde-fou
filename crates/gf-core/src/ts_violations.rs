@@ -1,11 +1,6 @@
-//! Closed algebraic sum types for Tier 1 TypeScript & React 19 AST violations (`GF080`)
-//! and unified [`LangRuleViolation`].
+//! Closed algebraic sum types for Tier 1 TypeScript & React 19 AST violations (`GF080`).
 
-use core::fmt;
 use serde::{Deserialize, Serialize};
-
-use crate::python_violations::PythonViolation;
-use crate::shell_ps_violations::{PowerShellViolation, ShellViolation};
 
 /// Sub-category of hazardous `async` callbacks losing rejections or cleanup functions (`GF080`).
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
@@ -151,92 +146,5 @@ impl ReactViolation {
                 "Avoid `dangerouslySetInnerHTML` and `javascript:` URLs; add `rel=\"noopener noreferrer\"` on external `<a target=\"_blank\">` links."
             }
         }
-    }
-}
-
-/// Unified closed sum type across all Tier 1 native language AST violations (`GF080`).
-#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
-pub enum LangRuleViolation {
-    /// Native Python AST violation (`PY-*`).
-    Python(PythonViolation),
-    /// Native TypeScript/JavaScript AST violation (`TS-*`).
-    TypeScript(TypescriptViolation),
-    /// Native React 19 / JSX AST violation (`REACT-*`).
-    React(ReactViolation),
-    /// Native POSIX/Bash Shell AST violation (`SH-*`).
-    Shell(ShellViolation),
-    /// Native PowerShell AST violation (`PS-*`).
-    PowerShell(PowerShellViolation),
-}
-
-impl LangRuleViolation {
-    /// Canonical rule code (`"PY-..."`, `"TS-..."`, `"REACT-..."`, `"SH-..."`, or `"PS-..."`).
-    #[must_use]
-    pub const fn code(self) -> &'static str {
-        match self {
-            Self::Python(v) => v.code(),
-            Self::TypeScript(v) => v.code(),
-            Self::React(v) => v.code(),
-            Self::Shell(v) => v.code(),
-            Self::PowerShell(v) => v.code(),
-        }
-    }
-
-    /// Actionable root-cause remediation guidance.
-    #[must_use]
-    pub const fn remediation(self) -> &'static str {
-        match self {
-            Self::Python(v) => v.remediation(),
-            Self::TypeScript(v) => v.remediation(),
-            Self::React(v) => v.remediation(),
-            Self::Shell(v) => v.remediation(),
-            Self::PowerShell(v) => v.remediation(),
-        }
-    }
-
-    /// Returns `true` when exempted inside declared CLI/server `entrypoints`.
-    #[must_use]
-    pub const fn is_entrypoint_exempt(self) -> bool {
-        match self {
-            Self::Python(v) => v.is_entrypoint_exempt(),
-            Self::TypeScript(v) => v.is_entrypoint_exempt(),
-            Self::React(_) | Self::Shell(_) | Self::PowerShell(_) => false,
-        }
-    }
-}
-
-impl fmt::Display for LangRuleViolation {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(self.code())
-    }
-}
-
-impl From<PythonViolation> for LangRuleViolation {
-    fn from(v: PythonViolation) -> Self {
-        Self::Python(v)
-    }
-}
-
-impl From<TypescriptViolation> for LangRuleViolation {
-    fn from(v: TypescriptViolation) -> Self {
-        Self::TypeScript(v)
-    }
-}
-
-impl From<ReactViolation> for LangRuleViolation {
-    fn from(v: ReactViolation) -> Self {
-        Self::React(v)
-    }
-}
-
-impl From<ShellViolation> for LangRuleViolation {
-    fn from(v: ShellViolation) -> Self {
-        Self::Shell(v)
-    }
-}
-
-impl From<PowerShellViolation> for LangRuleViolation {
-    fn from(v: PowerShellViolation) -> Self {
-        Self::PowerShell(v)
     }
 }

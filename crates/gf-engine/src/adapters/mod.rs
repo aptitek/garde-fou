@@ -1,8 +1,10 @@
 //! Tier 3 language ecosystem tool ingestion orchestrator (`GF082` & `GF043`).
 
+mod adapter_table;
 pub mod python_runners;
 mod tool_resolvers;
 pub mod ts_runners;
+mod yaml_targets;
 
 use std::collections::BTreeSet;
 use std::path::Path;
@@ -12,9 +14,10 @@ use gf_core::{
     UastDocument,
 };
 pub use gf_parsers::{
-    ToolParseError, parse_biome_json, parse_hadolint_json, parse_mypy_ndjson, parse_oxlint_json,
-    parse_psscriptanalyzer_json, parse_pyright_json, parse_ruff_json, parse_shellcheck_json,
-    parse_tsc_output,
+    ToolParseError, parse_actionlint_json, parse_biome_json, parse_dclint_json,
+    parse_hadolint_json, parse_mypy_ndjson, parse_oxlint_json, parse_psscriptanalyzer_json,
+    parse_pyright_json, parse_ruff_json, parse_shellcheck_json, parse_tsc_output,
+    parse_yamllint_parsable, parse_zizmor_sarif,
 };
 use gf_rules::convert_external_tool_findings;
 use rayon::prelude::*;
@@ -28,6 +31,7 @@ use tool_resolvers::{
     is_ts_config_name, resolve_explicit_doc_targets, resolve_staged_targets,
 };
 pub use ts_runners::resolve_node_tool;
+use yaml_targets::push_yaml_compose_ci_jobs;
 
 use crate::scanners::gitleaks::missing_tool_diagnostic;
 use crate::types::{CheckOptions, EngineError};
@@ -191,6 +195,9 @@ pub fn run_language_tool_adapters(ctx: &AdapterCtx<'_>) -> Result<Vec<Diagnostic
         }
     }
     push_script_and_docker_jobs(ctx, &mut active_jobs);
+    if ctx.context.languages.contains(&LanguageId::Yaml) {
+        push_yaml_compose_ci_jobs(ctx.docs, ctx.staged_filter, &mut active_jobs);
+    }
     if active_jobs.is_empty() {
         return Ok(Vec::new());
     }

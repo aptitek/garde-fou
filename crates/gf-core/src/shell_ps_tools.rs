@@ -221,6 +221,7 @@ pub fn is_tsconfig_filename(file_name: &str) -> bool {
 pub fn is_audited_tool_config_file(path: &RepoPath) -> bool {
     let name = path.file_name();
     is_tsconfig_filename(name)
+        || crate::yaml_tools::is_yaml_tool_config_file(path)
         || name.eq_ignore_ascii_case("psscriptanalyzersettings.psd1")
         || matches!(
             name,

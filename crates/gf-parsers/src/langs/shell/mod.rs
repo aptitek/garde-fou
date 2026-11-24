@@ -81,22 +81,23 @@ impl LanguageExtractor for ShellExtractor {
     }
 }
 
-/// Output of analyzing an embedded `Dockerfile RUN` shell snippet.
-pub(super) struct BridgedShellRun {
+/// Output of analyzing an embedded `Dockerfile RUN` or YAML shell snippet.
+pub(crate) struct BridgedShellRun {
     /// Tier 1 Shell AST findings (`SH-SC2086`, `SH-SC2046`, `SH-SC2155`, `SH-SC2115`, `SH-SC2164`, `SH-SC3000`, `SH-NO-EVAL`).
     pub findings: Vec<LangRuleFinding>,
-    /// Whether the `RUN` snippet contains a CST `pipeline` `|` without `set -o pipefail`.
+    /// Whether the snippet contains a CST `pipeline` `|` without `set -o pipefail`.
     pub has_unguarded_pipe: bool,
 }
 
-/// Analyzes an embedded `Dockerfile RUN` snippet under `dialect` (without requiring a shebang or file header).
+/// Analyzes an embedded shell snippet (from `Dockerfile RUN`, Compose `sh -c`, or GitHub Actions `run:`).
 ///
 /// # Errors
 ///
 /// Returns [`ParseError`] if configuring `tree-sitter-bash` fails.
-pub(super) fn analyze_dockerfile_shell_run(
+pub(crate) fn analyze_embedded_shell_snippet(
     dialect: ShellDialect,
     script: &str,
+    default_errexit: bool,
 ) -> Result<BridgedShellRun, ParseError> {
     let safe = sanitize_bash_scanner_ub(script);
     let src = safe.as_ref();
@@ -105,9 +106,10 @@ pub(super) fn analyze_dockerfile_shell_run(
     let root = tree.root_node();
 
     let strict_flags = scan_top_level_strict_flags(root, src);
+    let errexit = default_errexit || strict_flags.has_errexit();
     let mut findings = Vec::new();
     check_unquoted_expansions(root, src, &mut findings);
-    check_shell_hazards(root, src, strict_flags.has_errexit(), &mut findings);
+    check_shell_hazards(root, src, errexit, &mut findings);
     if dialect == ShellDialect::PosixSh {
         check_posix_bashisms(root, src, &mut findings);
     }
@@ -116,4 +118,16 @@ pub(super) fn analyze_dockerfile_shell_run(
         findings,
         has_unguarded_pipe,
     })
+}
+
+/// Analyzes an embedded `Dockerfile RUN` snippet under `dialect` (`default_errexit = false`).
+///
+/// # Errors
+///
+/// Returns [`ParseError`] if configuring `tree-sitter-bash` fails.
+pub(super) fn analyze_dockerfile_shell_run(
+    dialect: ShellDialect,
+    script: &str,
+) -> Result<BridgedShellRun, ParseError> {
+    analyze_embedded_shell_snippet(dialect, script, false)
 }

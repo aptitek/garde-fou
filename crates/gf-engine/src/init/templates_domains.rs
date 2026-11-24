@@ -135,11 +135,22 @@ pub fn finalize_init_context(ctx: &mut ProjectContext) {
         };
         ctx.languages.insert(lang);
     }
-    if ctx.languages.is_empty() {
+    if !ctx
+        .languages
+        .iter()
+        .copied()
+        .any(LanguageId::is_programming_language)
+    {
         ctx.languages.insert(LanguageId::Rust);
         ctx.features.insert(FeatureId::GitHooks);
     }
     if ctx.languages.contains(&LanguageId::Rust) {
         ctx.frameworks.insert(FrameworkId::CargoWorkspace);
+    }
+    if ctx.features.contains(&FeatureId::GitHooks)
+        || ctx.features.contains(&FeatureId::TaskRunner)
+        || ctx.features.contains(&FeatureId::CiGithub)
+    {
+        ctx.languages.insert(LanguageId::Yaml);
     }
 }
