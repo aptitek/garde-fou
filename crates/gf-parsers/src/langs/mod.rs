@@ -18,6 +18,4 @@ mod rust_effects;
 mod rust_guardrails;
 pub mod tool_config;
 mod tool_config_py;
-pub mod typescript;
-mod typescript_jsx;
-mod typescript_ui;
+pub mod ts;

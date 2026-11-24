@@ -1,4 +1,4 @@
-//! Unified Abstract Syntax Tree (`UAST`) hub representations (`v7` schema).
+//! Unified Abstract Syntax Tree (`UAST`) hub representations (`v8` schema).
 
 use alloc::collections::BTreeSet;
 use alloc::string::String;
@@ -13,6 +13,8 @@ use crate::docker::DockerDocument;
 use crate::domain_summaries::{
     AssetDocument, ContenusDocument, FormeDocument, StyleLeakFinding, TexteDocument, UiCheckFinding,
 };
+pub use crate::language_meta::Language;
+use crate::language_meta::TsconfigSummary;
 use crate::metrics::{
     CallableDecl, EffectSighting, ExportDecl, ImportDecl, SecretFinding, SyntaxErrorNode, TypeDecl,
 };
@@ -20,71 +22,6 @@ use crate::path::RepoPath;
 use crate::policies::ForbiddenRuleKind;
 use crate::python_violations::CoverageFailUnder;
 use crate::tool_ingest::{LangRuleFinding, ToolConfigFinding};
-
-/// Source language, stylesheet, content, or asset format mapped into the `UAST`.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
-pub enum Language {
-    /// Rust source file (`.rs`).
-    Rust,
-    /// Python source file (`.py`).
-    Python,
-    /// TypeScript source file (`.ts`).
-    TypeScript,
-    /// TypeScript JSX source file (`.tsx`).
-    Tsx,
-    /// JavaScript source file (`.js`, `.mjs`, `.cjs`).
-    JavaScript,
-    /// JavaScript JSX source file (`.jsx`).
-    Jsx,
-    /// Go source file (`.go`).
-    Go,
-    /// Container build recipe (`Dockerfile`, `Containerfile`).
-    Dockerfile,
-    /// Stylesheet in `Forme` (`.css`, `.scss`).
-    Css,
-    /// Editorial or governance Markdown/MDX (`.md`, `.mdx`).
-    Markdown,
-    /// JSON document or `i18n` dictionary (`.json`).
-    Json,
-    /// TOML configuration or `i18n` dictionary (`.toml`).
-    Toml,
-    /// Shell / PowerShell automation script (`.sh`, `.bash`, `.ps1`).
-    Shell,
-    /// Scalable Vector Graphics XML asset (`.svg`).
-    Svg,
-    /// Non-text binary media or font asset (`.png`, `.woff2`, `.pdf`, etc.).
-    BinaryAsset,
-    /// Unclassified text or source file.
-    Unknown,
-}
-
-impl Language {
-    /// Returns `true` if `gf-parsers` provides a programming-language / Dockerfile AST extractor.
-    #[must_use]
-    pub const fn is_code_analyzed(self) -> bool {
-        matches!(
-            self,
-            Self::Rust
-                | Self::Python
-                | Self::TypeScript
-                | Self::Tsx
-                | Self::JavaScript
-                | Self::Jsx
-                | Self::Dockerfile
-        )
-    }
-
-    /// Returns `true` for all file formats analyzed directly across the 6 domains
-    /// (excluding generic `Json`/`Toml`, which are included selectively inside `Texte`).
-    #[must_use]
-    pub const fn is_always_discovered(self) -> bool {
-        self.is_code_analyzed()
-            || matches!(
-                self,
-                Self::Css | Self::Markdown | Self::Shell | Self::Svg | Self::BinaryAsset
-            )
-    }
-}
 
 /// Language-agnostic semantic node categories inside a [`UastDocument`].
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -132,7 +69,7 @@ impl UastNode {
     }
 }
 
-/// Normalized `UAST` document produced by `gf-parsers`, cached in `.garde-fou-cache/v7/`,
+/// Normalized `UAST` document produced by `gf-parsers`, cached in `.garde-fou-cache/v8/`,
 /// and analyzed locally and globally by `gf-rules`.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct UastDocument {
@@ -184,6 +121,9 @@ pub struct UastDocument {
     pub tool_config_findings: Vec<ToolConfigFinding>,
     /// Optional `[tool.coverage.report] fail_under` floor percentage (`GF081`).
     pub coverage_fail_under: Option<CoverageFailUnder>,
+    /// Optional parsed `tsconfig*.json` summary for `extends` & `paths` resolution (`GF071`/`GF072`/`GF081`).
+    #[serde(default)]
+    pub tsconfig: Option<TsconfigSummary>,
     /// Architectural effect and silent error-swallowing sightings (`GF011`, `GF078`).
     pub effect_sightings: Vec<EffectSighting>,
     /// Optional structured `Dockerfile` representation.
@@ -238,6 +178,7 @@ impl UastDocument {
             lang_rule_findings: Vec::new(),
             tool_config_findings: Vec::new(),
             coverage_fail_under: None,
+            tsconfig: None,
             effect_sightings: Vec::new(),
             docker: None,
             forme: None,

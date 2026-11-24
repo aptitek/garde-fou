@@ -52,7 +52,7 @@ fn is_unjustified_ts_expect_error(clean: &str) -> bool {
         .strip_prefix(':')
         .or_else(|| trimmed.strip_prefix("--"))
         .map_or("", str::trim);
-    reason.chars().filter(|c| c.is_alphanumeric()).count() < 3
+    reason.chars().count() < 10 || !reason.chars().any(char::is_alphanumeric)
 }
 
 fn is_valid_prefix_tail(prefix: &str, rest: &str) -> bool {

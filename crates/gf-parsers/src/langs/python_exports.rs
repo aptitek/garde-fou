@@ -31,6 +31,7 @@ pub fn extract_py_imports(node: Node<'_>, source: &str, out: &mut Vec<ImportDecl
         out.push(ImportDecl {
             module_source,
             symbols,
+            is_type_only: false,
             span,
         });
         return;
@@ -48,6 +49,7 @@ pub fn extract_py_imports(node: Node<'_>, source: &str, out: &mut Vec<ImportDecl
                 node_text(node, source).trim_start_matches("import ").trim(),
             ),
             symbols: Vec::new(),
+            is_type_only: false,
             span,
         });
     } else {
@@ -55,6 +57,7 @@ pub fn extract_py_imports(node: Node<'_>, source: &str, out: &mut Vec<ImportDecl
             out.push(ImportDecl {
                 module_source,
                 symbols: Vec::new(),
+                is_type_only: false,
                 span,
             });
         }
@@ -167,6 +170,7 @@ pub fn extract_py_exports(root: Node<'_>, path: &RepoPath, source: &str) -> Vec<
                 span: def_spans.get(&symbol).copied().unwrap_or(lit_span),
                 symbol,
                 is_crate_internal: false,
+                is_type_only: false,
             })
             .collect();
     }
@@ -177,6 +181,7 @@ pub fn extract_py_exports(root: Node<'_>, path: &RepoPath, source: &str) -> Vec<
         .map(|(symbol, span)| ExportDecl {
             symbol,
             is_crate_internal: false,
+            is_type_only: false,
             span,
         })
         .collect()

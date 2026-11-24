@@ -1,4 +1,4 @@
-//! Content-addressed `BLAKE3` `.garde-fou-cache/v7/` storing `UastDocument` + diagnostics.
+//! Content-addressed `BLAKE3` `.garde-fou-cache/v8/` storing `UastDocument` + diagnostics.
 
 use std::fs;
 use std::io::Read as _;
@@ -70,7 +70,7 @@ impl CacheKey {
     }
 }
 
-/// Cached per-file analysis artifact persisted in `.garde-fou-cache/v7/`.
+/// Cached per-file analysis artifact persisted in `.garde-fou-cache/v8/`.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct CachedFileArtifact {
     /// Normalized `UAST` document enabling sub-second cross-file global evaluation.
@@ -79,18 +79,18 @@ pub struct CachedFileArtifact {
     pub local_diagnostics: Vec<Diagnostic>,
 }
 
-/// Sharded filesystem cache backed by `.garde-fou-cache/v7/`.
+/// Sharded filesystem cache backed by `.garde-fou-cache/v8/`.
 #[derive(Clone, Debug)]
 pub struct DiskCache {
     base_dir: PathBuf,
 }
 
 impl DiskCache {
-    /// Creates a [`DiskCache`] handle rooted at `<workspace_root>/<cache_dir>/v7`.
+    /// Creates a [`DiskCache`] handle rooted at `<workspace_root>/<cache_dir>/v8`.
     #[must_use]
     pub fn new(workspace_root: &Path, cache_dir: &str) -> Self {
         Self {
-            base_dir: workspace_root.join(cache_dir).join("v7"),
+            base_dir: workspace_root.join(cache_dir).join("v8"),
         }
     }
 

@@ -3,7 +3,7 @@
 use core::fmt;
 use serde::{Deserialize, Serialize};
 
-use crate::python_violations::ExternalToolKind;
+use crate::language_meta::ExternalToolKind;
 
 /// Specific `[tool.mypy]` configuration weakening (`GF081`).
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
@@ -62,16 +62,13 @@ impl RuffConfigIssue {
     }
 
     const fn remediation(self) -> &'static str {
-        match self {
-            Self::PyprojectEmptySelect | Self::StandaloneEmptySelect => {
-                "Configure a non-empty rule set (e.g. `select = [\"E\", \"F\", \"I\", \"B\", \"UP\", \"SIM\"]`)."
-            }
-            Self::PyprojectBlanketIgnore
-            | Self::PyprojectBlanketExtendIgnore
-            | Self::StandaloneBlanketIgnore
-            | Self::StandaloneBlanketExtendIgnore => {
-                "Remove `\"ALL\"` / `\"*\"` from `ignore` / `extend-ignore` and remediate Ruff findings at their root cause."
-            }
+        if matches!(
+            self,
+            Self::PyprojectEmptySelect | Self::StandaloneEmptySelect
+        ) {
+            "Configure a non-empty rule set (e.g. `select = [\"E\", \"F\", \"I\", \"B\", \"UP\", \"SIM\"]`)."
+        } else {
+            "Remove `\"ALL\"` / `\"*\"` from `ignore` / `extend-ignore` and remediate Ruff findings at their root cause."
         }
     }
 }
@@ -187,6 +184,8 @@ pub enum ToolConfigViolation {
     MutantsScopeWeakened(MutantsConfigIssue),
     /// `stryker.config.json` mutation threshold disabled.
     StrykerWeakened(StrykerConfigIssue),
+    /// `biome.json` / `biome.jsonc` disabling `"linter": { "enabled": false }`.
+    BiomeLinterDisabled,
 }
 
 impl ToolConfigViolation {
@@ -200,6 +199,7 @@ impl ToolConfigViolation {
             Self::TsconfigNotStrict(_) => ExternalToolKind::Tsc,
             Self::MutantsScopeWeakened(_) => ExternalToolKind::CargoMutants,
             Self::StrykerWeakened(_) => ExternalToolKind::Stryker,
+            Self::BiomeLinterDisabled => ExternalToolKind::Biome,
         }
     }
 
@@ -213,6 +213,7 @@ impl ToolConfigViolation {
             Self::TsconfigNotStrict(k) => k.key(),
             Self::MutantsScopeWeakened(k) => k.key(),
             Self::StrykerWeakened(k) => k.key(),
+            Self::BiomeLinterDisabled => "linter.enabled",
         }
     }
 
@@ -220,23 +221,23 @@ impl ToolConfigViolation {
     #[must_use]
     pub const fn remediation(self) -> &'static str {
         match self {
-            Self::MypyNotStrict(_) => {
-                "Enforce `strict = true` in `[tool.mypy]` without `ignore_errors = true` or weakened production overrides."
-            }
+            Self::MypyNotStrict(_) => REM_CFG_MYPY,
             Self::RuffWeakened(k) => k.remediation(),
             Self::PytestOrCoverageWeakened(k) => k.remediation(),
-            Self::TsconfigNotStrict(_) => {
-                "Enforce `\"strict\": true` inside `\"compilerOptions\"` in `tsconfig.json` without `false` sub-flag overrides."
-            }
-            Self::MutantsScopeWeakened(_) => {
-                "Keep `examine_globs` non-empty and never exclude entire `src/**` or `crates/**` trees in `mutants.toml`."
-            }
-            Self::StrykerWeakened(_) => {
-                "Configure non-empty `\"mutate\"` globs and a positive `\"thresholds.break\"` score in `stryker.config.json`."
-            }
+            Self::TsconfigNotStrict(_) => REM_CFG_TSCONFIG,
+            Self::MutantsScopeWeakened(_) => REM_CFG_MUTANTS,
+            Self::StrykerWeakened(_) => REM_CFG_STRYKER,
+            Self::BiomeLinterDisabled => REM_CFG_BIOME,
         }
     }
 }
+
+const REM_CFG_MYPY: &str = "Enforce `strict = true` in `[tool.mypy]` without `ignore_errors = true` or weakened production overrides.";
+const REM_CFG_TSCONFIG: &str = "Enforce `\"strict\": true` inside `\"compilerOptions\"` in `tsconfig.json` without `false` sub-flag overrides.";
+const REM_CFG_MUTANTS: &str = "Keep `examine_globs` non-empty and never exclude entire `src/**` or `crates/**` trees in `mutants.toml`.";
+const REM_CFG_STRYKER: &str = "Configure non-empty `\"mutate\"` globs and a positive `\"thresholds.break\"` score in `stryker.config.json`.";
+const REM_CFG_BIOME: &str =
+    "Keep `\"linter\": { \"enabled\": true }` active in `biome.json` / `biome.jsonc`.";
 
 impl fmt::Display for ToolConfigViolation {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

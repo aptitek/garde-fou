@@ -1,9 +1,7 @@
-//! Pure `JSONC` comment/comma normalizer and `tsconfig.json` / `stryker.config.json`
-//! strictness auditor (`GF081`).
+//! Pure `JSONC` comment/comma normalizer and `stryker.config.json` strictness auditor (`GF081`).
 
 use gf_core::{
-    Span, StrykerConfigIssue, SyntaxErrorNode, ToolConfigFinding, ToolConfigViolation,
-    TsconfigIssue, UastDocument,
+    Span, StrykerConfigIssue, SyntaxErrorNode, ToolConfigFinding, ToolConfigViolation, UastDocument,
 };
 
 fn skip_line_comment(chars: &mut core::iter::Peekable<core::str::Chars<'_>>, out: &mut String) {
@@ -103,7 +101,7 @@ pub fn strip_jsonc_to_json(raw: &str) -> String {
     out
 }
 
-pub(super) fn line_span_containing(source: &str, needle: &str) -> Span {
+pub(crate) fn line_span_containing(source: &str, needle: &str) -> Span {
     let line_no = source
         .lines()
         .enumerate()
@@ -116,7 +114,7 @@ pub(super) fn line_span_containing(source: &str, needle: &str) -> Span {
     Span::new(line_no, line_no).unwrap_or(Span::FIRST)
 }
 
-pub(super) fn push_cfg_violation(
+pub(crate) fn push_cfg_violation(
     out: &mut Vec<ToolConfigFinding>,
     violation: ToolConfigViolation,
     span: Span,
@@ -129,66 +127,8 @@ pub(super) fn push_cfg_violation(
     });
 }
 
-fn audit_tsconfig_options(
-    opts: Option<&serde_json::Map<String, serde_json::Value>>,
-    source: &str,
-    out: &mut Vec<ToolConfigFinding>,
-) {
-    let strict_true = opts
-        .and_then(|o| o.get("strict"))
-        .and_then(serde_json::Value::as_bool)
-        == Some(true);
-    if !strict_true {
-        push_cfg_violation(
-            out,
-            ToolConfigViolation::TsconfigNotStrict(TsconfigIssue::MissingOrFalseStrict),
-            line_span_containing(source, "strict"),
-            String::from(
-                "`tsconfig.json` must enforce `\"strict\": true` inside `compilerOptions`",
-            ),
-        );
-    }
-    for (sub_flag, issue) in [
-        ("noImplicitAny", TsconfigIssue::NoImplicitAnyFalse),
-        ("strictNullChecks", TsconfigIssue::StrictNullChecksFalse),
-    ] {
-        if opts
-            .and_then(|o| o.get(sub_flag))
-            .and_then(serde_json::Value::as_bool)
-            == Some(false)
-        {
-            push_cfg_violation(
-                out,
-                ToolConfigViolation::TsconfigNotStrict(issue),
-                line_span_containing(source, sub_flag),
-                format!(
-                    "`\"{sub_flag}\": false` weakens TypeScript strict mode in `tsconfig.json`"
-                ),
-            );
-        }
-    }
-}
-
-pub(super) fn audit_tsconfig_json(source: &str, doc: &mut UastDocument) {
-    let cleaned = strip_jsonc_to_json(source);
-    let parsed: serde_json::Value = match serde_json::from_str(&cleaned) {
-        Ok(v) => v,
-        Err(err) => {
-            doc.syntax_errors.push(SyntaxErrorNode {
-                message: format!("invalid JSON/JSONC in `tsconfig.json`: {err}"),
-                span: Span::FIRST,
-            });
-            return;
-        }
-    };
-    let opts = parsed
-        .get("compilerOptions")
-        .and_then(serde_json::Value::as_object);
-    audit_tsconfig_options(opts, source, &mut doc.tool_config_findings);
-}
-
 fn is_disabled_stryker_break(val: &serde_json::Value) -> bool {
-    val.is_null() || val.as_u64() == Some(0) || val.as_i64() == Some(0) || val.as_f64() == Some(0.0)
+    val.is_null() || val.as_f64() == Some(0.0)
 }
 
 pub(super) fn audit_stryker_json(file_name: &str, source: &str, doc: &mut UastDocument) {

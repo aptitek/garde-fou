@@ -77,12 +77,14 @@ fn deep_4_level_rust_cycle_without_mod_rs_triggers_gf071() -> Result<(), Box<dyn
     mod_a.imports.push(ImportDecl {
         module_source: String::from("crate::a::b::c::d::Leaf"),
         symbols: Vec::new(),
+        is_type_only: false,
         span: Span::FIRST,
     });
     let mut mod_d = UastDocument::new(RepoPath::new("src/a/b/c/d.rs")?, Language::Rust, 10, 8)?;
     mod_d.imports.push(ImportDecl {
         module_source: String::from("super::super::super::RootItem"),
         symbols: Vec::new(),
+        is_type_only: false,
         span: Span::FIRST,
     });
 
@@ -156,6 +158,7 @@ fn type3_minhash_clones_gf020_and_dead_pub_crate_gf021() -> Result<(), Box<dyn s
     doc_a.exports.push(ExportDecl {
         symbol: String::from("stale_internal"),
         is_crate_internal: true,
+        is_type_only: false,
         span: Span::FIRST,
     });
 

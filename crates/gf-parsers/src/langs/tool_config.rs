@@ -5,13 +5,12 @@
 
 use gf_core::{
     CoverageFailUnder, Language, MutantsConfigIssue, PytestCoverageIssue, RepoPath, Span,
-    SyntaxErrorNode, ToolConfigFinding, ToolConfigViolation, UastDocument,
+    SyntaxErrorNode, ToolConfigFinding, ToolConfigViolation, UastDocument, is_tsconfig_filename,
 };
 
-use super::jsonc::{
-    audit_stryker_json, audit_tsconfig_json, line_span_containing, push_cfg_violation,
-};
+use super::jsonc::{audit_stryker_json, line_span_containing, push_cfg_violation};
 use super::tool_config_py::{audit_mypy_table, audit_ruff_tables, section_key_span};
+use super::ts::tsconfig_jsonc::{audit_biome_jsonc, audit_tsconfig_jsonc};
 use crate::cst::line_metrics;
 use crate::types::ParseError;
 
@@ -176,9 +175,10 @@ pub fn extract_tool_config(
     let (total_lines, effective_lines) = line_metrics(source);
     let mut doc = UastDocument::new(path.clone(), lang, total_lines, effective_lines)?;
     match path.file_name() {
-        "tsconfig.json" => audit_tsconfig_json(source, &mut doc),
-        "stryker.config.json" | "stryker.conf.json" => {
-            audit_stryker_json(path.file_name(), source, &mut doc);
+        name if is_tsconfig_filename(name) => audit_tsconfig_jsonc(name, source, &mut doc),
+        name @ ("biome.json" | "biome.jsonc") => audit_biome_jsonc(name, source, &mut doc),
+        name @ ("stryker.config.json" | "stryker.conf.json") => {
+            audit_stryker_json(name, source, &mut doc);
         }
         name => audit_toml_tool_config(name, source, &mut doc),
     }

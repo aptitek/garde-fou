@@ -179,11 +179,7 @@ fn python_violation_codes_remediations_display_and_entrypoint_exemption_are_bije
         assert_eq!(violation.is_entrypoint_exempt(), expected_exempt);
         assert!(violation.remediation().len() > 20);
         remediations.insert(violation.remediation());
-        let finding = LangRuleFinding {
-            violation,
-            span: Span::FIRST,
-            message: String::from("msg"),
-        };
+        let finding = LangRuleFinding::new(violation, Span::FIRST, "msg");
         assert_eq!(
             (finding.code(), finding.remediation()),
             (expected_code, violation.remediation())

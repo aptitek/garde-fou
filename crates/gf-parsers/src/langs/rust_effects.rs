@@ -80,6 +80,7 @@ pub fn extract_use(node: Node<'_>, source: &str) -> ImportDecl {
     ImportDecl {
         module_source: adjusted,
         symbols,
+        is_type_only: false,
         span: node_span(node),
     }
 }
@@ -109,6 +110,7 @@ pub fn maybe_push_export(node: Node<'_>, symbol: &str, source: &str, doc: &mut U
     doc.exports.push(ExportDecl {
         symbol: String::from(symbol),
         is_crate_internal,
+        is_type_only: false,
         span: node_span(node),
     });
 }
@@ -189,6 +191,7 @@ fn inspect_scoped_path(node: Node<'_>, source: &str, in_cfg_test: bool, doc: &mu
         doc.imports.push(ImportDecl {
             module_source: mod_source,
             symbols: Vec::new(),
+            is_type_only: false,
             span,
         });
     }

@@ -1,6 +1,7 @@
 //! Pure I/O-free JSON and NDJSON output parsers for `ruff`, `mypy`, and `pyright` (`GF082`).
 
 mod path_norm;
+mod tsc_parser;
 
 use std::path::Path;
 
@@ -9,6 +10,9 @@ use serde::{Deserialize, de::DeserializeOwned};
 
 pub use path_norm::ToolParseError;
 use path_norm::normalize_tool_path;
+pub(crate) use path_norm::normalize_tool_path_with_fallback;
+pub(crate) use tsc_parser::byte_offset_to_line_col;
+pub use tsc_parser::parse_tsc_output;
 
 #[derive(Deserialize)]
 struct RuffLocation {

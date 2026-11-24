@@ -57,14 +57,10 @@ fn maybe_extract_asset_ref(unquoted: &str) -> Option<String> {
     }
     let clean = trimmed.split(['?', '#']).next().unwrap_or(trimmed);
     let ext = clean.rsplit('.').next().unwrap_or("");
-    if clean != ext && is_asset_extension(ext) {
-        Some(String::from(clean))
-    } else {
-        None
-    }
+    (clean != ext && is_asset_extension(ext)).then(|| String::from(clean))
 }
 
-fn unquote_literal(raw: &str) -> Option<&str> {
+pub(super) fn unquote_literal(raw: &str) -> Option<&str> {
     let bytes = raw.as_bytes();
     if bytes.len() >= 2
         && matches!(bytes[0], b'"' | b'\'' | b'`')
@@ -103,33 +99,16 @@ fn handle_call_expr(node: Node<'_>, source: &str, doc: &mut UastDocument) {
     if !is_translation_call(callee) {
         return;
     }
-    let Some(args) = node.child_by_field_name("arguments") else {
+    let Some(first_arg) = node
+        .child_by_field_name("arguments")
+        .and_then(|a| a.named_child(0))
+    else {
         return;
     };
-    let mut cursor = args.walk();
-    if let Some(first_arg) = args.named_children(&mut cursor).next()
-        && let Some(key) = unquote_literal(node_text(first_arg, source))
+    if let Some(key) = unquote_literal(node_text(first_arg, source))
         && !key.is_empty()
     {
         doc.translation_keys_used.insert(String::from(key));
-    }
-}
-
-fn handle_tagged_template(node: Node<'_>, source: &str, doc: &mut UastDocument) {
-    let Some(tag_node) = node.child_by_field_name("function") else {
-        return;
-    };
-    let tag = node_text(tag_node, source).trim();
-    if tag == "css"
-        || tag == "createGlobalStyle"
-        || tag.starts_with("styled.")
-        || tag.starts_with("styled(")
-    {
-        doc.style_leaks.push(StyleLeakFinding {
-            kind: StyleLeakKind::CssInJs,
-            detail: format!("CSS-in-JS tagged template `{tag}`"),
-            span: node_span(node),
-        });
     }
 }
 
@@ -180,7 +159,6 @@ pub fn extract_ts_style_and_i18n(root: Node<'_>, source: &str, doc: &mut UastDoc
 fn walk_style_i18n(node: Node<'_>, source: &str, doc: &mut UastDocument) {
     match node.kind() {
         "call_expression" => handle_call_expr(node, source, doc),
-        "tagged_template_expression" => handle_tagged_template(node, source, doc),
         "assignment_expression" => {
             if let Some(lhs) = node.child_by_field_name("left") {
                 let text = node_text(lhs, source);

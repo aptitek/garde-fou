@@ -182,16 +182,16 @@ fn tool_and_lang_rules_exact_boundaries() -> Res {
     cfg.entrypoints = vec![String::from("src/cli.py")];
     let mut py_cli = UastDocument::new(RepoPath::new("src/cli.py")?, Language::Python, 10, 8)?;
     py_cli.lang_rule_findings = vec![
-        LangRuleFinding {
-            violation: PythonViolation::LeftoverDebugArtifact(DebugArtifactKind::PrintCall),
-            span: Span::FIRST,
-            message: "print".into(),
-        },
-        LangRuleFinding {
-            violation: PythonViolation::UnsafeExecution(UnsafeExecKind::ShellSubprocess),
-            span: Span::FIRST,
-            message: "shell".into(),
-        },
+        LangRuleFinding::new(
+            PythonViolation::LeftoverDebugArtifact(DebugArtifactKind::PrintCall),
+            Span::FIRST,
+            "print",
+        ),
+        LangRuleFinding::new(
+            PythonViolation::UnsafeExecution(UnsafeExecKind::ShellSubprocess),
+            Span::FIRST,
+            "shell",
+        ),
     ];
     py_cli.tool_config_findings.push(ToolConfigFinding {
         violation: ToolConfigViolation::RuffWeakened(RuffConfigIssue::StandaloneEmptySelect),

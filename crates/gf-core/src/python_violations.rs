@@ -5,72 +5,7 @@ use core::fmt;
 use serde::{Deserialize, Serialize};
 
 use crate::diagnostic::Span;
-
-/// Closed sum type identifying a first-class ecosystem linter, type-checker, or runner.
-#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
-pub enum ExternalToolKind {
-    /// Astral `ruff` Python linter (`ruff check --output-format json`).
-    Ruff,
-    /// `mypy` static type checker (`mypy --strict --output json`).
-    Mypy,
-    /// `pyright` static type checker (`pyright --outputjson`).
-    Pyright,
-    /// `pytest` Python test runner (`[tool.pytest.ini_options]`).
-    Pytest,
-    /// `coverage.py` coverage gate (`[tool.coverage.report]`).
-    Coverage,
-    /// TypeScript compiler (`tsc --noEmit`).
-    Tsc,
-    /// `eslint` JavaScript/TypeScript linter.
-    Eslint,
-    /// `shellcheck` POSIX shell script analyzer.
-    Shellcheck,
-    /// `cargo-mutants` Rust mutation testing runner (`mutants.toml`).
-    CargoMutants,
-    /// `Stryker` JS/TS mutation testing runner (`stryker.config.json`).
-    Stryker,
-}
-
-const TOOL_LABELS: [(ExternalToolKind, &str); 10] = [
-    (ExternalToolKind::Ruff, "ruff"),
-    (ExternalToolKind::Mypy, "mypy"),
-    (ExternalToolKind::Pyright, "pyright"),
-    (ExternalToolKind::Pytest, "pytest"),
-    (ExternalToolKind::Coverage, "coverage"),
-    (ExternalToolKind::Tsc, "tsc"),
-    (ExternalToolKind::Eslint, "eslint"),
-    (ExternalToolKind::Shellcheck, "shellcheck"),
-    (ExternalToolKind::CargoMutants, "cargo-mutants"),
-    (ExternalToolKind::Stryker, "stryker"),
-];
-
-impl ExternalToolKind {
-    /// All known ecosystem tool identifiers in deterministic order.
-    pub const ALL: [Self; 10] = [
-        Self::Ruff,
-        Self::Mypy,
-        Self::Pyright,
-        Self::Pytest,
-        Self::Coverage,
-        Self::Tsc,
-        Self::Eslint,
-        Self::Shellcheck,
-        Self::CargoMutants,
-        Self::Stryker,
-    ];
-
-    /// Canonical lowercase CLI/config name of the tool.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        TOOL_LABELS[self as usize].1
-    }
-}
-
-impl fmt::Display for ExternalToolKind {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(self.as_str())
-    }
-}
+pub use crate::language_meta::ExternalToolKind;
 
 /// Sub-category of bare or silent Python `except` handlers (`PY-E722` / `PY-B001`).
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]

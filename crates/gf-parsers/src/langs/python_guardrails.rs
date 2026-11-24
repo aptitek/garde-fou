@@ -60,11 +60,11 @@ fn inspect_default_param(node: Node<'_>, source: &str, out: &mut Vec<LangRuleFin
         return;
     }
     let param = field_name_string(node, "name", "<param>", source);
-    out.push(LangRuleFinding {
-        violation: PythonViolation::MutableDefaultArg,
-        span: node_span(node),
-        message: format!("mutable default argument in parameter `{param}` is shared across calls"),
-    });
+    out.push(LangRuleFinding::new(
+        PythonViolation::MutableDefaultArg,
+        node_span(node),
+        format!("mutable default argument in parameter `{param}` is shared across calls"),
+    ));
 }
 
 fn is_noop_stmt(stmt: Node<'_>) -> bool {
@@ -124,19 +124,17 @@ fn inspect_except_clause(node: Node<'_>, source: &str, doc: &mut UastDocument) {
         .find(|child| child.kind() == "block");
     let span = node_span(node);
     if !has_exc_type {
-        doc.lang_rule_findings.push(LangRuleFinding {
-            violation: PythonViolation::BareOrSilentExcept(ExceptViolationKind::Bare),
+        doc.lang_rule_findings.push(LangRuleFinding::new(
+            PythonViolation::BareOrSilentExcept(ExceptViolationKind::Bare),
             span,
-            message: String::from("bare `except:` catches `SystemExit` and `KeyboardInterrupt`"),
-        });
+            "bare `except:` catches `SystemExit` and `KeyboardInterrupt`",
+        ));
     } else if body_block.is_some_and(is_silent_except_block) {
-        doc.lang_rule_findings.push(LangRuleFinding {
-            violation: PythonViolation::BareOrSilentExcept(ExceptViolationKind::Silent),
+        doc.lang_rule_findings.push(LangRuleFinding::new(
+            PythonViolation::BareOrSilentExcept(ExceptViolationKind::Silent),
             span,
-            message: String::from(
-                "silent `except` handler swallows exceptions with `pass`/`...`/docstring",
-            ),
-        });
+            "silent `except` handler swallows exceptions with `pass`/`...`/docstring",
+        ));
     } else if body_block.is_some_and(|b| is_silent_fallback_return_block(b, source)) {
         doc.root.children.push(UastNode::leaf(
             UastKind::ForbiddenCall {
@@ -224,11 +222,11 @@ fn walk_guardrails(node: Node<'_>, scope: PyGuardrailScope<'_>, doc: &mut UastDo
                 && node_text(node, source) == "Any"
                 && has_type_ancestor(node) =>
         {
-            doc.lang_rule_findings.push(LangRuleFinding {
-                violation: PythonViolation::ForbiddenAny,
-                span: node_span(node),
-                message: String::from("explicit `Any` annotation weakens static typing in `Code`"),
-            });
+            doc.lang_rule_findings.push(LangRuleFinding::new(
+                PythonViolation::ForbiddenAny,
+                node_span(node),
+                "explicit `Any` annotation weakens static typing in `Code`",
+            ));
         }
         _ => {}
     }

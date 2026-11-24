@@ -7,7 +7,7 @@ use alloc::vec::Vec;
 
 use gf_core::{
     Config, Diagnostic, DomainKind, FeatureId, Language, ProjectContext, Span, UastDocument,
-    Validation, classify_path, glob_matches,
+    Validation, classify_path, glob_matches, is_ts_declaration_path,
 };
 
 use crate::checks::{SourceLoc, rule_error};
@@ -77,11 +77,14 @@ fn collect_test_stems(docs: &[UastDocument]) -> BTreeSet<String> {
 }
 
 fn requires_companion_test(doc: &UastDocument, ctx: &ProjectContext, config: &Config) -> bool {
-    let stem = split_stem_location(doc.path.as_str()).stem;
+    let raw_path = doc.path.as_str();
+    let stem = split_stem_location(raw_path).stem;
     let exempt_stem = matches!(stem, "lib" | "main" | "mod" | "index" | "__init__");
     classify_path(&doc.path, &config.domains) == DomainKind::Code
         && doc.language.is_code_analyzed()
         && doc.language != Language::Dockerfile
+        && !is_ts_declaration_path(raw_path)
+        && !raw_path.contains(".stories.")
         && !doc.callables.is_empty()
         && !exempt_stem
         && !is_entrypoint_file(&doc.path, ctx, config)

@@ -65,7 +65,7 @@ pub struct CheckReport {
     pub context: ProjectContext,
     /// Total number of target source files checked in this scope.
     pub files_checked: usize,
-    /// Number of files served directly from `.garde-fou-cache/v6/`.
+    /// Number of files served directly from `.garde-fou-cache/v8/`.
     pub cache_hits: usize,
     /// Number of files parsed from source on cache miss.
     pub cache_misses: usize,

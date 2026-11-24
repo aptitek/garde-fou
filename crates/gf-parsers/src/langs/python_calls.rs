@@ -127,11 +127,11 @@ fn has_safe_yaml_loader(call_node: Node<'_>, source: &str) -> bool {
 
 fn inspect_cast_any_arg(node: Node<'_>, source: &str, out: &mut Vec<LangRuleFinding>) {
     if node.kind() == "identifier" && node_text(node, source) == "Any" {
-        out.push(LangRuleFinding {
-            violation: PythonViolation::ForbiddenAny,
-            span: node_span(node),
-            message: String::from("`typing.cast(Any, ...)` bypasses static typing in `Code`"),
-        });
+        out.push(LangRuleFinding::new(
+            PythonViolation::ForbiddenAny,
+            node_span(node),
+            "`typing.cast(Any, ...)` bypasses static typing in `Code`",
+        ));
     }
     let mut cursor = node.walk();
     for child in node.children(&mut cursor) {
@@ -222,16 +222,16 @@ pub(super) fn inspect_py_call(node: Node<'_>, ctx: PyCallCtx<'_>, doc: &mut Uast
     }
 
     if let Some((exec_kind, message)) = classify_unsafe_exec(node, &callee, ctx) {
-        doc.lang_rule_findings.push(LangRuleFinding {
-            violation: PythonViolation::UnsafeExecution(exec_kind),
+        doc.lang_rule_findings.push(LangRuleFinding::new(
+            PythonViolation::UnsafeExecution(exec_kind),
             span,
             message,
-        });
+        ));
     } else if let Some((dbg_kind, message)) = classify_debug_call(&callee, ctx) {
-        doc.lang_rule_findings.push(LangRuleFinding {
-            violation: PythonViolation::LeftoverDebugArtifact(dbg_kind),
+        doc.lang_rule_findings.push(LangRuleFinding::new(
+            PythonViolation::LeftoverDebugArtifact(dbg_kind),
             span,
             message,
-        });
+        ));
     }
 }

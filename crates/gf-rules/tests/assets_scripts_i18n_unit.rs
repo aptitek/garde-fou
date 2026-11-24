@@ -18,6 +18,7 @@ fn imp(src: &str) -> ImportDecl {
     ImportDecl {
         module_source: src.into(),
         symbols: Vec::new(),
+        is_type_only: false,
         span: Span::FIRST,
     }
 }

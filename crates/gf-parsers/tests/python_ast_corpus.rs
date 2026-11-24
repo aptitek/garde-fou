@@ -71,7 +71,10 @@ fn parse_py(rel: &str, src: &str) -> Result<UastDocument, Box<dyn std::error::Er
 fn py_codes_and_lines(doc: &UastDocument) -> Vec<(PythonViolation, &'static str, u32)> {
     doc.lang_rule_findings
         .iter()
-        .map(|f| (f.violation, f.code(), f.span.start_line()))
+        .filter_map(|f| match f.violation {
+            gf_core::LangRuleViolation::Python(pv) => Some((pv, f.code(), f.span.start_line())),
+            _ => None,
+        })
         .collect()
 }
 

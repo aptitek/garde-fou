@@ -28,6 +28,7 @@ mod tarjan;
 mod tdd_checks;
 mod tdd_parity;
 mod tool_checks;
+mod ts_import_resolver;
 mod type_and_uast_checks;
 mod workspace_checks;
 
@@ -47,7 +48,7 @@ use {
     tarjan::check_dependency_cycles,
     tdd_checks::check_local_test_assertions,
     tdd_parity::check_workspace_tdd,
-    tool_checks::check_local_tool_and_lang_rules,
+    tool_checks::{check_local_tool_and_lang_rules, check_workspace_tsconfigs},
     type_and_uast_checks::{check_root_uast, check_types},
     workspace_checks::check_dead_exports,
 };
@@ -131,6 +132,7 @@ pub fn evaluate_workspace(
         check_architecture_boundaries(docs, ctx, config),
         check_single_impl_contracts(docs, ctx, config),
         check_workspace_tdd(docs, ctx, config),
+        check_workspace_tsconfigs(docs),
         check_architecture_purity(docs, config),
     ])
 }

@@ -4,7 +4,10 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 
 use gf_core::{Config, ExternalToolFinding, ExternalToolKind, ScannerPolicy};
-use gf_parsers::{ToolParseError, parse_mypy_ndjson, parse_pyright_json, parse_ruff_json};
+use gf_parsers::{
+    ToolParseError, parse_biome_json, parse_mypy_ndjson, parse_oxlint_json, parse_pyright_json,
+    parse_ruff_json, parse_tsc_output,
+};
 
 use crate::types::EngineError;
 
@@ -17,35 +20,66 @@ pub enum ExternalAdapter {
     Mypy,
     /// `pyright --outputjson`.
     Pyright,
+    /// `oxlint --format json`.
+    Oxlint,
+    /// `biome check --reporter=json`.
+    Biome,
+    /// `tsc --noEmit --pretty false`.
+    Tsc,
 }
 
 struct AdapterTableEntry {
     tool: ExternalToolKind,
     prefix_args: &'static [&'static str],
+    accepts_file_targets: bool,
     install_hint: &'static str,
 }
 
-const ADAPTER_TABLE: [AdapterTableEntry; 3] = [
+const ADAPTER_TABLE: [AdapterTableEntry; 6] = [
     AdapterTableEntry {
         tool: ExternalToolKind::Ruff,
         prefix_args: &["check", "--output-format", "json", "--no-fix", "--"],
+        accepts_file_targets: true,
         install_hint: "Install `ruff` in `.venv` (`uv add --dev ruff`) or system PATH.",
     },
     AdapterTableEntry {
         tool: ExternalToolKind::Mypy,
         prefix_args: &["--strict", "--output", "json", "--no-error-summary", "--"],
+        accepts_file_targets: true,
         install_hint: "Install `mypy` in `.venv` (`uv add --dev mypy`) or system PATH.",
     },
     AdapterTableEntry {
         tool: ExternalToolKind::Pyright,
         prefix_args: &["--outputjson"],
+        accepts_file_targets: true,
         install_hint: "Install `pyright` in `.venv` (`uv add --dev pyright`) or system PATH.",
+    },
+    AdapterTableEntry {
+        tool: ExternalToolKind::Oxlint,
+        prefix_args: &["--format", "json"],
+        accepts_file_targets: true,
+        install_hint: "Install `oxlint` (`pnpm add -D oxlint`) in `node_modules/.bin` or system PATH.",
+    },
+    AdapterTableEntry {
+        tool: ExternalToolKind::Biome,
+        prefix_args: &["check", "--reporter=json"],
+        accepts_file_targets: true,
+        install_hint: "Install `@biomejs/biome` (`pnpm add -D @biomejs/biome`) in `node_modules/.bin` or system PATH.",
+    },
+    AdapterTableEntry {
+        tool: ExternalToolKind::Tsc,
+        prefix_args: &["--noEmit", "--pretty", "false"],
+        accepts_file_targets: false,
+        install_hint: "Install `typescript` (`pnpm add -D typescript`) in `node_modules/.bin` or system PATH.",
     },
 ];
 
 impl ExternalAdapter {
     /// All active Python external adapters in deterministic execution order.
     pub const PYTHON_ALL: [Self; 3] = [Self::Ruff, Self::Mypy, Self::Pyright];
+
+    /// All active TypeScript/React external adapters in deterministic execution order.
+    pub const TYPESCRIPT_ALL: [Self; 3] = [Self::Oxlint, Self::Biome, Self::Tsc];
 
     const fn spec(self) -> &'static AdapterTableEntry {
         &ADAPTER_TABLE[self as usize]
@@ -57,6 +91,12 @@ impl ExternalAdapter {
         self.spec().tool
     }
 
+    /// Returns `true` for Python ecosystem adapters (`ruff`, `mypy`, `pyright`).
+    #[must_use]
+    pub const fn is_python(self) -> bool {
+        matches!(self, Self::Ruff | Self::Mypy | Self::Pyright)
+    }
+
     /// Reads the configured [`ScannerPolicy`] for this adapter from `config`.
     #[must_use]
     pub const fn configured_policy(self, config: &Config) -> ScannerPolicy {
@@ -64,6 +104,9 @@ impl ExternalAdapter {
             Self::Ruff => config.tools.python.ruff,
             Self::Mypy => config.tools.python.mypy,
             Self::Pyright => config.tools.python.pyright,
+            Self::Oxlint => config.tools.typescript.oxlint,
+            Self::Biome => config.tools.typescript.biome,
+            Self::Tsc => config.tools.typescript.tsc,
         }
     }
 
@@ -73,20 +116,22 @@ impl ExternalAdapter {
         self.spec().install_hint
     }
 
-    /// Builds argv slice targeting `py_targets` (empty slice means full workspace `.`).
+    /// Builds argv slice targeting `targets` (empty slice means full workspace `.` when supported).
     #[must_use]
-    pub fn build_args(self, py_targets: &[String]) -> Vec<String> {
-        let mut args: Vec<String> = self
-            .spec()
+    pub fn build_args(self, targets: &[String]) -> Vec<String> {
+        let entry = self.spec();
+        let mut args: Vec<String> = entry
             .prefix_args
             .iter()
             .copied()
             .map(String::from)
             .collect();
-        if py_targets.is_empty() {
-            args.push(String::from("."));
-        } else {
-            args.extend(py_targets.iter().cloned());
+        if entry.accepts_file_targets {
+            if targets.is_empty() {
+                args.push(String::from("."));
+            } else {
+                args.extend(targets.iter().cloned());
+            }
         }
         args
     }
@@ -105,14 +150,17 @@ impl ExternalAdapter {
             Self::Ruff => parse_ruff_json(stdout, root),
             Self::Mypy => parse_mypy_ndjson(stdout, root),
             Self::Pyright => parse_pyright_json(stdout, root),
+            Self::Oxlint => parse_oxlint_json(stdout, root),
+            Self::Biome => parse_biome_json(stdout, root),
+            Self::Tsc => parse_tsc_output(stdout, root),
         }
     }
 }
 
-/// Resolved execution strategy for a Python CLI tool without invoking `sh -c`.
+/// Resolved execution strategy for an external CLI tool without invoking `sh -c`.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ResolvedPythonTool {
-    /// Direct path to `.venv` binary or binary name resolved on `PATH`.
+    /// Direct path to `.venv`/`node_modules/.bin` binary or binary name resolved on `PATH`.
     Direct(PathBuf),
     /// Executed via `<uv_bin> run --no-sync <tool> ...` against an existing `.venv`.
     UvNoSync {

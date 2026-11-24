@@ -124,6 +124,11 @@ pub fn render_garde_fou_toml(project_name: &str, ctx: &ProjectContext) -> String
     } else {
         ""
     };
+    let ts_tools_block = if ctx.languages.contains(&LanguageId::TypeScript) {
+        "[tools.typescript]\noxlint = \"auto\"\nbiome = \"off\"\ntsc = \"auto\"\n\n"
+    } else {
+        ""
+    };
 
     format!(
         "# Garde-fou configuration\n\
@@ -140,6 +145,7 @@ pub fn render_garde_fou_toml(project_name: &str, ctx: &ProjectContext) -> String
          sync_policy = \"auto\"\n\
          remote_skills = true\n\n\
          {py_tools_block}\
+         {ts_tools_block}\
          [scanners]\n\
          secrets = \"auto\"\n\
          vulns = \"auto\"\n\n\

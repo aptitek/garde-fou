@@ -41,6 +41,7 @@ fn build_synthetic_doc(m: DocMetrics) -> Result<UastDocument, TestCaseError> {
         doc.imports.push(ImportDecl {
             module_source: format!("m_{i}"),
             symbols: Vec::new(),
+            is_type_only: false,
             span,
         });
     }

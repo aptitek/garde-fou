@@ -20,6 +20,7 @@ fn exp(sym: &str, internal: bool) -> ExportDecl {
     ExportDecl {
         symbol: sym.into(),
         is_crate_internal: internal,
+        is_type_only: false,
         span: Span::FIRST,
     }
 }

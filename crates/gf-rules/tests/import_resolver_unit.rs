@@ -20,6 +20,7 @@ fn mk_imp(src: &str, syms: &[&str]) -> ImportDecl {
     ImportDecl {
         module_source: String::from(src),
         symbols: syms.iter().map(|&s| String::from(s)).collect(),
+        is_type_only: false,
         span: Span::FIRST,
     }
 }

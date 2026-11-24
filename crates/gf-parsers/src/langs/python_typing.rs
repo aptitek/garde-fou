@@ -154,13 +154,13 @@ pub fn inspect_public_fn_annotations(
                 .next()
                 .unwrap_or("<param>")
                 .trim();
-            out.push(LangRuleFinding {
-                violation: PythonViolation::MissingPublicTypeAnnotation,
-                span: node_span(param),
-                message: format!(
+            out.push(LangRuleFinding::new(
+                PythonViolation::MissingPublicTypeAnnotation,
+                node_span(param),
+                format!(
                     "public callable `{fn_name}` is missing a type annotation on parameter `{p_label}`"
                 ),
-            });
+            ));
         }
     }
 
@@ -168,12 +168,10 @@ pub fn inspect_public_fn_annotations(
         let header_span = fn_node
             .child_by_field_name("name")
             .map_or_else(|| node_span(fn_node), node_span);
-        out.push(LangRuleFinding {
-            violation: PythonViolation::MissingPublicTypeAnnotation,
-            span: header_span,
-            message: format!(
-                "public callable `{fn_name}` is missing a return type annotation (`-> ...`)"
-            ),
-        });
+        out.push(LangRuleFinding::new(
+            PythonViolation::MissingPublicTypeAnnotation,
+            header_span,
+            format!("public callable `{fn_name}` is missing a return type annotation (`-> ...`)"),
+        ));
     }
 }

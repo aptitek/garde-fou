@@ -1,6 +1,5 @@
 //! Declarative architectural `[[boundaries]]` and Atomic Design hierarchy evaluator (`GF072`).
 
-use alloc::collections::BTreeMap;
 use alloc::format;
 use alloc::string::String;
 use alloc::vec::Vec;
@@ -11,11 +10,11 @@ use gf_core::{
 };
 
 use crate::checks::{SourceLoc, rule_error};
-use crate::import_resolver::{normalize_join, resolve_import_decl_indices};
+use crate::import_resolver::{WorkspaceImportResolver, normalize_join};
 
 struct BoundaryIndex<'a> {
     docs: &'a [UastDocument],
-    path_index: &'a BTreeMap<&'a str, usize>,
+    resolver: WorkspaceImportResolver<'a>,
 }
 
 fn dir_of(path: &str) -> &str {
@@ -28,7 +27,7 @@ fn candidate_target_strings(
     index: &BoundaryIndex<'_>,
 ) -> Vec<String> {
     let mut targets = Vec::new();
-    for idx in resolve_import_decl_indices(&doc.path, doc.language, imp, index.path_index) {
+    for idx in index.resolver.resolve(&doc.path, doc.language, imp) {
         targets.push(String::from(index.docs[idx].path.as_str()));
     }
     let raw = imp.module_source.trim();
@@ -118,14 +117,9 @@ pub fn check_architecture_boundaries(
         return Validation::Valid(());
     }
 
-    let path_index: BTreeMap<&str, usize> = docs
-        .iter()
-        .enumerate()
-        .map(|(idx, d)| (d.path.as_str(), idx))
-        .collect();
     let index = BoundaryIndex {
         docs,
-        path_index: &path_index,
+        resolver: WorkspaceImportResolver::new(docs),
     };
 
     let mut diags = Vec::new();

@@ -25,6 +25,7 @@ pub mod domain_summaries;
 pub mod domains;
 pub mod gitignore;
 pub mod glob;
+pub mod language_meta;
 pub mod lcov;
 pub mod metrics;
 pub mod mutation;
@@ -34,6 +35,7 @@ pub mod python_violations;
 pub mod skills_catalog;
 pub mod tool_config_violations;
 pub mod tool_ingest;
+pub mod ts_violations;
 pub mod uast;
 pub mod validation;
 
@@ -78,6 +80,9 @@ pub use {
         KissYagniKind, TddConfig, TddParityGate, TestCaseSummary, YagniRule,
     },
     commit_msg::{CommitConfig, validate_commit_message},
+    language_meta::{
+        TsconfigStrictState, TsconfigSummary, is_known_strict_preset, is_ts_declaration_path,
+    },
     python_violations::{
         CoverageFailUnder, DebugArtifactKind, ExceptViolationKind, PythonViolation, UnsafeExecKind,
     },
@@ -91,6 +96,10 @@ pub use {
     },
     tool_ingest::{
         ExternalToolFinding, ExternalToolId, ExternalToolKind, LangRuleFinding, PythonToolsConfig,
-        ToolConfigFinding, ToolsConfig, is_audited_tool_config_file,
+        ToolConfigFinding, ToolsConfig, TypeScriptToolsConfig, is_audited_tool_config_file,
+        is_tsconfig_filename,
+    },
+    ts_violations::{
+        AsyncHazardKind, LangRuleViolation, ReactViolation, TsDebugKind, TypescriptViolation,
     },
 };

@@ -122,7 +122,17 @@ fn count_bool_params(params_node: Option<Node<'_>>, source: &str) -> u32 {
     };
     let mut count = 0_u32;
     let mut cursor = params.walk();
-    for param in params.named_children(&mut cursor) {
+    for (idx, param) in params.named_children(&mut cursor).enumerate() {
+        if idx == 0
+            && node_text(param, source)
+                .split(':')
+                .next()
+                .unwrap_or("")
+                .trim()
+                == "this"
+        {
+            continue;
+        }
         let typed_bool = param
             .child_by_field_name("type")
             .is_some_and(|ty| is_bool_type_text(node_text(ty, source)));

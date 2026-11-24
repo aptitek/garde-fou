@@ -7,7 +7,7 @@ use alloc::vec::Vec;
 use gf_core::{Diagnostic, Span, UastDocument, Validation};
 
 use crate::checks::{SourceLoc, rule_error};
-use crate::import_resolver::resolve_import_decl_indices;
+use crate::import_resolver::WorkspaceImportResolver;
 
 struct TarjanState {
     next_index: usize,
@@ -181,20 +181,18 @@ struct DirectedEdge {
     to: usize,
 }
 
-/// Evaluates inter-file import DAG acyclicity (`GF071`) across the workspace.
-pub fn check_dependency_cycles(docs: &[UastDocument]) -> Validation<(), Diagnostic> {
-    let path_index: BTreeMap<&str, usize> = docs
-        .iter()
-        .enumerate()
-        .map(|(idx, d)| (d.path.as_str(), idx))
-        .collect();
-
+fn build_runtime_import_graph(
+    docs: &[UastDocument],
+) -> (
+    BTreeMap<usize, BTreeSet<usize>>,
+    BTreeMap<DirectedEdge, Span>,
+) {
+    let resolver = WorkspaceImportResolver::new(docs);
     let mut adj: BTreeMap<usize, BTreeSet<usize>> = BTreeMap::new();
     let mut edge_spans: BTreeMap<DirectedEdge, Span> = BTreeMap::new();
-
     for (from_idx, doc) in docs.iter().enumerate() {
-        for imp in &doc.imports {
-            for to_idx in resolve_import_decl_indices(&doc.path, doc.language, imp, &path_index) {
+        for imp in doc.imports.iter().filter(|i| !i.is_type_only) {
+            for to_idx in resolver.resolve(&doc.path, doc.language, imp) {
                 adj.entry(from_idx).or_default().insert(to_idx);
                 edge_spans
                     .entry(DirectedEdge {
@@ -205,7 +203,15 @@ pub fn check_dependency_cycles(docs: &[UastDocument]) -> Validation<(), Diagnost
             }
         }
     }
+    (adj, edge_spans)
+}
 
+/// Evaluates inter-file runtime import DAG acyclicity (`GF071`) across the workspace.
+///
+/// Purely compile-time `import type` edges (`imp.is_type_only`) are ignored for runtime cycles,
+/// while remaining enforced for architectural `[[boundaries]]` (`GF072`).
+pub fn check_dependency_cycles(docs: &[UastDocument]) -> Validation<(), Diagnostic> {
+    let (adj, edge_spans) = build_runtime_import_graph(docs);
     let mut diags = Vec::new();
     for cycle in find_scc_cycles(docs.len(), &adj) {
         let chain_str = cycle

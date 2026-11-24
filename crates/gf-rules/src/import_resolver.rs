@@ -6,37 +6,53 @@ use alloc::format;
 use alloc::string::String;
 use alloc::vec::Vec;
 
-use gf_core::{ImportDecl, Language, RepoPath};
+use gf_core::{ImportDecl, Language, RepoPath, UastDocument};
 
 pub use crate::rust_import_resolver::normalize_join;
 use crate::rust_import_resolver::{dir_of, push_known, resolve_rust_import};
+use crate::ts_import_resolver::TsWorkspaceAliases;
 
-const TS_PROBES: &[&str] = &[
-    "",
-    ".ts",
-    ".tsx",
-    ".js",
-    ".jsx",
-    "/index.ts",
-    "/index.tsx",
-    "/index.js",
-];
+/// Pre-indexed workspace import resolution table (`path -> doc_idx` + `tsconfig` aliases).
+pub struct WorkspaceImportResolver<'a> {
+    path_index: BTreeMap<&'a str, usize>,
+    ts_aliases: TsWorkspaceAliases,
+}
 
-fn resolve_ts_import(
-    from_path: &str,
-    spec: &str,
-    path_index: &BTreeMap<&str, usize>,
-    out: &mut Vec<usize>,
-) {
-    let base = if spec.starts_with('.') {
-        normalize_join(dir_of(from_path), spec)
-    } else if let Some(rest) = spec.strip_prefix("@/").or_else(|| spec.strip_prefix("~/")) {
-        format!("src/{}", rest.trim_start_matches('/'))
-    } else {
-        return;
-    };
-    for suffix in TS_PROBES {
-        push_known(&format!("{base}{suffix}"), path_index, out);
+impl<'a> WorkspaceImportResolver<'a> {
+    /// Builds a deterministic import resolver over `docs`.
+    #[must_use]
+    pub fn new(docs: &'a [UastDocument]) -> Self {
+        let path_index = docs
+            .iter()
+            .enumerate()
+            .map(|(idx, d)| (d.path.as_str(), idx))
+            .collect();
+        let ts_aliases = TsWorkspaceAliases::from_docs(docs);
+        Self {
+            path_index,
+            ts_aliases,
+        }
+    }
+
+    /// Resolves `imp` inside `(from_path, lang)` to matching target document indices in `docs`.
+    #[must_use]
+    pub fn resolve(&self, from_path: &RepoPath, lang: Language, imp: &ImportDecl) -> Vec<usize> {
+        let mut out = Vec::new();
+        let raw_from = from_path.as_str();
+        match lang {
+            Language::TypeScript | Language::Tsx | Language::JavaScript | Language::Jsx => {
+                out = self
+                    .ts_aliases
+                    .resolve_into(raw_from, &imp.module_source, &self.path_index);
+            }
+            Language::Python => resolve_py_import(raw_from, imp, &self.path_index, &mut out),
+            Language::Rust => {
+                resolve_rust_import(raw_from, &imp.module_source, &self.path_index, &mut out);
+            }
+            _ => {}
+        }
+        out.retain(|&idx| self.path_index.get(raw_from) != Some(&idx));
+        out
     }
 }
 
@@ -105,26 +121,4 @@ fn resolve_py_import(
             push_known(&format!("{pfx}/__init__.py"), path_index, out);
         }
     }
-}
-
-/// Resolves a structured [`ImportDecl`] in `from_path` (`lang`) to target document indices.
-#[must_use]
-pub fn resolve_import_decl_indices(
-    from_path: &RepoPath,
-    lang: Language,
-    imp: &ImportDecl,
-    path_index: &BTreeMap<&str, usize>,
-) -> Vec<usize> {
-    let mut out = Vec::new();
-    let raw_from = from_path.as_str();
-    match lang {
-        Language::TypeScript | Language::Tsx | Language::JavaScript | Language::Jsx => {
-            resolve_ts_import(raw_from, &imp.module_source, path_index, &mut out);
-        }
-        Language::Python => resolve_py_import(raw_from, imp, path_index, &mut out),
-        Language::Rust => resolve_rust_import(raw_from, &imp.module_source, path_index, &mut out),
-        _ => {}
-    }
-    out.retain(|&idx| path_index.get(raw_from) != Some(&idx));
-    out
 }

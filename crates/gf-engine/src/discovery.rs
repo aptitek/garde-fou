@@ -30,6 +30,7 @@ fn should_descend(entry_path: &Path, root: &Path) -> bool {
         s == ".git"
             || s == ".garde-fou-cache"
             || s == "target"
+            || s == "node_modules"
             || s == ".agents"
             || s == "mutants.out"
             || s == ".stryker-tmp"

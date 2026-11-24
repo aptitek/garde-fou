@@ -15,12 +15,14 @@ mod test_inspector;
 mod test_inspector_py;
 mod test_inspector_script;
 pub mod tool_output;
+pub mod tool_output_ts;
 pub mod types;
 
 use gf_core::{
     AssetDocument, DomainKind, DomainLayoutConfig, Language, RepoPath, UastDocument, classify_path,
     is_audited_tool_config_file, is_binary_asset_extension,
 };
+pub use langs::ts::is_hook_identifier;
 use langs::{
     asset::{collect_script_mentions, extract_svg_asset},
     css::CssExtractor,
@@ -30,15 +32,18 @@ use langs::{
     python::PythonExtractor,
     rust::RustExtractor,
     tool_config::extract_tool_config,
-    typescript::{TsDialect, TypeScriptExtractor},
+    ts::{TsDialect, TypeScriptExtractor},
 };
 pub use tool_output::{ToolParseError, parse_mypy_ndjson, parse_pyright_json, parse_ruff_json};
+pub use tool_output_ts::{parse_biome_json, parse_oxlint_json, parse_tsc_output};
 pub use types::{LanguageExtractor, ParseError, ProjectMarker};
 
 const EXT_LANGUAGES: &[(&str, Language)] = &[
     ("rs", Language::Rust),
     ("py", Language::Python),
     ("ts", Language::TypeScript),
+    ("mts", Language::TypeScript),
+    ("cts", Language::TypeScript),
     ("tsx", Language::Tsx),
     ("js", Language::JavaScript),
     ("mjs", Language::JavaScript),
@@ -52,6 +57,7 @@ const EXT_LANGUAGES: &[(&str, Language)] = &[
     ("md", Language::Markdown),
     ("mdx", Language::Markdown),
     ("json", Language::Json),
+    ("jsonc", Language::Json),
     ("toml", Language::Toml),
     ("sh", Language::Shell),
     ("bash", Language::Shell),
@@ -126,38 +132,27 @@ pub fn build_binary_asset_document(
     Ok(doc)
 }
 
-const fn ts_dialect_for_language(lang: Language) -> Option<TsDialect> {
-    match lang {
-        Language::TypeScript => Some(TsDialect::TypeScript),
-        Language::JavaScript => Some(TsDialect::JavaScript),
-        Language::Tsx => Some(TsDialect::Tsx),
-        Language::Jsx => Some(TsDialect::Jsx),
-        _ => None,
-    }
-}
-
 fn dispatch_language_extractor(
     lang: Language,
     path: &RepoPath,
     source: &str,
     domains: &DomainLayoutConfig,
 ) -> Result<UastDocument, ParseError> {
-    if let Some(dialect) = ts_dialect_for_language(lang) {
-        return TypeScriptExtractor::new(dialect).extract(path, source);
-    }
     if is_audited_tool_config_file(path) {
         return extract_tool_config(path, lang, source);
     }
+    let domain = classify_path(path, domains);
+    if let Some(dialect) = TsDialect::from_path_and_lang(path, lang) {
+        return TypeScriptExtractor::new(dialect).extract_in_domain(path, source, domain);
+    }
     match lang {
         Language::Rust => RustExtractor.extract(path, source),
-        Language::Python => {
-            PythonExtractor::extract_in_domain(path, source, classify_path(path, domains))
-        }
+        Language::Python => PythonExtractor::extract_in_domain(path, source, domain),
         Language::Dockerfile => DockerfileExtractor.extract(path, source),
         Language::Css => CssExtractor.extract(path, source),
         Language::Markdown => MarkdownExtractor.extract(path, source),
         Language::Svg => extract_svg_asset(path, source),
-        Language::Json | Language::Toml if classify_path(path, domains) == DomainKind::Texte => {
+        Language::Json | Language::Toml if domain == DomainKind::Texte => {
             extract_i18n_dictionary(path, lang, source)
         }
         other => {
@@ -189,7 +184,7 @@ pub fn parse_source_with_domains(
     }
     doc.secret_findings = secrets::extract_secret_findings(path, source);
     if classify_path(path, domains) == DomainKind::Tests
-        && (ts_dialect_for_language(lang).is_some()
+        && (TsDialect::from_path_and_lang(path, lang).is_some()
             || matches!(lang, Language::Rust | Language::Python))
     {
         doc.script_refs = collect_script_mentions(source);

@@ -1,5 +1,5 @@
-//! Strict TypeScript / Web (`React`, `Astro`, `Next.js`) scaffolding templates,
-//! wired cleanly to `Forme`, `Texte` (`t(...)`), `Asset`, and `Vitest` (`GF076`).
+//! Strict TypeScript / Web (`React`, `Astro`, `Next.js`, `Storybook`) scaffolding templates,
+//! wired cleanly to `Forme`, `Texte` (`t(...)`), `Asset`, `Vitest`, and Atomic Design (`GF072`/`GF076`).
 
 use gf_core::{FeatureId, FrameworkId, ProjectContext};
 
@@ -65,41 +65,71 @@ fn tsconfig_json(uses_jsx: bool) -> String {
     )
 }
 
-fn render_ui_component(import_prefix: &str, project_kebab: &str, ctx: &ProjectContext) -> String {
-    let has_i18n = ctx.features.contains(&FeatureId::I18n);
+fn render_i18n_ui_component(
+    import_prefix: &str,
+    atom_import: &str,
+    ctx: &ProjectContext,
+) -> String {
     let has_logo =
         ctx.features.contains(&FeatureId::Ui) || ctx.features.contains(&FeatureId::Content);
-    if has_i18n {
-        let logo_jsx = if has_logo {
-            "\n      <img src=\"/assets/logo.svg\" alt={t(\"app.logo_alt\")} />"
-        } else {
-            ""
-        };
-        return format!(
-            "import {{ formatTitle, t }} from \"{import_prefix}\";\n\
-             \n\
-             export function HomePage() {{\n\
-             \x20 return (\n\
-             \x20   <main className=\"app-shell\">{logo_jsx}\n\
-             \x20     <h1>{{formatTitle(t(\"app.title\"))}}</h1>\n\
-             \x20     <button type=\"button\">{{t(\"app.cta\")}}</button>\n\
-             \x20   </main>\n\
-             \x20 );\n\
-             }}\n"
-        );
+    let logo_jsx = if has_logo {
+        "\n      <img src=\"/assets/logo.svg\" alt={t(\"app.logo_alt\")} />"
+    } else {
+        ""
+    };
+    let cta_jsx = if ctx.features.contains(&FeatureId::Storybook) {
+        "<ActionButton label={t(\"app.cta\")} />"
+    } else {
+        "<button type=\"button\">{t(\"app.cta\")}</button>"
+    };
+    format!(
+        "import {{ formatTitle, t }} from \"{import_prefix}\";\n\
+         {atom_import}\n\
+         export function HomePage() {{\n\
+         \x20 return (\n\
+         \x20   <main className=\"app-shell\">{logo_jsx}\n\
+         \x20     <h1>{{formatTitle(t(\"app.title\"))}}</h1>\n\
+         \x20     {cta_jsx}\n\
+         \x20   </main>\n\
+         \x20 );\n\
+         }}\n"
+    )
+}
+
+fn render_ui_component(
+    import_prefix: &str,
+    atom_prefix: &str,
+    project_kebab: &str,
+    ctx: &ProjectContext,
+) -> String {
+    let has_storybook = ctx.features.contains(&FeatureId::Storybook);
+    let has_logo =
+        ctx.features.contains(&FeatureId::Ui) || ctx.features.contains(&FeatureId::Content);
+    let atom_import = if has_storybook {
+        format!("import {{ ActionButton }} from \"{atom_prefix}/components/atoms/ActionButton\";\n")
+    } else {
+        String::new()
+    };
+    if ctx.features.contains(&FeatureId::I18n) {
+        return render_i18n_ui_component(import_prefix, &atom_import, ctx);
     }
     let logo_jsx = if has_logo {
         "\n      <img src=\"/assets/logo.svg\" alt=\"Emblem\" />"
     } else {
         ""
     };
+    let cta_jsx = if has_storybook {
+        "\n      <ActionButton label=\"Explore\" />"
+    } else {
+        ""
+    };
     format!(
         "import {{ formatTitle }} from \"{import_prefix}\";\n\
-         \n\
+         {atom_import}\n\
          export function HomePage() {{\n\
          \x20 return (\n\
          \x20   <main className=\"app-shell\">{logo_jsx}\n\
-         \x20     <h1>{{formatTitle(\"{project_kebab}\")}}</h1>\n\
+         \x20     <h1>{{formatTitle(\"{project_kebab}\")}}</h1>{cta_jsx}\n\
          \x20   </main>\n\
          \x20 );\n\
          }}\n"
@@ -146,14 +176,38 @@ fn render_test_ts(has_i18n: bool) -> String {
     )
 }
 
+fn storybook_atom_files() -> [(String, String); 3] {
+    let atom = "export interface ActionButtonProps {\n  readonly label: string;\n}\n\nexport function ActionButton({ label }: ActionButtonProps) {\n  return <button type=\"button\" className=\"app-shell\">{label}</button>;\n}\n";
+    let story = "import { ActionButton, type ActionButtonProps } from \"./ActionButton\";\n\nexport default {\n  title: \"Atoms/ActionButton\",\n  component: ActionButton,\n};\n\nexport const Primary: { readonly args: ActionButtonProps } = {\n  args: { label: \"Primary\" },\n};\n";
+    let test = "import { expect, test } from \"vitest\";\nimport { ActionButton } from \"./ActionButton\";\n\ntest(\"builds ActionButton element with explicit label\", () => {\n  const element = ActionButton({ label: \"Confirm\" });\n  expect(element.props.children).toBe(\"Confirm\");\n});\n";
+    [
+        (
+            String::from("src/components/atoms/ActionButton.tsx"),
+            String::from(atom),
+        ),
+        (
+            String::from("src/components/atoms/ActionButton.stories.tsx"),
+            String::from(story),
+        ),
+        (
+            String::from("src/components/atoms/ActionButton.test.tsx"),
+            String::from(test),
+        ),
+    ]
+}
+
 /// Generates non-destructive TypeScript starter files `(relative_path, contents)`.
 pub fn web_files(project_kebab: &str, ctx: &ProjectContext) -> Vec<(String, String)> {
     let has_page_router = ctx.frameworks.contains(&FrameworkId::Astro)
         || ctx.frameworks.contains(&FrameworkId::NextJs);
     let has_react = ctx.frameworks.contains(&FrameworkId::React);
     let has_i18n = ctx.features.contains(&FeatureId::I18n);
-    let uses_jsx =
-        has_page_router || has_react || has_i18n || ctx.features.contains(&FeatureId::Ui);
+    let has_storybook = ctx.features.contains(&FeatureId::Storybook);
+    let uses_jsx = has_page_router
+        || has_react
+        || has_i18n
+        || has_storybook
+        || ctx.features.contains(&FeatureId::Ui);
 
     let mut files = vec![
         (
@@ -167,16 +221,18 @@ pub fn web_files(project_kebab: &str, ctx: &ProjectContext) -> Vec<(String, Stri
             render_test_ts(has_i18n),
         ),
     ];
-
+    if has_storybook {
+        files.extend(storybook_atom_files());
+    }
     if has_page_router {
         files.push((
             String::from("src/pages/index.tsx"),
-            render_ui_component("../index", project_kebab, ctx),
+            render_ui_component("../index", "..", project_kebab, ctx),
         ));
     } else if uses_jsx {
         files.push((
             String::from("src/App.tsx"),
-            render_ui_component("./index", project_kebab, ctx),
+            render_ui_component("./index", ".", project_kebab, ctx),
         ));
     }
     files

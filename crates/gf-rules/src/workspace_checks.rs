@@ -7,7 +7,7 @@ use alloc::vec::Vec;
 
 use gf_core::{
     Config, Diagnostic, DomainKind, ExportDecl, Language, ProjectContext, RepoPath, Severity,
-    UastDocument, Validation, classify_path, glob_matches,
+    UastDocument, Validation, classify_path, glob_matches, is_ts_declaration_path,
 };
 
 const UNIVERSAL_ENTRYPOINT_GLOBS: &[&str] = &[
@@ -26,6 +26,8 @@ const UNIVERSAL_ENTRYPOINT_GLOBS: &[&str] = &[
     "**/*.test.*",
     "*.spec.*",
     "**/*.spec.*",
+    "*.stories.*",
+    "**/*.stories.*",
     "*_test.*",
     "**/*_test.*",
 ];
@@ -130,6 +132,7 @@ pub fn check_dead_exports(
     for doc in docs {
         if classify_path(&doc.path, &config.domains) == DomainKind::Code
             && doc.language != Language::Dockerfile
+            && !is_ts_declaration_path(doc.path.as_str())
         {
             let is_entry = is_entrypoint_file(&doc.path, ctx, config);
             check_doc_dead_exports(doc, is_entry, &ref_index, &mut diags);

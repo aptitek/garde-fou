@@ -33,6 +33,9 @@ pub struct ImportDecl {
     pub module_source: String,
     /// Explicit imported symbol names (empty for wildcard/namespace imports).
     pub symbols: Vec<String>,
+    /// `true` when every imported binding is erased at compile time (`import type` / `{ type X }`).
+    #[serde(default)]
+    pub is_type_only: bool,
     /// Source span of the import statement.
     pub span: Span,
 }
@@ -44,6 +47,9 @@ pub struct ExportDecl {
     pub symbol: String,
     /// `true` for `pub(crate)` / `pub(super)` items tracked for crate-internal dead code (`GF021`).
     pub is_crate_internal: bool,
+    /// `true` when exporting exclusively in the TypeScript type namespace (`export type` / `interface`).
+    #[serde(default)]
+    pub is_type_only: bool,
     /// Source span of the exported declaration.
     pub span: Span,
 }

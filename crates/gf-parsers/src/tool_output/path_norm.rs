@@ -58,10 +58,11 @@ fn strip_root_prefix<'a>(path: &'a str, root: &str) -> Option<&'a str> {
         .filter(|rest| rest.is_empty() || rest.starts_with('/'))
 }
 
-pub(super) fn normalize_tool_path(
+pub fn normalize_tool_path_with_fallback(
     raw: &str,
     root: &Path,
     tool: ExternalToolKind,
+    fallback_file: &str,
 ) -> Result<RepoPath, ToolParseError> {
     let trimmed = raw.trim();
     let slash_owned = trimmed
@@ -86,15 +87,19 @@ pub(super) fn normalize_tool_path(
     });
 
     let rel = stripped.trim_start_matches("./").trim_start_matches('/');
-    let target = if rel.is_empty() {
-        "pyproject.toml"
-    } else {
-        rel
-    };
+    let target = if rel.is_empty() { fallback_file } else { rel };
     RepoPath::new(target)
-        .or_else(|_| RepoPath::new("pyproject.toml"))
+        .or_else(|_| RepoPath::new(fallback_file))
         .map_err(|_| ToolParseError::InvalidPath {
             tool,
             raw_path: String::from(raw),
         })
+}
+
+pub(super) fn normalize_tool_path(
+    raw: &str,
+    root: &Path,
+    tool: ExternalToolKind,
+) -> Result<RepoPath, ToolParseError> {
+    normalize_tool_path_with_fallback(raw, root, tool, "pyproject.toml")
 }
