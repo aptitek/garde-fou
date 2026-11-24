@@ -41,8 +41,9 @@ use tarjan::check_dependency_cycles;
 use tdd_checks::{check_local_test_assertions, check_workspace_tdd};
 use workspace_checks::{check_dead_exports, check_type2_clones};
 pub use {
-    security_checks::evaluate_lcov_coverage, tarjan::find_scc_cycles,
-    tdd_checks::check_lock_integrity,
+    security_checks::evaluate_lcov_coverage,
+    tarjan::find_scc_cycles,
+    tdd_checks::{check_agentic_governance, check_lock_integrity},
 };
 
 /// Evaluates all pure single-file rules applicatively without short-circuiting.

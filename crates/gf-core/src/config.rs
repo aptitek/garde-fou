@@ -12,6 +12,7 @@ use crate::commit_msg::CommitConfig;
 use crate::context::{FeatureId, FrameworkId, LanguageId};
 use crate::domains::DomainLayoutConfig;
 pub use crate::policies::{CoverageConfig, ScannerPolicy, ScannersConfig};
+use crate::skills_catalog::AgentsConfig;
 
 /// Explicit `[project]` overrides merged with automatic workspace context detection.
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
@@ -108,6 +109,8 @@ pub struct Config {
     pub tdd: TddConfig,
     /// Conventional Commits policy (`[commit]`, `GF077`).
     pub commit: CommitConfig,
+    /// Agentic `AGENTS.md` & `skills.sh` synchronization policy (`[agents]`, `GF070`).
+    pub agents: AgentsConfig,
     /// External scanner policies (`gitleaks`, `osv-scanner`).
     pub scanners: ScannersConfig,
     /// Optional `LCOV` coverage gate (`GF050`).
@@ -133,6 +136,7 @@ impl Config {
             clean_code: CleanCodeConfig::strict_defaults(),
             tdd: TddConfig::strict_defaults(),
             commit: CommitConfig::strict_defaults(),
+            agents: AgentsConfig::defaults(),
             scanners: ScannersConfig::defaults(),
             coverage: CoverageConfig::empty(),
             forbid_panicking_constructs: true,
@@ -148,12 +152,13 @@ impl Config {
             .map(BoundaryRule::canonical_fragment)
             .collect();
         format!(
-            "lk={}|bnd=[{}]|{}|{}|{}",
+            "lk={}|bnd=[{}]|{}|{}|{}|{}",
             self.integrity.require_lock,
             bnd.join(";"),
             self.clean_code.canonical_fragment(),
             self.tdd.canonical_fragment(),
             self.commit.canonical_fragment(),
+            self.agents.canonical_fragment(),
         )
     }
 
@@ -179,7 +184,7 @@ impl Config {
         let vul = self.scanners.vulns.as_str();
         let cov = &self.coverage;
         format!(
-            "v6|fl={}|fnl={}|p={}|cyc={}|cog={}|nest={}|imp={}|meth={}|cll={}|cln={}|{dom}|{fort}|sec={sec}|vul={vul}|cov={cov:?}|f={}|i={}|e={}|l={}|ft={}|fw={}",
+            "v7|fl={}|fnl={}|p={}|cyc={}|cog={}|nest={}|imp={}|meth={}|cll={}|cln={}|{dom}|{fort}|sec={sec}|vul={vul}|cov={cov:?}|f={}|i={}|e={}|l={}|ft={}|fw={}",
             l.max_file_lines,
             l.max_function_lines,
             l.max_parameters,

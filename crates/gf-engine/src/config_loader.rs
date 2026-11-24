@@ -9,7 +9,7 @@ use gf_core::{
 };
 
 use crate::config_fortress::{
-    merge_boundaries, merge_clean_code, merge_commit, merge_integrity, merge_tdd,
+    merge_agents, merge_boundaries, merge_clean_code, merge_commit, merge_integrity, merge_tdd,
 };
 use crate::config_schema::{
     CoverageSection, DomainsSection, LimitsSection, ProjectSection, RawManifest, RulesSection,
@@ -142,6 +142,43 @@ fn forbid_constructs_enabled(rules: Option<RulesSection>) -> bool {
     })
 }
 
+fn build_loaded_config(mut raw: RawManifest) -> Result<LoadedWorkspaceConfig, EngineError> {
+    let project = parse_project_section(raw.project.take())?;
+    let limits = merge_limits(raw.limits.take());
+    let domains = merge_domains(raw.domains.take());
+    let integrity = merge_integrity(raw.integrity.take());
+    let boundaries = merge_boundaries(core::mem::take(&mut raw.boundaries));
+    let clean_code = merge_clean_code(raw.clean_code.take());
+    let tdd = merge_tdd(raw.tdd.take());
+    let commit = merge_commit(raw.commit.take());
+    let agents = merge_agents(raw.agents.take())?;
+    let scanners = parse_scanners_section(raw.scanners.take())?;
+    let coverage = parse_coverage_section(raw.coverage.take())?;
+    let forbid_panicking_constructs = forbid_constructs_enabled(raw.rules.take());
+    let ((ignore_paths, entrypoints), (cache_enabled, cache_dir)) = raw.into_paths_and_cache();
+
+    Ok(LoadedWorkspaceConfig {
+        analyzer: Config {
+            project,
+            limits,
+            domains,
+            integrity,
+            boundaries,
+            clean_code,
+            tdd,
+            commit,
+            agents,
+            scanners,
+            coverage,
+            forbid_panicking_constructs,
+            ignore_paths,
+            entrypoints,
+        },
+        cache_enabled,
+        cache_dir,
+    })
+}
+
 /// Loads and strictly validates `garde-fou.toml` in `root`, or returns strict defaults.
 ///
 /// # Errors
@@ -158,7 +195,7 @@ pub fn load_workspace_config(root: &Path) -> Result<LoadedWorkspaceConfig, Engin
     }
 
     let content = fs::read_to_string(&path)?;
-    let mut raw: RawManifest =
+    let raw: RawManifest =
         toml::from_str(&content).map_err(|err| EngineError::InvalidConfig(err.to_string()))?;
     if raw.schema_version != 1 {
         return Err(EngineError::InvalidConfig(format!(
@@ -166,36 +203,5 @@ pub fn load_workspace_config(root: &Path) -> Result<LoadedWorkspaceConfig, Engin
             raw.schema_version
         )));
     }
-    let project = parse_project_section(raw.project.take())?;
-    let limits = merge_limits(raw.limits.take());
-    let domains = merge_domains(raw.domains.take());
-    let integrity = merge_integrity(raw.integrity.take());
-    let boundaries = merge_boundaries(core::mem::take(&mut raw.boundaries));
-    let clean_code = merge_clean_code(raw.clean_code.take());
-    let tdd = merge_tdd(raw.tdd.take());
-    let commit = merge_commit(raw.commit.take());
-    let scanners = parse_scanners_section(raw.scanners.take())?;
-    let coverage = parse_coverage_section(raw.coverage.take())?;
-    let forbid_panicking_constructs = forbid_constructs_enabled(raw.rules.take());
-    let ((ignore_paths, entrypoints), (cache_enabled, cache_dir)) = raw.into_paths_and_cache();
-
-    Ok(LoadedWorkspaceConfig {
-        analyzer: Config {
-            project,
-            limits,
-            domains,
-            integrity,
-            boundaries,
-            clean_code,
-            tdd,
-            commit,
-            scanners,
-            coverage,
-            forbid_panicking_constructs,
-            ignore_paths,
-            entrypoints,
-        },
-        cache_enabled,
-        cache_dir,
-    })
+    build_loaded_config(raw)
 }

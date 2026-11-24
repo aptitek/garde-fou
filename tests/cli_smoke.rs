@@ -35,7 +35,7 @@ fn cli_init_no_cache_and_cache_hit_succeed() -> Result<(), Box<dyn std::error::E
     )?;
 
     let init = Command::new(garde_bin())
-        .arg("init")
+        .args(["init", "--offline"])
         .current_dir(&dir)
         .output()?;
     assert!(init.status.success());

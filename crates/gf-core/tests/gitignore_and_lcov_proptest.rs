@@ -94,6 +94,6 @@ fn scanner_policy_and_dockerignore_cover_all_variants() {
     assert!(
         Config::strict_defaults()
             .canonical_string()
-            .starts_with("v6|")
+            .starts_with("v7|")
     );
 }

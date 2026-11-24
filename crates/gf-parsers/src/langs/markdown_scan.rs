@@ -111,13 +111,30 @@ fn parse_html_tag_after_lt(prose: &str, lt_idx: usize, is_mdx: bool) -> Option<S
     (!(is_mdx && first_ch.is_ascii_uppercase())).then_some(tag)
 }
 
+fn strip_html_comments(line: &str) -> String {
+    let mut out = String::with_capacity(line.len());
+    let mut rest = line;
+    while let Some((before, after_open)) = rest.split_once("<!--") {
+        out.push_str(before);
+        if let Some((_, after_close)) = after_open.split_once("-->") {
+            out.push(' ');
+            rest = after_close;
+        } else {
+            return out;
+        }
+    }
+    out.push_str(rest);
+    out
+}
+
 /// Detects any raw HTML tag (`<div>`, `<script>`, etc.) in code-stripped prose.
 pub fn detect_raw_html_tag(prose: &str, is_mdx: bool) -> Option<String> {
-    prose
+    let uncommented = strip_html_comments(prose);
+    uncommented
         .bytes()
         .enumerate()
         .filter(|&(_, b)| b == b'<')
-        .find_map(|(idx, _)| parse_html_tag_after_lt(prose, idx, is_mdx))
+        .find_map(|(idx, _)| parse_html_tag_after_lt(&uncommented, idx, is_mdx))
 }
 
 /// Detects forbidden JS/React exports, hooks, `fetch`, inline `style={{`, or `.css` imports in MDX.

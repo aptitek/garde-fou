@@ -8,12 +8,12 @@ use std::process::ExitCode;
 
 use gf_core::{FeatureId, FrameworkId, LanguageId, Validation, validate_commit_message};
 use gf_engine::{
-    CheckOptions, EngineError, InitRequest, ScanScope, load_workspace_config,
-    run_check_with_options, run_init, run_lock,
+    CheckOptions, EngineError, InitRequest, ScanScope, SkillsFetchMode, SyncOptions,
+    load_workspace_config, run_check_with_options, run_init_with_sync_mode, run_lock, run_sync,
 };
 
-use crate::args::{CheckArgs, CommitMsgArgs, InitArgs, LockArgs};
-use crate::reporter::{render_check_report, render_init_report};
+use crate::args::{CheckArgs, CommitMsgArgs, InitArgs, LockArgs, SyncArgs};
+use crate::reporter::{render_check_report, render_init_report, render_sync_report};
 
 fn resolve_dir(opt_path: Option<&PathBuf>, cwd: &Path) -> PathBuf {
     opt_path.map_or_else(
@@ -82,8 +82,35 @@ pub fn execute_check(args: &CheckArgs, cwd: &Path) -> Result<(String, ExitCode),
 
 pub fn execute_init(args: &InitArgs, cwd: &Path) -> Result<(String, ExitCode), EngineError> {
     let req = build_init_request(args, cwd)?;
-    let report = run_init(&req)?;
+    let mode = if args.offline {
+        SkillsFetchMode::Offline
+    } else {
+        SkillsFetchMode::Online
+    };
+    let report = run_init_with_sync_mode(&req, mode)?;
     Ok((render_init_report(&report), ExitCode::SUCCESS))
+}
+
+pub fn execute_sync(args: &SyncArgs, cwd: &Path) -> Result<(String, ExitCode), EngineError> {
+    let target_root = resolve_dir(args.path.as_ref(), cwd);
+    let fetch_mode = if args.offline {
+        SkillsFetchMode::Offline
+    } else if let Some(dir) = &args.skills_from_dir {
+        let resolved = if dir.is_absolute() {
+            dir.clone()
+        } else {
+            cwd.join(dir)
+        };
+        SkillsFetchMode::FromDir(resolved)
+    } else {
+        SkillsFetchMode::Online
+    };
+    let options = SyncOptions {
+        fetch_mode,
+        update_skills: args.update_skills,
+    };
+    let report = run_sync(&target_root, &options)?;
+    Ok((render_sync_report(&report), ExitCode::SUCCESS))
 }
 
 pub fn execute_lock(args: &LockArgs, cwd: &Path) -> Result<(String, ExitCode), EngineError> {

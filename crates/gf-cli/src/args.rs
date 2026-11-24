@@ -65,6 +65,26 @@ pub struct InitArgs {
     /// Skip running `git init -b main`.
     #[arg(long)]
     pub no_git: bool,
+    /// Skip live `skills.sh` downloads (install only embedded `garde-fou` skill).
+    #[arg(long)]
+    pub offline: bool,
+}
+
+/// Arguments for `garde sync`.
+#[derive(Clone, Debug, Default, Eq, PartialEq, Args)]
+pub struct SyncArgs {
+    /// Optional workspace root directory (defaults to current working directory).
+    #[arg(value_name = "PATH")]
+    pub path: Option<PathBuf>,
+    /// Skip live `skills.sh` downloads (write `AGENTS.md` and embedded skill only).
+    #[arg(long)]
+    pub offline: bool,
+    /// Re-fetch and overwrite already installed `skills.sh` skills.
+    #[arg(long)]
+    pub update_skills: bool,
+    /// Install skills from a local directory mirror instead of `skills.sh`.
+    #[arg(long, value_name = "DIR")]
+    pub skills_from_dir: Option<PathBuf>,
 }
 
 /// Arguments for `garde lock`.
@@ -90,6 +110,8 @@ pub enum Commands {
     Check(CheckArgs),
     /// Initialize a strict project workspace (`uv init`-style) or adopt an existing repo.
     Init(InitArgs),
+    /// Synchronize modular `AGENTS.md` fragments, `.agents/skills/`, and `garde.lock`.
+    Sync(SyncArgs),
     /// Cryptographically seal `garde-fou.toml` into `garde.lock` (`BLAKE3`, `GF070`).
     Lock(LockArgs),
     /// Validate a Git commit message file against Conventional Commits (`GF077`).

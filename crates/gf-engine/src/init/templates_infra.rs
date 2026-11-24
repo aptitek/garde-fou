@@ -124,6 +124,10 @@ pub fn render_garde_fou_toml(project_name: &str, ctx: &ProjectContext) -> String
          [integrity]\n\
          require_lock = true\n\
          \n\
+         [agents]\n\
+         sync_policy = \"auto\"\n\
+         remote_skills = true\n\
+         \n\
          [scanners]\n\
          secrets = \"auto\"\n\
          vulns = \"auto\"\n\
@@ -135,18 +139,6 @@ pub fn render_garde_fou_toml(project_name: &str, ctx: &ProjectContext) -> String
          [cache]\n\
          enabled = true\n\
          directory = \".garde-fou-cache\"\n"
-    )
-}
-
-/// Renders a concise `AGENTS.md` enforcing zero-compromise Garde-fou discipline.
-pub fn render_agents_md(project_name: &str) -> String {
-    format!(
-        "# AGENTS.md — Engineering Guardrails for `{project_name}`\n\
-         \n\
-         1. Keep every source file `<= 250` lines and every function `<= 50` effective lines.\n\
-         2. Keep cyclomatic and cognitive complexity `<= 10` and parameters `<= 4`.\n\
-         3. Never commit hardcoded secrets, private keys, or unpinned `:latest` container images.\n\
-         4. Run `garde check --format agent` before finishing any task and fix 100% of violations.\n"
     )
 }
 

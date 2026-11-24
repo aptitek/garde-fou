@@ -14,10 +14,11 @@ const SCRIPT_EXTENSIONS: &[&str] = &["sh", "bash", "ps1", "py", "ts", "js", "mjs
 fn parse_event_attr_at(lower_line: &str, idx: usize) -> Option<&str> {
     let bytes = lower_line.as_bytes();
     let boundary = idx == 0 || bytes[idx - 1].is_ascii_whitespace() || bytes[idx - 1] == b'<';
-    if !boundary || !lower_line[idx..].starts_with("on") {
+    if !boundary || !lower_line.get(idx..).is_some_and(|s| s.starts_with("on")) {
         return None;
     }
-    let name_tail: usize = lower_line[idx + 2..]
+    let name_tail: usize = lower_line
+        .get(idx + 2..)?
         .bytes()
         .take_while(u8::is_ascii_alphabetic)
         .count();
@@ -25,10 +26,12 @@ fn parse_event_attr_at(lower_line: &str, idx: usize) -> Option<&str> {
         return None;
     }
     let end = idx + 2 + name_tail;
-    lower_line[end..]
+    lower_line
+        .get(end..)?
         .trim_start()
         .starts_with('=')
-        .then_some(&lower_line[idx..end])
+        .then(|| lower_line.get(idx..end))
+        .flatten()
 }
 
 fn has_svg_event_handler(lower_line: &str) -> Option<String> {

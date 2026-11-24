@@ -1,10 +1,10 @@
 //! Exemplary 6-domain starter templates (`Forme` tokens/CSS, `Texte` en/fr,
 //! `Contenus` pure Markdown, and `Asset` sanitized SVG).
 
-use gf_core::{FeatureId, LanguageId, ProjectContext};
+use gf_core::{FeatureId, FrameworkId, LanguageId, ProjectContext};
 
 use super::{templates_infra, templates_python, templates_rust, templates_web};
-use crate::DEFAULT_CONFIG_FILENAME;
+use crate::types::DEFAULT_CONFIG_FILENAME;
 
 const TOKENS_CSS: &str = "/* Design Tokens — single source of primitive visual values */\n\
 :root {\n\
@@ -74,10 +74,6 @@ pub fn collect_all_init_files(
             String::from(DEFAULT_CONFIG_FILENAME),
             templates_infra::render_garde_fou_toml(project_name, context),
         ),
-        (
-            String::from("AGENTS.md"),
-            templates_infra::render_agents_md(project_name),
-        ),
     ];
     if context.languages.contains(&LanguageId::Rust) {
         files.extend(templates_rust::rust_files(project_name, pkg_snake));
@@ -127,4 +123,23 @@ fn six_domain_feature_files(project_kebab: &str, ctx: &ProjectContext) -> Vec<(S
         ));
     }
     files
+}
+
+/// Applies framework-to-language inference and default Rust fallback on `ctx`.
+pub fn finalize_init_context(ctx: &mut ProjectContext) {
+    for fw in &ctx.frameworks {
+        let lang = match fw {
+            FrameworkId::CargoWorkspace => LanguageId::Rust,
+            FrameworkId::React | FrameworkId::Astro | FrameworkId::NextJs => LanguageId::TypeScript,
+            FrameworkId::FastApi | FrameworkId::Django => LanguageId::Python,
+        };
+        ctx.languages.insert(lang);
+    }
+    if ctx.languages.is_empty() {
+        ctx.languages.insert(LanguageId::Rust);
+        ctx.features.insert(FeatureId::GitHooks);
+    }
+    if ctx.languages.contains(&LanguageId::Rust) {
+        ctx.frameworks.insert(FrameworkId::CargoWorkspace);
+    }
 }

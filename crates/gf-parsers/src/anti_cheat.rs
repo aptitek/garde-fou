@@ -82,8 +82,10 @@ fn match_debt_marker(clean: &str) -> Option<&'static str> {
             return Some(marker);
         }
         for &marker in DEBT_MARKERS {
-            if tok.len() > marker.len()
-                && tok[..marker.len()].eq_ignore_ascii_case(marker)
+            if tok
+                .as_bytes()
+                .get(..marker.len())
+                .is_some_and(|head| head.eq_ignore_ascii_case(marker.as_bytes()))
                 && matches!(tok.as_bytes().get(marker.len()), Some(b':' | b'('))
             {
                 return Some(marker);

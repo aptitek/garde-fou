@@ -80,6 +80,9 @@ garde check --no-cache --strict-tools --lcov lcov.info
 # Export OASIS SARIF 2.1.0 pour GitHub Code Scanning
 garde check --format sarif
 
+# Synchroniser le bloc modulaire AGENTS.md, les skills .agents/skills/ (skills.sh) et garde.lock
+garde sync
+
 # Sceller cryptographiquement garde-fou.toml dans garde.lock (BLAKE3)
 garde lock
 
@@ -122,7 +125,7 @@ garde commit-msg .git/COMMIT_EDITMSG
 | `GF064` | `Asset` | Asset hors `assets/`, `> max_asset_bytes`, SVG dangereux (`<script>`/`on*=`), `<svg>`/`data:` inline, lien cassé ou orphelin | `0` |
 | `GF065` | `Scripts` | Import de `Scripts` depuis `Code`, ou script dans `scripts/`/`tools/` dépourvu de couverture de test | `0` |
 | `GF066` | `Code` (`a11y`) | `<div/span/p onClick>` sans rôle clavier, `<img>` sans `alt`, `<button>` sans `type` ou sans label accessible | `0` |
-| `GF070` | Anti-Bypass | Commentaire/attribut de bypass linter (`eslint-disable`, `@ts-ignore`, `# noqa`, `#[allow]`) ou `garde.lock` désynchronisé | `0` |
+| `GF070` | Gouvernance & Intégrité | Bypass linter (`eslint-disable`, `@ts-ignore`, `#[allow]`), `garde.lock` altéré ou dérive du bloc géré `AGENTS.md` / `.agents/skills/` (`garde sync`) | `0` |
 | `GF071` | Architecture | Cycle de dépendances inter-fichiers détecté par l'algorithme SCC de Tarjan (`#![no_std]`) | `0` cycle |
 | `GF072` | Architecture | Violation des frontières déclaratives `[[boundaries]]` ou de la hiérarchie Atomic Design (`atoms -> molecules -> organisms`) | `0` |
 | `GF073` | KISS | Ternaire imbriqué ou train d'accès de propriétés violant la Loi de Déméter (`a.b.c.d.e`) | `0` ternaire imbriqué / `<= 4` segments |

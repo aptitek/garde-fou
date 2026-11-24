@@ -190,6 +190,9 @@ pub fn is_forme_token_path(path: &RepoPath, layout: &DomainLayoutConfig) -> bool
 #[must_use]
 pub fn classify_path(path: &RepoPath, layout: &DomainLayoutConfig) -> DomainKind {
     let raw = path.as_str();
+    if raw.starts_with(".agents/") {
+        return DomainKind::Meta;
+    }
     if TEST_GLOBS.iter().any(|pat| glob_matches(pat, raw)) {
         return DomainKind::Tests;
     }

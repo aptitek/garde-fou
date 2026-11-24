@@ -12,8 +12,9 @@ use gf_engine::EngineError;
 
 pub use args::{
     CheckArgs, CheckExecutionFlags, Cli, Commands, CommitMsgArgs, InitArgs, LockArgs, OutputFormat,
+    SyncArgs,
 };
-use commands::{execute_check, execute_commit_msg, execute_init, execute_lock};
+use commands::{execute_check, execute_commit_msg, execute_init, execute_lock, execute_sync};
 
 /// Executes a parsed [`Cli`] command relative to `cwd`, returning the formatted output
 /// and process [`ExitCode`].
@@ -25,6 +26,7 @@ pub fn execute(cli: &Cli, cwd: &Path) -> Result<(String, ExitCode), EngineError>
     match &cli.command {
         Commands::Check(args) => execute_check(args, cwd),
         Commands::Init(args) => execute_init(args, cwd),
+        Commands::Sync(args) => execute_sync(args, cwd),
         Commands::Lock(args) => execute_lock(args, cwd),
         Commands::CommitMsg(args) => execute_commit_msg(args, cwd),
     }
@@ -83,6 +85,7 @@ mod tests {
             "rust",
             "--feature",
             "docker",
+            "--offline",
         ])?;
         let (init_text, init_code) = execute(&init_cli, &dir)?;
         assert_eq!(init_code, ExitCode::SUCCESS);

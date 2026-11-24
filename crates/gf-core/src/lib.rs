@@ -11,6 +11,8 @@ extern crate alloc;
 #[cfg(test)]
 extern crate std;
 
+pub mod agent_fragments;
+pub mod agent_templates;
 pub mod boundaries;
 pub mod clean_code;
 pub mod commit_msg;
@@ -26,6 +28,7 @@ pub mod lcov;
 pub mod metrics;
 pub mod path;
 pub mod policies;
+pub mod skills_catalog;
 pub mod uast;
 pub mod validation;
 
@@ -57,10 +60,19 @@ pub use path::{RepoPath, RepoPathError};
 pub use uast::{Language, UastDocument, UastKind, UastNode};
 pub use validation::Validation;
 pub use {
+    agent_fragments::{
+        AGENTS_MANAGED_END, AGENTS_MANAGED_START, compose_agents_managed_block,
+        demote_headings_outside_fences, extract_agents_managed_block, merge_agents_md,
+    },
+    agent_templates::EMBEDDED_GARDE_FOU_SKILL,
     boundaries::{BoundaryRule, IntegrityConfig, LockStatus, default_atomic_design_boundaries},
     clean_code::{
         BypassFinding, CleanCodeConfig, ContractDecl, ContractImpl, KissYagniFinding,
         KissYagniKind, TddConfig, TddParityGates, TestCaseSummary, YagniGates,
     },
     commit_msg::{CommitConfig, validate_commit_message},
+    skills_catalog::{
+        AgenticSyncStatus, AgentsConfig, RemoteSkillSpec, ResolvedSkillSpec, SkillEntry,
+        parse_extra_skill_spec, select_contextual_skills,
+    },
 };

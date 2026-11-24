@@ -65,6 +65,12 @@ impl RepoPath {
         Self(String::from("garde-fou.toml"))
     }
 
+    /// Returns the canonical repository path for `AGENTS.md`.
+    #[must_use]
+    pub fn agents_md() -> Self {
+        Self(String::from("AGENTS.md"))
+    }
+
     /// Returns the canonical pseudo-path for `.git/COMMIT_EDITMSG`.
     #[must_use]
     pub fn commit_editmsg() -> Self {

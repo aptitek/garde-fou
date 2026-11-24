@@ -7,8 +7,8 @@ use alloc::string::String;
 use alloc::vec::Vec;
 
 use gf_core::{
-    Config, Diagnostic, DomainKind, FeatureId, Language, LockStatus, ProjectContext, RepoPath,
-    Span, UastDocument, Validation, classify_path, glob_matches,
+    AgenticSyncStatus, Config, Diagnostic, DomainKind, FeatureId, Language, LockStatus,
+    ProjectContext, RepoPath, Span, UastDocument, Validation, classify_path, glob_matches,
 };
 
 use crate::checks::rule_error;
@@ -43,6 +43,39 @@ pub fn check_lock_integrity(lock_status: &LockStatus) -> Validation<(), Diagnost
             "Never weaken `garde-fou.toml` thresholds to silence violations; if a config change is authorized by a human, regenerate `garde.lock` via `garde lock`.",
             (&manifest, Span::FIRST),
         )]),
+    }
+}
+
+/// Evaluates `AGENTS.md` managed-block and `.agents/skills/garde-fou/SKILL.md` governance (`GF070`).
+#[must_use]
+pub fn check_agentic_governance(status: &AgenticSyncStatus) -> Validation<(), Diagnostic> {
+    let agents_path = RepoPath::agents_md();
+    match status {
+        AgenticSyncStatus::NotApplicable | AgenticSyncStatus::Synced => Validation::Valid(()),
+        AgenticSyncStatus::MissingAgentsMd => Validation::Invalid(alloc::vec![rule_error(
+            "GF070",
+            String::from(
+                "managed `AGENTS.md` block is missing while `[agents] sync_policy = \"required\"`"
+            ),
+            "Run `garde sync` to generate the contextual `AGENTS.md` managed block and `.agents/skills/`.",
+            (&agents_path, Span::FIRST),
+        )]),
+        AgenticSyncStatus::DriftedAgentsMd => Validation::Invalid(alloc::vec![rule_error(
+            "GF070",
+            String::from(
+                "`AGENTS.md` managed block is out of sync with workspace context, `garde-fou.toml`, or installed skills"
+            ),
+            "Run `garde sync` to refresh `AGENTS.md` fragments and thresholds without altering custom instructions outside managed markers.",
+            (&agents_path, Span::FIRST),
+        )]),
+        AgenticSyncStatus::MissingOrOutdatedCoreSkill => {
+            Validation::Invalid(alloc::vec![rule_error(
+                "GF070",
+                String::from("embedded `.agents/skills/garde-fou/SKILL.md` is missing or outdated"),
+                "Run `garde sync` to install or update `.agents/skills/garde-fou/SKILL.md`.",
+                (&agents_path, Span::FIRST),
+            )])
+        }
     }
 }
 

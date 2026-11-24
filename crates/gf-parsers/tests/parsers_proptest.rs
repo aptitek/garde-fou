@@ -23,6 +23,12 @@ fn arbitrary_utf8_never_panics_across_all_grammars() -> Result<(), String> {
         "fuzz.js",
         "fuzz.py",
         "fuzz.toml",
+        "fuzz.css",
+        "fuzz.md",
+        "fuzz.svg",
+        "fuzz.json",
+        "fuzz.sh",
+        "Dockerfile",
     ];
     let strat = (0..paths.len(), ".*");
 
@@ -75,4 +81,17 @@ fn structured_nested_ifs_monotonically_increase_complexity() -> Result<(), Strin
         Ok(())
     })
     .map_err(|e| e.to_string())
+}
+
+#[test]
+fn multibyte_utf8_comments_never_panic_anti_cheat() -> Result<(), Box<dyn std::error::Error>> {
+    for sample in ["//\"ࠀ", "//\"𪌴", "/* ࠀ:x */", "# \"ࠀ"] {
+        for ext in ["fuzz.rs", "fuzz.ts", "fuzz.py", "fuzz.sh", "Dockerfile"] {
+            let path = RepoPath::new(ext)?;
+            let doc = parse_source(&path, sample)?;
+            assert_eq!(doc.bypass_findings, Vec::new());
+            assert_eq!(doc.kiss_yagni_findings, Vec::new());
+        }
+    }
+    Ok(())
 }

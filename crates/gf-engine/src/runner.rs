@@ -10,9 +10,12 @@ use gf_core::{
     Config, Diagnostic, Language, LockStatus, ProjectContext, RepoPath, UastDocument, Validation,
 };
 use gf_parsers::{build_binary_asset_document, detect_language, parse_source_with_domains};
-use gf_rules::{check_lock_integrity, evaluate_document, evaluate_workspace_sorted};
+use gf_rules::{
+    check_agentic_governance, check_lock_integrity, evaluate_document, evaluate_workspace_sorted,
+};
 use rayon::prelude::*;
 
+use crate::agents::verify_agentic_state;
 use crate::cache::{CacheKey, CachedFileArtifact, DiskCache};
 use crate::context_detector::detect_project_context;
 use crate::discovery::discover_files;
@@ -117,29 +120,49 @@ fn load_or_analyze_file(
     })
 }
 
+fn collect_gate_diagnostics(
+    root: &Path,
+    options: &CheckOptions,
+    config: &Config,
+    guards: (&ProjectContext, &LockStatus, bool),
+) -> Result<Vec<Diagnostic>, EngineError> {
+    let (context, lock_status, enforce_agentic) = guards;
+    let mut external_diags = run_external_gates(root, options, config)?;
+    if let Validation::Invalid(lock_diags) = check_lock_integrity(lock_status) {
+        external_diags.extend(lock_diags);
+    }
+    if enforce_agentic {
+        let agent_status = verify_agentic_state(root, context, config)?;
+        if let Validation::Invalid(agent_diags) = check_agentic_governance(&agent_status) {
+            external_diags.extend(agent_diags);
+        }
+    }
+    Ok(external_diags)
+}
+
 /// Executes file discovery, parallel `v4` cache/parse pass, workspace rules, and external gates.
 pub fn execute_pipeline(
     root: &Path,
     options: &CheckOptions,
     config: &Config,
-    runtime: (Option<&DiskCache>, &LockStatus),
+    runtime: (Option<&DiskCache>, &LockStatus, bool),
 ) -> Result<CheckReport, EngineError> {
-    let (disk_cache, lock_status) = runtime;
+    let (disk_cache, lock_status, enforce_agentic) = runtime;
     let all_files = discover_files(root, ScanScope::All, config)?;
     let context = detect_project_context(root, &all_files, config);
-    let mut external_diags = run_external_gates(root, options, config)?;
-    if let Validation::Invalid(lock_diags) = check_lock_integrity(lock_status) {
-        external_diags.extend(lock_diags);
-    }
+    let mut external_diags = collect_gate_diagnostics(
+        root,
+        options,
+        config,
+        (&context, lock_status, enforce_agentic),
+    )?;
 
     let staged_filter: Option<BTreeSet<RepoPath>> = (options.scope == ScanScope::StagedOnly)
         .then(|| discover_files(root, ScanScope::StagedOnly, config))
         .transpose()?
         .map(|v| v.into_iter().collect());
 
-    if let Some(staged) = &staged_filter
-        && staged.is_empty()
-    {
+    if staged_filter.as_ref().is_some_and(BTreeSet::is_empty) {
         external_diags.sort();
         return Ok(CheckReport {
             scope: options.scope,

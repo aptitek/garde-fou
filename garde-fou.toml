@@ -94,6 +94,10 @@ allowed_types = [
 ]
 max_header_len = 100
 
+[agents]
+sync_policy = "required"
+remote_skills = true
+
 [scanners]
 secrets = "required"
 vulns = "required"

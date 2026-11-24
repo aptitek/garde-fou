@@ -1,6 +1,7 @@
 //! Imperative shell orchestrating strict `TOML` config, `garde lock`, `uv`-style `init`,
 //! parallel `rayon` analysis, `.garde-fou-cache/v4/` caching, and `SARIF` / `LCOV` gates.
 
+pub mod agents;
 pub mod cache;
 mod config_fortress;
 pub mod config_loader;
@@ -16,13 +17,17 @@ pub mod types;
 
 use std::path::Path;
 
-use gf_core::{Config, LockStatus};
+use gf_core::{Config, LockStatus, ScannerPolicy};
 
+pub use agents::{
+    FileSyncAction, SyncOptions, SyncReport, collect_installed_skill_entries,
+    fetcher::SkillsFetchMode, run_sync, verify_agentic_state,
+};
 pub use cache::{CacheKey, CachedFileArtifact, DiskCache};
 pub use config_loader::{LoadedWorkspaceConfig, load_workspace_config};
 pub use context_detector::detect_project_context;
 pub use discovery::discover_files;
-pub use init::{InitReport, InitRequest, run_init};
+pub use init::{InitReport, InitRequest, run_init, run_init_with_sync_mode};
 pub use lockfile::{compute_manifest_blake3_hex, verify_garde_lock, write_garde_lock};
 use runner::execute_pipeline;
 pub use scaffold::{InitOutcome, scaffold_config};
@@ -59,7 +64,7 @@ pub fn run_check_with_options(
         root,
         options,
         &loaded.analyzer,
-        (cache.as_ref(), &lock_status),
+        (cache.as_ref(), &lock_status, true),
     )
 }
 
@@ -78,10 +83,11 @@ pub fn run_check(
     } else {
         LockStatus::NotRequired
     };
+    let enforce_agentic = config.agents.sync_policy == ScannerPolicy::Required;
     execute_pipeline(
         root,
         &CheckOptions::new(scope, true),
         config,
-        (None, &lock_status),
+        (None, &lock_status, enforce_agentic),
     )
 }

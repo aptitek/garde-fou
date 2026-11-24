@@ -3,7 +3,7 @@
 use core::fmt::Write as _;
 
 use gf_core::Diagnostic;
-use gf_engine::{CheckReport, InitReport, ScanScope};
+use gf_engine::{CheckReport, FileSyncAction, InitReport, ScanScope, SyncReport};
 use serde_json::json;
 
 use crate::args::OutputFormat;
@@ -139,8 +139,8 @@ pub fn render_init_report(report: &InitReport) -> String {
     } else {
         "existing/skipped"
     };
-    format!(
-        "garde-fou: initialized `{}` in {} ({}, git={}, created={}, updated={}, preserved={})",
+    let mut out = format!(
+        "garde-fou: initialized `{}` in {} ({}, git={}, created={}, updated={}, preserved={}, skills={})",
         report.project_name,
         report.root.display(),
         report.context.summary_inline(),
@@ -148,7 +148,36 @@ pub fn render_init_report(report: &InitReport) -> String {
         report.created_files.len(),
         report.updated_files.len(),
         report.preserved_files.len(),
-    )
+        report.installed_skills.len(),
+    );
+    for w in &report.warnings {
+        let _ = write!(out, "\n  warn: {w}");
+    }
+    out
+}
+
+/// Formats a [`SyncReport`] for terminal display.
+#[must_use]
+pub fn render_sync_report(report: &SyncReport) -> String {
+    let action = match report.agents_md {
+        FileSyncAction::Created => "created",
+        FileSyncAction::Updated => "updated",
+        FileSyncAction::Unchanged => "unchanged",
+    };
+    let mut out = format!(
+        "garde: sync ok ({}, AGENTS.md={action}, skills_installed={}, skills_preserved={}, rejected={})",
+        report.context.summary_inline(),
+        report.installed_skills.len(),
+        report.preserved_skills.len(),
+        report.rejected_skills.len(),
+    );
+    for (id, reason) in &report.rejected_skills {
+        let _ = write!(out, "\n  rejected skill `{id}`: {reason}");
+    }
+    for w in &report.warnings {
+        let _ = write!(out, "\n  warn: {w}");
+    }
+    out
 }
 
 #[cfg(test)]
@@ -207,6 +236,8 @@ mod tests {
             created_files: vec![String::from("garde-fou.toml")],
             updated_files: Vec::new(),
             preserved_files: Vec::new(),
+            installed_skills: vec![String::from("garde-fou")],
+            warnings: Vec::new(),
         };
         assert!(render_init_report(&init_rep).contains("initialized `demo`"));
         Ok(())

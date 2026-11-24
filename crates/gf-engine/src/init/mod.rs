@@ -16,10 +16,10 @@ use gf_core::{
     compose_gitignore, merge_managed_block,
 };
 
+use crate::agents::{FileSyncAction, SyncOptions, fetcher::SkillsFetchMode, run_sync};
 use crate::context_detector::detect_project_context;
 use crate::discovery::discover_files;
-use crate::lockfile::write_garde_lock;
-use crate::types::{DEFAULT_CONFIG_FILENAME, EngineError, LOCK_FILENAME, ScanScope};
+use crate::types::{EngineError, LOCK_FILENAME, ScanScope};
 
 /// Declarative parameters for [`run_init`].
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -70,6 +70,10 @@ pub struct InitReport {
     pub updated_files: Vec<String>,
     /// Relative paths left untouched because they already existed.
     pub preserved_files: Vec<String>,
+    /// Skill IDs installed into `.agents/skills/` during initialization.
+    pub installed_skills: Vec<String>,
+    /// Non-fatal warnings (e.g. offline fallback when `skills.sh` is unreachable).
+    pub warnings: Vec<String>,
 }
 
 fn resolve_names(req: &InitRequest) -> (String, String) {
@@ -81,17 +85,6 @@ fn resolve_names(req: &InitRequest) -> (String, String) {
     templates_infra::normalize_project_names(raw_name)
 }
 
-fn infer_languages_from_frameworks(ctx: &mut ProjectContext) {
-    for fw in &ctx.frameworks {
-        let lang = match fw {
-            FrameworkId::CargoWorkspace => LanguageId::Rust,
-            FrameworkId::React | FrameworkId::Astro | FrameworkId::NextJs => LanguageId::TypeScript,
-            FrameworkId::FastApi | FrameworkId::Django => LanguageId::Python,
-        };
-        ctx.languages.insert(lang);
-    }
-}
-
 fn resolve_init_context(req: &InitRequest) -> Result<ProjectContext, EngineError> {
     let base_cfg = Config::strict_defaults();
     let existing_files = discover_files(&req.root, ScanScope::All, &base_cfg)?;
@@ -100,15 +93,7 @@ fn resolve_init_context(req: &InitRequest) -> Result<ProjectContext, EngineError
     ctx.languages.extend(req.languages.iter().copied());
     ctx.features.extend(req.features.iter().copied());
     ctx.frameworks.extend(req.frameworks.iter().copied());
-    infer_languages_from_frameworks(&mut ctx);
-
-    if ctx.languages.is_empty() {
-        ctx.languages.insert(LanguageId::Rust);
-        ctx.features.insert(FeatureId::GitHooks);
-    }
-    if ctx.languages.contains(&LanguageId::Rust) {
-        ctx.frameworks.insert(FrameworkId::CargoWorkspace);
-    }
+    templates_domains::finalize_init_context(&mut ctx);
     Ok(ctx)
 }
 
@@ -173,16 +158,55 @@ fn write_missing_files(
     Ok(())
 }
 
-/// Bootstraps or non-destructively adopts a project workspace in `req.root`.
+fn finalize_init_sync(
+    root: &Path,
+    fetch_mode: SkillsFetchMode,
+    lock_existed: bool,
+    report: &mut InitReport,
+) -> Result<(), EngineError> {
+    let sync_rep = run_sync(
+        root,
+        &SyncOptions {
+            fetch_mode,
+            update_skills: false,
+        },
+    )?;
+    match sync_rep.agents_md {
+        FileSyncAction::Created => report.created_files.push(String::from("AGENTS.md")),
+        FileSyncAction::Updated => report.updated_files.push(String::from("AGENTS.md")),
+        FileSyncAction::Unchanged => report.preserved_files.push(String::from("AGENTS.md")),
+    }
+    if !lock_existed && sync_rep.lock_updated {
+        report.created_files.push(String::from(LOCK_FILENAME));
+    }
+    report.installed_skills = sync_rep.installed_skills;
+    report.warnings = sync_rep.warnings;
+    Ok(())
+}
+
+/// Bootstraps or non-destructively adopts a project workspace in `req.root` (offline skills mode).
 ///
 /// # Errors
 ///
 /// Returns [`EngineError`] if directory creation, `git init`, or file writing fails.
 pub fn run_init(req: &InitRequest) -> Result<InitReport, EngineError> {
+    run_init_with_sync_mode(req, SkillsFetchMode::Offline)
+}
+
+/// Bootstraps a workspace in `req.root` using an explicit [`SkillsFetchMode`].
+///
+/// # Errors
+///
+/// Returns [`EngineError`] if directory creation, `git init`, or file writing fails.
+pub fn run_init_with_sync_mode(
+    req: &InitRequest,
+    fetch_mode: SkillsFetchMode,
+) -> Result<InitReport, EngineError> {
     fs::create_dir_all(&req.root)?;
     let (project_name, pkg_snake) = resolve_names(req);
     let context = resolve_init_context(req)?;
     let git_initialized = ensure_git_repo(&req.root, req.run_git_init)?;
+    let lock_existed = req.root.join(LOCK_FILENAME).exists();
 
     let mut report = InitReport {
         root: req.root.clone(),
@@ -192,8 +216,9 @@ pub fn run_init(req: &InitRequest) -> Result<InitReport, EngineError> {
         created_files: Vec::new(),
         updated_files: Vec::new(),
         preserved_files: Vec::new(),
+        installed_skills: Vec::new(),
+        warnings: Vec::new(),
     };
-
     upsert_managed_file(
         &req.root,
         ".gitignore",
@@ -201,16 +226,15 @@ pub fn run_init(req: &InitRequest) -> Result<InitReport, EngineError> {
         &mut report,
     )?;
     if context.features.contains(&FeatureId::Docker) {
-        let di = compose_dockerignore(&context);
-        upsert_managed_file(&req.root, ".dockerignore", &di, &mut report)?;
+        upsert_managed_file(
+            &req.root,
+            ".dockerignore",
+            &compose_dockerignore(&context),
+            &mut report,
+        )?;
     }
-
     let candidates = templates_domains::collect_all_init_files(&project_name, &pkg_snake, &context);
     write_missing_files(&req.root, candidates, &mut report)?;
-    let lock_path = req.root.join(LOCK_FILENAME);
-    if !lock_path.exists() && req.root.join(DEFAULT_CONFIG_FILENAME).is_file() {
-        let _ = write_garde_lock(&req.root)?;
-        report.created_files.push(String::from(LOCK_FILENAME));
-    }
+    finalize_init_sync(&req.root, fetch_mode, lock_existed, &mut report)?;
     Ok(report)
 }

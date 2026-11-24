@@ -2,10 +2,12 @@
 //! `[integrity]`, `[[boundaries]]`, `[clean_code]`, `[tdd]`, and `[commit]`.
 
 use gf_core::{
-    BoundaryRule, CleanCodeConfig, CommitConfig, IntegrityConfig, TddConfig, TddParityGates,
-    YagniGates,
+    AgentsConfig, BoundaryRule, CleanCodeConfig, CommitConfig, IntegrityConfig, ScannerPolicy,
+    TddConfig, TddParityGates, YagniGates, parse_extra_skill_spec,
 };
 use serde::Deserialize;
+
+use crate::types::EngineError;
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -49,6 +51,15 @@ pub struct CommitSection {
     pub allowed_types: Option<Vec<String>>,
     pub allowed_scopes: Option<Vec<String>>,
     pub max_header_len: Option<usize>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AgentsSection {
+    pub sync_policy: Option<String>,
+    pub remote_skills: Option<bool>,
+    pub extra_skills: Option<Vec<String>>,
+    pub disabled_skills: Option<Vec<String>>,
 }
 
 pub fn merge_integrity(raw: Option<IntegritySection>) -> IntegrityConfig {
@@ -116,4 +127,30 @@ pub fn merge_commit(raw: Option<CommitSection>) -> CommitConfig {
         allowed_scopes: s.allowed_scopes.unwrap_or(base.allowed_scopes),
         max_header_len: s.max_header_len.unwrap_or(base.max_header_len),
     }
+}
+
+pub fn merge_agents(raw: Option<AgentsSection>) -> Result<AgentsConfig, EngineError> {
+    let base = AgentsConfig::defaults();
+    let Some(s) = raw else {
+        return Ok(base);
+    };
+    let sync_policy = match s.sync_policy {
+        None => base.sync_policy,
+        Some(val) => ScannerPolicy::from_config_str(&val).ok_or_else(|| {
+            EngineError::InvalidConfig(format!(
+                "invalid `agents.sync_policy` `{val}` (expected `auto`, `required`, or `off`)"
+            ))
+        })?,
+    };
+    let extra_skills = s.extra_skills.unwrap_or(base.extra_skills);
+    for spec in &extra_skills {
+        parse_extra_skill_spec(spec)
+            .map_err(|msg| EngineError::InvalidConfig(format!("{msg}: `{spec}`")))?;
+    }
+    Ok(AgentsConfig {
+        sync_policy,
+        remote_skills: s.remote_skills.unwrap_or(base.remote_skills),
+        extra_skills,
+        disabled_skills: s.disabled_skills.unwrap_or(base.disabled_skills),
+    })
 }
