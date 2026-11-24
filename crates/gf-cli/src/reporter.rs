@@ -6,7 +6,7 @@ use gf_core::Diagnostic;
 use gf_engine::{CheckReport, InitReport, ScanScope};
 use serde_json::json;
 
-use crate::OutputFormat;
+use crate::args::OutputFormat;
 
 const fn scope_label(scope: ScanScope) -> &'static str {
     match scope {
@@ -159,7 +159,7 @@ mod tests {
     use gf_engine::{CheckReport, InitReport, ScanScope};
 
     use super::{render_check_report, render_init_report};
-    use crate::OutputFormat;
+    use crate::args::OutputFormat;
 
     #[test]
     fn renders_all_formats_with_context_metrics_and_remediation()

@@ -2,6 +2,10 @@
 
 use serde::Deserialize;
 
+use crate::config_fortress::{
+    BoundarySection, CleanCodeSection, CommitSection, IntegritySection, TddSection,
+};
+
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct RawManifest {
@@ -12,6 +16,16 @@ pub struct RawManifest {
     pub limits: Option<LimitsSection>,
     #[serde(default)]
     pub domains: Option<DomainsSection>,
+    #[serde(default)]
+    pub integrity: Option<IntegritySection>,
+    #[serde(default)]
+    pub boundaries: Vec<BoundarySection>,
+    #[serde(default)]
+    pub clean_code: Option<CleanCodeSection>,
+    #[serde(default)]
+    pub tdd: Option<TddSection>,
+    #[serde(default)]
+    pub commit: Option<CommitSection>,
     #[serde(default)]
     pub scanners: Option<ScannersSection>,
     #[serde(default)]

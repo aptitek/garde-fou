@@ -93,7 +93,7 @@ fn emit_clone_group(sites: &[CloneSite<'_>], min_lines: u32, out: &mut Vec<Diagn
     }
 }
 
-fn is_entrypoint_file(path: &RepoPath, ctx: &ProjectContext, config: &Config) -> bool {
+pub fn is_entrypoint_file(path: &RepoPath, ctx: &ProjectContext, config: &Config) -> bool {
     let raw = path.as_str();
     if UNIVERSAL_ENTRYPOINT_GLOBS
         .iter()

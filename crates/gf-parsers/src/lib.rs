@@ -3,17 +3,21 @@
 //! This crate performs pure syntactic and metric extraction on in-memory UTF-8 strings
 //! without touching the filesystem, processes, or environment.
 
+mod anti_cheat;
 mod complexity;
 mod cst;
 mod fingerprint;
+mod kiss_contracts;
+mod kiss_yagni;
 pub mod langs;
 mod secrets;
-
-use core::fmt;
+mod test_inspector;
+mod test_inspector_script;
+pub mod types;
 
 use gf_core::{
-    AssetDocument, DomainKind, DomainLayoutConfig, Language, RepoPath, SpanError, UastDocument,
-    classify_path, is_binary_asset_extension,
+    AssetDocument, DomainKind, DomainLayoutConfig, Language, RepoPath, UastDocument, classify_path,
+    is_binary_asset_extension,
 };
 use langs::{
     asset::{collect_script_mentions, extract_svg_asset},
@@ -25,58 +29,7 @@ use langs::{
     rust::RustExtractor,
     typescript::{TsDialect, TypeScriptExtractor},
 };
-
-/// High-level ecosystem or build-tool marker detected from a repository path.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum ProjectMarker {
-    /// Rust Cargo manifest (`Cargo.toml`).
-    CargoManifest,
-    /// Container build recipe (`Dockerfile`, `Containerfile`).
-    Containerfile,
-    /// Node.js package manifest (`package.json`).
-    NodeManifest,
-    /// Go module manifest (`go.mod`).
-    GoMod,
-}
-
-/// Errors produced while bridging source text into a [`UastDocument`].
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum ParseError {
-    /// Source span invariants failed during node construction.
-    InvalidSpan(SpanError),
-    /// `Tree-sitter` grammar failed to initialize on the parser instance.
-    LanguageSetup,
-    /// `Tree-sitter` returned no syntax tree (unexpected cancellation or engine error).
-    EngineFailure,
-}
-
-impl fmt::Display for ParseError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::InvalidSpan(err) => write!(f, "failed to build UAST span: {err}"),
-            Self::LanguageSetup => f.write_str("failed to configure Tree-sitter grammar"),
-            Self::EngineFailure => f.write_str("Tree-sitter parser returned no CST"),
-        }
-    }
-}
-
-impl core::error::Error for ParseError {}
-
-impl From<SpanError> for ParseError {
-    fn from(err: SpanError) -> Self {
-        Self::InvalidSpan(err)
-    }
-}
-
-/// Contract implemented by every language-specific structural extractor.
-pub trait LanguageExtractor {
-    /// Parses `source` and extracts a normalized [`UastDocument`].
-    ///
-    /// # Errors
-    ///
-    /// Returns [`ParseError`] if initializing the grammar or constructing spans fails.
-    fn extract(&self, path: &RepoPath, source: &str) -> Result<UastDocument, ParseError>;
-}
+pub use types::{LanguageExtractor, ParseError, ProjectMarker};
 
 const EXT_LANGUAGES: &[(&str, Language)] = &[
     ("rs", Language::Rust),
@@ -222,6 +175,9 @@ pub fn parse_source_with_domains(
 ) -> Result<UastDocument, ParseError> {
     let lang = detect_language(path);
     let mut doc = dispatch_language_extractor(lang, path, source, domains)?;
+    if lang == Language::Shell {
+        anti_cheat::scan_hash_line_comments(source, &mut doc);
+    }
     doc.secret_findings = secrets::extract_secret_findings(path, source);
     if ts_dialect_for_language(lang).is_some() || matches!(lang, Language::Rust | Language::Python)
     {

@@ -42,14 +42,9 @@ fn render_lib_rs(pkg_snake: &str) -> String {
          \x20   use super::build_banner;\n\
          \n\
          \x20   #[test]\n\
-         \x20   fn formats_non_empty_and_blank_subjects() -> Result<(), &'static str> {{\n\
-         \x20       if build_banner(\"garde-fou\") != \"hello, garde-fou\" {{\n\
-         \x20           return Err(\"unexpected greeting for named subject\");\n\
-         \x20       }}\n\
-         \x20       if build_banner(\"   \") != \"hello, world\" {{\n\
-         \x20           return Err(\"unexpected fallback greeting\");\n\
-         \x20       }}\n\
-         \x20       Ok(())\n\
+         \x20   fn formats_non_empty_and_blank_subjects() {{\n\
+         \x20       assert_eq!(build_banner(\"garde-fou\"), \"hello, garde-fou\");\n\
+         \x20       assert_eq!(build_banner(\"   \"), \"hello, world\");\n\
          \x20   }}\n\
          }}\n"
     )

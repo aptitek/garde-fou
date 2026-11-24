@@ -32,6 +32,25 @@ fn build_error(spec: Spec<'_>) -> Diagnostic {
     }
 }
 
+/// Shared constructor for boolean/structural rule violations (`measured = 1, threshold = 0`).
+pub fn rule_error(
+    rule_id: &str,
+    message: String,
+    remediation: &str,
+    loc: (&RepoPath, Span),
+) -> Diagnostic {
+    Diagnostic {
+        rule_id: String::from(rule_id),
+        severity: Severity::Error,
+        message,
+        remediation: String::from(remediation),
+        measured: 1,
+        threshold: 0,
+        path: loc.0.clone(),
+        span: loc.1,
+    }
+}
+
 pub fn check_syntax_errors(doc: &UastDocument) -> Validation<(), Diagnostic> {
     let diags = doc
         .syntax_errors

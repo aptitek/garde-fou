@@ -11,7 +11,7 @@ use gf_core::{
     is_root_governance_doc,
 };
 
-pub use crate::docker_checks::docker_error as domain_diag;
+use crate::checks::rule_error as domain_diag;
 
 fn check_code_style_and_ui(doc: &UastDocument, domain: DomainKind, out: &mut Vec<Diagnostic>) {
     if doc.language == Language::Css && domain != DomainKind::Forme {

@@ -7,7 +7,7 @@ use gf_core::{Diagnostic, ScannerPolicy};
 
 use super::gitleaks::missing_tool_diagnostic;
 use super::sarif_ingest::{SarifMapping, ingest_sarif_json};
-use crate::{EngineError, ScanScope};
+use crate::types::{EngineError, ScanScope};
 
 const DEPENDENCY_MANIFESTS: &[&str] = &[
     "Cargo.toml",

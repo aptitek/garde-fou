@@ -6,7 +6,7 @@ use alloc::vec::Vec;
 
 use gf_core::{Diagnostic, DockerInstruction, DockerInstructionKind, RepoPath, Span};
 
-use crate::docker_checks::docker_error;
+use crate::checks::rule_error as docker_error;
 
 const SECRET_SUBSTRINGS: &[&str] = &["SECRET", "PASSWORD", "TOKEN", "PRIVATE_KEY", "API_KEY"];
 const ARCHIVE_SUFFIXES: &[&str] = &[".tar", ".tar.gz", ".tgz", ".tar.bz2", ".tar.xz", ".tar.zst"];

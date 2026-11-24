@@ -10,7 +10,7 @@ use gf_core::{
     UiCheckKind, Validation, classify_path,
 };
 
-use crate::domain_checks::domain_diag;
+use crate::checks::rule_error as domain_diag;
 
 fn collect_locale_docs<'a>(
     docs: &'a [UastDocument],

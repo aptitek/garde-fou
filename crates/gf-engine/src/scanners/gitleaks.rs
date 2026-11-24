@@ -9,7 +9,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use gf_core::{Diagnostic, RepoPath, ScannerPolicy, Severity, Span};
 
 use super::sarif_ingest::{SarifMapping, ingest_sarif_json};
-use crate::{EngineError, ScanScope};
+use crate::types::{EngineError, ScanScope};
 
 static GITLEAKS_SEQ: AtomicU64 = AtomicU64::new(0);
 

@@ -11,7 +11,7 @@ use std::path::Path;
 use gf_core::{Config, Diagnostic, RepoPath, ScannerPolicy, Validation, parse_lcov};
 use gf_rules::evaluate_lcov_coverage;
 
-use crate::{CheckOptions, EngineError, ScanScope};
+use crate::types::{CheckOptions, EngineError, ScanScope};
 
 fn effective_policy(configured: ScannerPolicy, strict_tools: bool) -> ScannerPolicy {
     if strict_tools && configured == ScannerPolicy::Auto {

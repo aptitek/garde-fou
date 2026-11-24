@@ -1,4 +1,4 @@
-//! Content-addressed `BLAKE3` `.garde-fou-cache/v2/` storing `UastDocument` + diagnostics.
+//! Content-addressed `BLAKE3` `.garde-fou-cache/v4/` storing `UastDocument` + diagnostics.
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -63,11 +63,11 @@ pub struct DiskCache {
 }
 
 impl DiskCache {
-    /// Creates a [`DiskCache`] handle rooted at `<workspace_root>/<cache_dir>/v3`.
+    /// Creates a [`DiskCache`] handle rooted at `<workspace_root>/<cache_dir>/v4`.
     #[must_use]
     pub fn new(workspace_root: &Path, cache_dir: &str) -> Self {
         Self {
-            base_dir: workspace_root.join(cache_dir).join("v3"),
+            base_dir: workspace_root.join(cache_dir).join("v4"),
         }
     }
 

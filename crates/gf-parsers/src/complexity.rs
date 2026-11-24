@@ -2,7 +2,7 @@
 
 use tree_sitter::Node;
 
-use crate::cst::node_text;
+use crate::types::node_text;
 
 /// Language-specific CST node kinds participating in control-flow complexity.
 pub struct ComplexityRules {

@@ -27,6 +27,73 @@ forbid_todo = true
 forbid_unimplemented = true
 forbid_dbg = true
 
+[integrity]
+require_lock = true
+
+[[boundaries]]
+from = "crates/gf-core/**"
+deny = [
+    "gf_rules",
+    "gf_parsers",
+    "gf_engine",
+    "gf_cli",
+    "crates/gf-rules/**",
+    "crates/gf-parsers/**",
+    "crates/gf-engine/**",
+    "crates/gf-cli/**",
+]
+reason = "`gf-core` is the pure `#![no_std]` algebraic hub and must never depend on downstream crates."
+
+[[boundaries]]
+from = "crates/gf-rules/**"
+deny = [
+    "gf_parsers",
+    "gf_engine",
+    "gf_cli",
+    "crates/gf-parsers/**",
+    "crates/gf-engine/**",
+    "crates/gf-cli/**",
+]
+reason = "`gf-rules` is the pure `#![no_std]` rule engine and may depend only on `gf-core`."
+
+[[boundaries]]
+from = "crates/gf-parsers/src/**"
+deny = [
+    "gf_rules",
+    "gf_engine",
+    "gf_cli",
+    "crates/gf-rules/**",
+    "crates/gf-engine/**",
+    "crates/gf-cli/**",
+]
+reason = "`gf-parsers` is the pure I/O-free syntax bridge and may depend only on `gf-core`."
+
+[clean_code]
+max_nested_ternaries = 0
+max_property_chain = 4
+max_bool_parameters = 1
+forbid_wildcard_exports = true
+forbid_todos = true
+forbid_single_impl_traits = true
+
+[tdd]
+forbid_assertion_free_tests = true
+
+[commit]
+allowed_types = [
+    "feat",
+    "fix",
+    "refactor",
+    "perf",
+    "test",
+    "docs",
+    "build",
+    "ci",
+    "chore",
+    "revert",
+]
+max_header_len = 100
+
 [scanners]
 secrets = "required"
 vulns = "required"

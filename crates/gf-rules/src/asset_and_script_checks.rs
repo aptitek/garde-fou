@@ -11,7 +11,7 @@ use gf_core::{
     glob_matches,
 };
 
-use crate::domain_checks::domain_diag;
+use crate::checks::rule_error as domain_diag;
 
 const IMPLICIT_PUBLIC_ASSETS: &[&str] = &[
     "public/favicon.*",

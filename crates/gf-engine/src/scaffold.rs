@@ -3,10 +3,8 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use crate::EngineError;
-
-/// Canonical configuration filename at the root of a repository.
-pub const DEFAULT_CONFIG_FILENAME: &str = "garde-fou.toml";
+pub use crate::types::DEFAULT_CONFIG_FILENAME;
+use crate::types::EngineError;
 
 const DEFAULT_CONFIG_TEMPLATE: &str = "# Garde-fou configuration
 schema_version = 1

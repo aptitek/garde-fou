@@ -8,7 +8,7 @@ use gf_parsers::detect_language;
 use globset::{Glob, GlobSet, GlobSetBuilder};
 use ignore::WalkBuilder;
 
-use crate::{EngineError, ScanScope};
+use crate::types::{EngineError, ScanScope};
 
 fn compile_ignore_globs(patterns: &[String]) -> Result<GlobSet, EngineError> {
     let mut builder = GlobSetBuilder::new();

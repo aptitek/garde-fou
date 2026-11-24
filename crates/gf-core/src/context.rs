@@ -18,23 +18,24 @@ pub enum LanguageId {
     Python,
 }
 
+const LANGUAGE_ALIASES: &[(&str, LanguageId)] = &[
+    ("rust", LanguageId::Rust),
+    ("typescript", LanguageId::TypeScript),
+    ("javascript", LanguageId::TypeScript),
+    ("ts", LanguageId::TypeScript),
+    ("js", LanguageId::TypeScript),
+    ("python", LanguageId::Python),
+    ("py", LanguageId::Python),
+];
+
 impl LanguageId {
     /// Parses a case-insensitive language identifier from configuration.
     #[must_use]
     pub fn from_config_str(raw: &str) -> Option<Self> {
-        if raw.eq_ignore_ascii_case("rust") {
-            Some(Self::Rust)
-        } else if raw.eq_ignore_ascii_case("typescript")
-            || raw.eq_ignore_ascii_case("javascript")
-            || raw.eq_ignore_ascii_case("ts")
-            || raw.eq_ignore_ascii_case("js")
-        {
-            Some(Self::TypeScript)
-        } else if raw.eq_ignore_ascii_case("python") || raw.eq_ignore_ascii_case("py") {
-            Some(Self::Python)
-        } else {
-            None
-        }
+        LANGUAGE_ALIASES
+            .iter()
+            .find(|(alias, _)| raw.eq_ignore_ascii_case(alias))
+            .map(|(_, id)| *id)
     }
 
     /// Canonical kebab-case identifier.
@@ -71,6 +72,10 @@ pub enum FeatureId {
     I18n,
     /// Editorial `Contenus` pure Markdown/MDX (`content/`, `courses/`, `docs/`, `GF063`).
     Content,
+    /// Strict `1:1` companion unit-test enforcement across `Code` modules (`GF076`).
+    Tdd,
+    /// Storybook `.stories.tsx` parity enforcement for Atomic Design components (`GF076`).
+    Storybook,
 }
 
 const FEATURE_ALIASES: &[(&str, FeatureId)] = &[
@@ -91,6 +96,9 @@ const FEATURE_ALIASES: &[(&str, FeatureId)] = &[
     ("content", FeatureId::Content),
     ("contenus", FeatureId::Content),
     ("markdown", FeatureId::Content),
+    ("tdd", FeatureId::Tdd),
+    ("storybook", FeatureId::Storybook),
+    ("stories", FeatureId::Storybook),
 ];
 
 impl FeatureId {
@@ -114,6 +122,8 @@ impl FeatureId {
             Self::Ui => "ui",
             Self::I18n => "i18n",
             Self::Content => "content",
+            Self::Tdd => "tdd",
+            Self::Storybook => "storybook",
         }
     }
 }
@@ -141,25 +151,25 @@ pub enum FrameworkId {
     Django,
 }
 
+const FRAMEWORK_ALIASES: &[(&str, FrameworkId)] = &[
+    ("cargo-workspace", FrameworkId::CargoWorkspace),
+    ("cargo", FrameworkId::CargoWorkspace),
+    ("react", FrameworkId::React),
+    ("astro", FrameworkId::Astro),
+    ("nextjs", FrameworkId::NextJs),
+    ("next", FrameworkId::NextJs),
+    ("fastapi", FrameworkId::FastApi),
+    ("django", FrameworkId::Django),
+];
+
 impl FrameworkId {
     /// Parses a case-insensitive framework identifier from configuration.
     #[must_use]
     pub fn from_config_str(raw: &str) -> Option<Self> {
-        if raw.eq_ignore_ascii_case("cargo-workspace") || raw.eq_ignore_ascii_case("cargo") {
-            Some(Self::CargoWorkspace)
-        } else if raw.eq_ignore_ascii_case("react") {
-            Some(Self::React)
-        } else if raw.eq_ignore_ascii_case("astro") {
-            Some(Self::Astro)
-        } else if raw.eq_ignore_ascii_case("nextjs") || raw.eq_ignore_ascii_case("next") {
-            Some(Self::NextJs)
-        } else if raw.eq_ignore_ascii_case("fastapi") {
-            Some(Self::FastApi)
-        } else if raw.eq_ignore_ascii_case("django") {
-            Some(Self::Django)
-        } else {
-            None
-        }
+        FRAMEWORK_ALIASES
+            .iter()
+            .find(|(alias, _)| raw.eq_ignore_ascii_case(alias))
+            .map(|(_, id)| *id)
     }
 
     /// Canonical kebab-case identifier.

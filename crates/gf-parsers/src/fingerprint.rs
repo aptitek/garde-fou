@@ -4,7 +4,7 @@ use std::collections::BTreeSet;
 
 use tree_sitter::Node;
 
-use crate::cst::node_text;
+use crate::types::node_text;
 
 const COMMENT_KINDS: &[&str] = &["comment", "line_comment", "block_comment"];
 

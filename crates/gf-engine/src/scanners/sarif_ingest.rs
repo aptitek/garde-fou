@@ -7,7 +7,7 @@ use std::path::Path;
 use gf_core::{Diagnostic, RepoPath, Severity};
 
 use super::sarif_schema::{SarifLog, SarifResult, SarifRun};
-use crate::EngineError;
+use crate::types::EngineError;
 
 const SCRUB_PREFIXES: &[&str] = &[
     "ghp_",

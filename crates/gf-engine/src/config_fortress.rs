@@ -1,0 +1,119 @@
+//! Strict `serde` TOML sections and merge helpers for Step 7 fortress rules:
+//! `[integrity]`, `[[boundaries]]`, `[clean_code]`, `[tdd]`, and `[commit]`.
+
+use gf_core::{
+    BoundaryRule, CleanCodeConfig, CommitConfig, IntegrityConfig, TddConfig, TddParityGates,
+    YagniGates,
+};
+use serde::Deserialize;
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct IntegritySection {
+    pub require_lock: Option<bool>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct BoundarySection {
+    pub from: String,
+    #[serde(default)]
+    pub allow: Vec<String>,
+    #[serde(default)]
+    pub deny: Vec<String>,
+    pub reason: String,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct CleanCodeSection {
+    pub max_nested_ternaries: Option<u32>,
+    pub max_property_chain: Option<u32>,
+    pub max_bool_parameters: Option<u32>,
+    pub forbid_wildcard_exports: Option<bool>,
+    pub forbid_todos: Option<bool>,
+    pub forbid_single_impl_traits: Option<bool>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct TddSection {
+    pub forbid_assertion_free_tests: Option<bool>,
+    pub require_companion: Option<bool>,
+    pub require_stories: Option<bool>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct CommitSection {
+    pub allowed_types: Option<Vec<String>>,
+    pub allowed_scopes: Option<Vec<String>>,
+    pub max_header_len: Option<usize>,
+}
+
+pub fn merge_integrity(raw: Option<IntegritySection>) -> IntegrityConfig {
+    let base = IntegrityConfig::defaults();
+    raw.map_or(base, |s| IntegrityConfig {
+        require_lock: s.require_lock.unwrap_or(base.require_lock),
+    })
+}
+
+pub fn merge_boundaries(raw: Vec<BoundarySection>) -> Vec<BoundaryRule> {
+    raw.into_iter()
+        .map(|b| BoundaryRule {
+            from: b.from,
+            allow: b.allow,
+            deny: b.deny,
+            reason: b.reason,
+        })
+        .collect()
+}
+
+pub fn merge_clean_code(raw: Option<CleanCodeSection>) -> CleanCodeConfig {
+    let base = CleanCodeConfig::strict_defaults();
+    let Some(s) = raw else {
+        return base;
+    };
+    CleanCodeConfig {
+        max_nested_ternaries: s.max_nested_ternaries.unwrap_or(base.max_nested_ternaries),
+        max_property_chain: s.max_property_chain.unwrap_or(base.max_property_chain),
+        max_bool_parameters: s.max_bool_parameters.unwrap_or(base.max_bool_parameters),
+        forbid_todos: s.forbid_todos.unwrap_or(base.forbid_todos),
+        yagni: YagniGates {
+            forbid_wildcard_exports: s
+                .forbid_wildcard_exports
+                .unwrap_or(base.yagni.forbid_wildcard_exports),
+            forbid_single_impl_traits: s
+                .forbid_single_impl_traits
+                .unwrap_or(base.yagni.forbid_single_impl_traits),
+        },
+    }
+}
+
+pub fn merge_tdd(raw: Option<TddSection>) -> TddConfig {
+    let base = TddConfig::strict_defaults();
+    let Some(s) = raw else {
+        return base;
+    };
+    TddConfig {
+        forbid_assertion_free_tests: s
+            .forbid_assertion_free_tests
+            .unwrap_or(base.forbid_assertion_free_tests),
+        parity: TddParityGates {
+            require_companion: s.require_companion.unwrap_or(base.parity.require_companion),
+            require_stories: s.require_stories.unwrap_or(base.parity.require_stories),
+        },
+    }
+}
+
+pub fn merge_commit(raw: Option<CommitSection>) -> CommitConfig {
+    let base = CommitConfig::strict_defaults();
+    let Some(s) = raw else {
+        return base;
+    };
+    CommitConfig {
+        allowed_types: s.allowed_types.unwrap_or(base.allowed_types),
+        allowed_scopes: s.allowed_scopes.unwrap_or(base.allowed_scopes),
+        max_header_len: s.max_header_len.unwrap_or(base.max_header_len),
+    }
+}

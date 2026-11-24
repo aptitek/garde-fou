@@ -6,8 +6,8 @@ use gf_core::{
     AssetDocument, AssetHazard, AssetHazardKind, Language, RepoPath, Span, UastDocument,
 };
 
-use crate::ParseError;
 use crate::cst::line_metrics;
+use crate::types::ParseError;
 
 const SCRIPT_EXTENSIONS: &[&str] = &["sh", "bash", "ps1", "py", "ts", "js", "mjs", "cjs"];
 

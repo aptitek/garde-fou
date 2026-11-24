@@ -3,8 +3,9 @@
 use gf_core::{DockerDocument, Language, RepoPath, Span, SyntaxErrorNode, UastDocument};
 
 use super::dockerfile_instr::parse_instruction;
+use crate::anti_cheat::scan_hash_line_comments;
 use crate::cst::line_metrics;
-use crate::{LanguageExtractor, ParseError};
+use crate::types::{LanguageExtractor, ParseError};
 
 /// Pure Safe-Rust extractor for `Dockerfile` and `Containerfile` build recipes.
 #[derive(Clone, Copy, Debug, Default)]
@@ -33,6 +34,7 @@ impl LanguageExtractor for DockerfileExtractor {
 
         doc.syntax_errors = syntax_errors;
         doc.docker = Some(docker);
+        scan_hash_line_comments(source, &mut doc);
         Ok(doc)
     }
 }

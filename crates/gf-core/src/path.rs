@@ -59,6 +59,18 @@ impl RepoPath {
         self.0.as_str()
     }
 
+    /// Returns the canonical repository path for `garde-fou.toml`.
+    #[must_use]
+    pub fn manifest() -> Self {
+        Self(String::from("garde-fou.toml"))
+    }
+
+    /// Returns the canonical pseudo-path for `.git/COMMIT_EDITMSG`.
+    #[must_use]
+    pub fn commit_editmsg() -> Self {
+        Self(String::from("COMMIT_EDITMSG"))
+    }
+
     /// Returns the final path component (file name).
     #[must_use]
     pub fn file_name(&self) -> &str {

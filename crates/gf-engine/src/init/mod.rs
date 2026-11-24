@@ -16,7 +16,10 @@ use gf_core::{
     compose_gitignore, merge_managed_block,
 };
 
-use crate::{EngineError, ScanScope, detect_project_context, discover_files};
+use crate::context_detector::detect_project_context;
+use crate::discovery::discover_files;
+use crate::lockfile::write_garde_lock;
+use crate::types::{DEFAULT_CONFIG_FILENAME, EngineError, LOCK_FILENAME, ScanScope};
 
 /// Declarative parameters for [`run_init`].
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -204,5 +207,10 @@ pub fn run_init(req: &InitRequest) -> Result<InitReport, EngineError> {
 
     let candidates = templates_domains::collect_all_init_files(&project_name, &pkg_snake, &context);
     write_missing_files(&req.root, candidates, &mut report)?;
+    let lock_path = req.root.join(LOCK_FILENAME);
+    if !lock_path.exists() && req.root.join(DEFAULT_CONFIG_FILENAME).is_file() {
+        let _ = write_garde_lock(&req.root)?;
+        report.created_files.push(String::from(LOCK_FILENAME));
+    }
     Ok(report)
 }

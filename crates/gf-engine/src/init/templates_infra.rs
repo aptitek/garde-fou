@@ -15,6 +15,11 @@ const LEFTHOOK_TEMPLATE: &str = "pre-commit:\n\
     garde:\n\
       run: garde check --staged --format agent\n\
 \n\
+commit-msg:\n\
+  commands:\n\
+    conventional:\n\
+      run: garde commit-msg {1}\n\
+\n\
 pre-push:\n\
   parallel: true\n\
   commands:\n\
@@ -115,6 +120,9 @@ pub fn render_garde_fou_toml(project_name: &str, ctx: &ProjectContext) -> String
          max_methods_per_type = 10\n\
          min_clone_lines = 15\n\
          min_clone_nodes = 40\n\
+         \n\
+         [integrity]\n\
+         require_lock = true\n\
          \n\
          [scanners]\n\
          secrets = \"auto\"\n\

@@ -79,11 +79,17 @@ garde check --no-cache --strict-tools --lcov lcov.info
 
 # Export OASIS SARIF 2.1.0 pour GitHub Code Scanning
 garde check --format sarif
+
+# Sceller cryptographiquement garde-fou.toml dans garde.lock (BLAKE3)
+garde lock
+
+# Valider un message de commit Conventional Commits (hook Git commit-msg)
+garde commit-msg .git/COMMIT_EDITMSG
 ```
 
 ---
 
-## 4. Catalogue des Règles (`GF000`–`GF066`)
+## 4. Catalogue des Règles (`GF000`–`GF077`)
 
 | Règle | Domaine / Portée | Description | Seuil par défaut |
 | :--- | :--- | :--- | :--- |
@@ -116,6 +122,14 @@ garde check --format sarif
 | `GF064` | `Asset` | Asset hors `assets/`, `> max_asset_bytes`, SVG dangereux (`<script>`/`on*=`), `<svg>`/`data:` inline, lien cassé ou orphelin | `0` |
 | `GF065` | `Scripts` | Import de `Scripts` depuis `Code`, ou script dans `scripts/`/`tools/` dépourvu de couverture de test | `0` |
 | `GF066` | `Code` (`a11y`) | `<div/span/p onClick>` sans rôle clavier, `<img>` sans `alt`, `<button>` sans `type` ou sans label accessible | `0` |
+| `GF070` | Anti-Bypass | Commentaire/attribut de bypass linter (`eslint-disable`, `@ts-ignore`, `# noqa`, `#[allow]`) ou `garde.lock` désynchronisé | `0` |
+| `GF071` | Architecture | Cycle de dépendances inter-fichiers détecté par l'algorithme SCC de Tarjan (`#![no_std]`) | `0` cycle |
+| `GF072` | Architecture | Violation des frontières déclaratives `[[boundaries]]` ou de la hiérarchie Atomic Design (`atoms -> molecules -> organisms`) | `0` |
+| `GF073` | KISS | Ternaire imbriqué ou train d'accès de propriétés violant la Loi de Déméter (`a.b.c.d.e`) | `0` ternaire imbriqué / `<= 4` segments |
+| `GF074` | YAGNI (local) | Barrel file `export *` / wildcard import, excès de drapeaux booléens ou marqueur `TODO`/`FIXME`/`HACK` dans `Code` | `<= 1` paramètre `bool` |
+| `GF075` | YAGNI (global) | Contrat comportemental (`trait` / `interface` / `Protocol` avec méthodes) hors `entrypoints` ayant `<= 1` implémentation | `>= 2` implémentations |
+| `GF076` | Forteresse TDD | Test sans assertion réelle, assertion tautologique (`assert!(true)`), ou absence de test/`stories` compagnon (`1:1`) | `>= 1` vraie assertion |
+| `GF077` | Git Hygiene | Message de commit non conforme aux Conventional Commits (`<type>(<scope>): <description>`) ou résumé vague (`wip`, `misc`) | `<= 100` caractères |
 
 ---
 
@@ -123,8 +137,8 @@ garde check --format sarif
 
 | Crate | Environnement | Rôle |
 | :--- | :--- | :--- |
-| `gf-core` | `#![no_std]` + `alloc` | Modèle algébrique pur (`Span`, `RepoPath`, `DomainKind`, `UastDocument`, `ProjectContext`, `gitignore`, `lcov`, `Validation`) |
-| `gf-rules` | `#![no_std]` + `alloc` | Moteur de règles locales, globales (`GF020`/`GF021`), Docker (`GF030`–`GF034`), sécurité (`GF040`/`GF050`) et 6-domaines (`GF060`–`GF066`) |
-| `gf-parsers` | `std` pur (0 I/O) | Extracteurs `Tree-sitter` Safe Rust (`Rust`, `TS`/`TSX`/`JS`, `Python`), `CSS`, `Markdown`/`MDX`, `i18n`, `SVG`, `Dockerfile` et `GF040` |
-| `gf-engine` | Shell impératif | Cache `BLAKE3` `.garde-fou-cache/v3/`, `garde init` 6-domaines, découverte légère d'assets binaires, orchestration `SARIF` |
-| `gf-cli` | Binaire `garde` | Interface `clap` et formateurs (`human`, `agent` Markdown, `sarif` 2.1.0) |
+| `gf-core` | `#![no_std]` + `alloc` | Modèle algébrique pur (`Span`, `RepoPath`, `DomainKind`, `BoundaryRule`, `CommitConfig`, `UastDocument`, `Validation`) |
+| `gf-rules` | `#![no_std]` + `alloc` | Moteur de règles locales, globales (`GF020`/`GF021`), Tarjan DAG (`GF071`), `[[boundaries]]` (`GF072`), KISS/YAGNI/TDD (`GF073`–`GF076`) |
+| `gf-parsers` | `std` pur (0 I/O) | Extracteurs `Tree-sitter` Safe Rust (`Rust`, `TS`/`TSX`/`JS`, `Python`), anti-bypass CST, `CSS`, `Markdown`/`MDX`, `i18n`, `SVG`, `Dockerfile` |
+| `gf-engine` | Shell impératif | Cache `BLAKE3` `.garde-fou-cache/v4/`, scellement `garde.lock`, `garde init`, découverte d'assets binaires, orchestration `SARIF` |
+| `gf-cli` | Binaire `garde` | Sous-commandes `check`, `init`, `lock`, `commit-msg` et formateurs (`human`, `agent` Markdown, `sarif` 2.1.0) |

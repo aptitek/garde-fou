@@ -6,16 +6,18 @@ use std::collections::BTreeSet;
 use std::fs;
 use std::path::Path;
 
-use gf_core::{Config, Diagnostic, Language, ProjectContext, RepoPath, UastDocument};
+use gf_core::{
+    Config, Diagnostic, Language, LockStatus, ProjectContext, RepoPath, UastDocument, Validation,
+};
 use gf_parsers::{build_binary_asset_document, detect_language, parse_source_with_domains};
-use gf_rules::{evaluate_document, evaluate_workspace_sorted};
+use gf_rules::{check_lock_integrity, evaluate_document, evaluate_workspace_sorted};
 use rayon::prelude::*;
 
+use crate::cache::{CacheKey, CachedFileArtifact, DiskCache};
+use crate::context_detector::detect_project_context;
+use crate::discovery::discover_files;
 use crate::scanners::run_external_gates;
-use crate::{
-    CacheKey, CachedFileArtifact, CheckOptions, CheckReport, DiskCache, EngineError, ScanScope,
-    detect_project_context, discover_files,
-};
+use crate::types::{CheckOptions, CheckReport, EngineError, ScanScope};
 
 struct FileOutcome {
     file_key: CacheKey,
@@ -115,16 +117,20 @@ fn load_or_analyze_file(
     })
 }
 
-/// Executes file discovery, parallel `v3` cache/parse pass, workspace rules, and external gates.
+/// Executes file discovery, parallel `v4` cache/parse pass, workspace rules, and external gates.
 pub fn execute_pipeline(
     root: &Path,
     options: &CheckOptions,
     config: &Config,
-    disk_cache: Option<&DiskCache>,
+    runtime: (Option<&DiskCache>, &LockStatus),
 ) -> Result<CheckReport, EngineError> {
+    let (disk_cache, lock_status) = runtime;
     let all_files = discover_files(root, ScanScope::All, config)?;
     let context = detect_project_context(root, &all_files, config);
     let mut external_diags = run_external_gates(root, options, config)?;
+    if let Validation::Invalid(lock_diags) = check_lock_integrity(lock_status) {
+        external_diags.extend(lock_diags);
+    }
 
     let staged_filter: Option<BTreeSet<RepoPath>> = (options.scope == ScanScope::StagedOnly)
         .then(|| discover_files(root, ScanScope::StagedOnly, config))

@@ -6,6 +6,9 @@ use alloc::string::String;
 use alloc::vec::Vec;
 use serde::{Deserialize, Serialize};
 
+use crate::boundaries::{BoundaryRule, IntegrityConfig};
+use crate::clean_code::{CleanCodeConfig, TddConfig};
+use crate::commit_msg::CommitConfig;
 use crate::context::{FeatureId, FrameworkId, LanguageId};
 use crate::domains::DomainLayoutConfig;
 pub use crate::policies::{CoverageConfig, ScannerPolicy, ScannersConfig};
@@ -95,6 +98,16 @@ pub struct Config {
     pub limits: LimitsConfig,
     /// Six-domain directory layout and static asset ceiling (`[domains]`).
     pub domains: DomainLayoutConfig,
+    /// Integrity lock policy (`[integrity]`, `GF070`).
+    pub integrity: IntegrityConfig,
+    /// Declarative architectural import boundaries (`[[boundaries]]`, `GF072`).
+    pub boundaries: Vec<BoundaryRule>,
+    /// KISS & YAGNI policy (`[clean_code]`, `GF073`–`GF075`).
+    pub clean_code: CleanCodeConfig,
+    /// TDD assertion and companion policy (`[tdd]`, `GF076`).
+    pub tdd: TddConfig,
+    /// Conventional Commits policy (`[commit]`, `GF077`).
+    pub commit: CommitConfig,
     /// External scanner policies (`gitleaks`, `osv-scanner`).
     pub scanners: ScannersConfig,
     /// Optional `LCOV` coverage gate (`GF050`).
@@ -115,12 +128,33 @@ impl Config {
             project: ProjectConfig::empty(),
             limits: LimitsConfig::strict_defaults(),
             domains: DomainLayoutConfig::strict_defaults(),
+            integrity: IntegrityConfig::defaults(),
+            boundaries: Vec::new(),
+            clean_code: CleanCodeConfig::strict_defaults(),
+            tdd: TddConfig::strict_defaults(),
+            commit: CommitConfig::strict_defaults(),
             scanners: ScannersConfig::defaults(),
             coverage: CoverageConfig::empty(),
             forbid_panicking_constructs: true,
             ignore_paths: Vec::new(),
             entrypoints: Vec::new(),
         }
+    }
+
+    fn fortress_fragment(&self) -> String {
+        let bnd: Vec<String> = self
+            .boundaries
+            .iter()
+            .map(BoundaryRule::canonical_fragment)
+            .collect();
+        format!(
+            "lk={}|bnd=[{}]|{}|{}|{}",
+            self.integrity.require_lock,
+            bnd.join(";"),
+            self.clean_code.canonical_fragment(),
+            self.tdd.canonical_fragment(),
+            self.commit.canonical_fragment(),
+        )
     }
 
     /// Produces a deterministic canonical representation suitable for `BLAKE3` cache keys.
@@ -140,11 +174,12 @@ impl Config {
             .collect();
         let l = self.limits;
         let dom = self.domains.canonical_fragment();
+        let fort = self.fortress_fragment();
         let sec = self.scanners.secrets.as_str();
         let vul = self.scanners.vulns.as_str();
         let cov = &self.coverage;
         format!(
-            "v5|fl={}|fnl={}|p={}|cyc={}|cog={}|nest={}|imp={}|meth={}|cll={}|cln={}|{dom}|sec={sec}|vul={vul}|cov={cov:?}|f={}|i={}|e={}|l={}|ft={}|fw={}",
+            "v6|fl={}|fnl={}|p={}|cyc={}|cog={}|nest={}|imp={}|meth={}|cll={}|cln={}|{dom}|{fort}|sec={sec}|vul={vul}|cov={cov:?}|f={}|i={}|e={}|l={}|ft={}|fw={}",
             l.max_file_lines,
             l.max_function_lines,
             l.max_parameters,

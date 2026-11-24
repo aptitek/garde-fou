@@ -3,9 +3,9 @@
 use gf_core::{CallableDecl, CallableKind, Span, SyntaxErrorNode};
 use tree_sitter::{Language as TsLanguage, Node, Parser, Tree};
 
-use crate::ParseError;
 use crate::complexity::{ComplexityRules, ComputedMetrics, compute_metrics};
 use crate::fingerprint::fingerprint_body;
+pub use crate::types::{ParseError, node_text};
 
 /// Inputs needed to assemble a normalized [`CallableDecl`] with complexity and Type-2 hash.
 pub struct CallableSpec<'a> {
@@ -88,11 +88,6 @@ pub fn node_span(node: Node<'_>) -> Span {
         .max(start_line);
 
     Span::new(start_line, end_line).unwrap_or(Span::FIRST)
-}
-
-/// Safely slices `source` using `node.byte_range()`, returning `""` if out of bounds.
-pub fn node_text<'a>(node: Node<'_>, source: &'a str) -> &'a str {
-    source.get(node.byte_range()).unwrap_or("")
 }
 
 /// Extracts the text of a named child field, or `fallback` when absent.

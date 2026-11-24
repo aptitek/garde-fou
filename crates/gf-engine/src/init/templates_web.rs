@@ -64,12 +64,10 @@ fn tsconfig_json(uses_jsx: bool) -> String {
     )
 }
 
-fn render_ui_component(
-    import_prefix: &str,
-    project_kebab: &str,
-    has_i18n: bool,
-    has_logo: bool,
-) -> String {
+fn render_ui_component(import_prefix: &str, project_kebab: &str, ctx: &ProjectContext) -> String {
+    let has_i18n = ctx.features.contains(&FeatureId::I18n);
+    let has_logo =
+        ctx.features.contains(&FeatureId::Ui) || ctx.features.contains(&FeatureId::Content);
     if has_i18n {
         let logo_jsx = if has_logo {
             "\n      <img src=\"/assets/logo.svg\" alt={t(\"app.logo_alt\")} />"
@@ -141,8 +139,6 @@ pub fn web_files(project_kebab: &str, ctx: &ProjectContext) -> Vec<(String, Stri
         || ctx.frameworks.contains(&FrameworkId::NextJs);
     let has_react = ctx.frameworks.contains(&FrameworkId::React);
     let has_i18n = ctx.features.contains(&FeatureId::I18n);
-    let has_logo =
-        ctx.features.contains(&FeatureId::Ui) || ctx.features.contains(&FeatureId::Content);
     let uses_jsx =
         has_page_router || has_react || has_i18n || ctx.features.contains(&FeatureId::Ui);
     let (index_ts, test_ts) = render_index_and_test_ts(has_i18n);
@@ -160,12 +156,12 @@ pub fn web_files(project_kebab: &str, ctx: &ProjectContext) -> Vec<(String, Stri
     if has_page_router {
         files.push((
             String::from("src/pages/index.tsx"),
-            render_ui_component("../index", project_kebab, has_i18n, has_logo),
+            render_ui_component("../index", project_kebab, ctx),
         ));
     } else if uses_jsx {
         files.push((
             String::from("src/App.tsx"),
-            render_ui_component("./index", project_kebab, has_i18n, has_logo),
+            render_ui_component("./index", project_kebab, ctx),
         ));
     }
     files

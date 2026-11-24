@@ -4,8 +4,8 @@ use std::collections::BTreeSet;
 
 use gf_core::{Language, RepoPath, Span, SyntaxErrorNode, TexteDocument, TexteIssue, UastDocument};
 
-use crate::ParseError;
 use crate::cst::line_metrics;
+use crate::types::ParseError;
 
 fn infer_locale_from_path(path: &RepoPath) -> String {
     let file_name = path.file_name();

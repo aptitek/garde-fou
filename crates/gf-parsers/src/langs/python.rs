@@ -6,13 +6,14 @@ use gf_core::{
 };
 use tree_sitter::Node;
 
+use crate::anti_cheat::populate_cst_fortress;
 use crate::complexity::ComplexityRules;
 use crate::cst::{
     CallableSpec, assemble_callable, collect_syntax_errors, field_name_string, line_metrics,
     node_span, node_text, parse_with_language,
 };
 use crate::fingerprint::collect_referenced_symbols;
-use crate::{LanguageExtractor, ParseError};
+use crate::types::{LanguageExtractor, ParseError};
 
 const PY_COMPLEXITY: ComplexityRules = ComplexityRules {
     nesting_branches: &[
@@ -48,6 +49,7 @@ impl LanguageExtractor for PythonExtractor {
         doc.syntax_errors = collect_syntax_errors(root);
         doc.referenced_symbols = collect_referenced_symbols(root, source);
         walk_python(root, source, false, &mut doc);
+        populate_cst_fortress(root, source, &mut doc);
         Ok(doc)
     }
 }

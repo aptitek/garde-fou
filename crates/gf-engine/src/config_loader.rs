@@ -8,11 +8,14 @@ use gf_core::{
     ProjectConfig, ScannerPolicy, ScannersConfig,
 };
 
+use crate::config_fortress::{
+    merge_boundaries, merge_clean_code, merge_commit, merge_integrity, merge_tdd,
+};
 use crate::config_schema::{
     CoverageSection, DomainsSection, LimitsSection, ProjectSection, RawManifest, RulesSection,
     ScannersSection, default_cache_dir,
 };
-use crate::{DEFAULT_CONFIG_FILENAME, EngineError};
+use crate::types::{DEFAULT_CONFIG_FILENAME, EngineError};
 
 /// Deserialized workspace configuration combining pure rules and cache settings.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -166,6 +169,11 @@ pub fn load_workspace_config(root: &Path) -> Result<LoadedWorkspaceConfig, Engin
     let project = parse_project_section(raw.project.take())?;
     let limits = merge_limits(raw.limits.take());
     let domains = merge_domains(raw.domains.take());
+    let integrity = merge_integrity(raw.integrity.take());
+    let boundaries = merge_boundaries(core::mem::take(&mut raw.boundaries));
+    let clean_code = merge_clean_code(raw.clean_code.take());
+    let tdd = merge_tdd(raw.tdd.take());
+    let commit = merge_commit(raw.commit.take());
     let scanners = parse_scanners_section(raw.scanners.take())?;
     let coverage = parse_coverage_section(raw.coverage.take())?;
     let forbid_panicking_constructs = forbid_constructs_enabled(raw.rules.take());
@@ -176,6 +184,11 @@ pub fn load_workspace_config(root: &Path) -> Result<LoadedWorkspaceConfig, Engin
             project,
             limits,
             domains,
+            integrity,
+            boundaries,
+            clean_code,
+            tdd,
+            commit,
             scanners,
             coverage,
             forbid_panicking_constructs,

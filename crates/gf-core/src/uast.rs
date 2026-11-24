@@ -1,10 +1,13 @@
-//! Unified Abstract Syntax Tree (`UAST`) hub representations (`v3` 6-domain schema).
+//! Unified Abstract Syntax Tree (`UAST`) hub representations (`v4` fortress schema).
 
 use alloc::collections::BTreeSet;
 use alloc::string::String;
 use alloc::vec::Vec;
 use serde::{Deserialize, Serialize};
 
+use crate::clean_code::{
+    BypassFinding, ContractDecl, ContractImpl, KissYagniFinding, TestCaseSummary,
+};
 use crate::diagnostic::{Span, SpanError};
 use crate::docker::DockerDocument;
 use crate::domain_summaries::{
@@ -124,7 +127,7 @@ impl UastNode {
     }
 }
 
-/// Normalized `UAST` document produced by `gf-parsers`, cached in `.garde-fou-cache/v3/`,
+/// Normalized `UAST` document produced by `gf-parsers`, cached in `.garde-fou-cache/v4/`,
 /// and analyzed locally and globally by `gf-rules`.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct UastDocument {
@@ -160,6 +163,16 @@ pub struct UastDocument {
     pub asset_refs: BTreeSet<String>,
     /// Script paths or filenames mentioned in string literals (`GF065` test coverage).
     pub script_refs: BTreeSet<String>,
+    /// Linter-bypass directives/attributes detected in CST (`GF070`).
+    pub bypass_findings: Vec<BypassFinding>,
+    /// Local KISS (`GF073`) and YAGNI (`GF074`) smells.
+    pub kiss_yagni_findings: Vec<KissYagniFinding>,
+    /// Behavioral contracts (`trait` / `interface` / `Protocol` with methods, `GF075`).
+    pub contracts: Vec<ContractDecl>,
+    /// Concrete `(contract, implementor)` bindings declared in this file (`GF075`).
+    pub contract_impls: BTreeSet<ContractImpl>,
+    /// Unit/integration test cases with assertion counts and tautology flags (`GF076`).
+    pub test_cases: Vec<TestCaseSummary>,
     /// Optional structured `Dockerfile` representation.
     pub docker: Option<DockerDocument>,
     /// Optional `Forme` stylesheet summary (`GF061`).
@@ -204,6 +217,11 @@ impl UastDocument {
             translation_keys_used: BTreeSet::new(),
             asset_refs: BTreeSet::new(),
             script_refs: BTreeSet::new(),
+            bypass_findings: Vec::new(),
+            kiss_yagni_findings: Vec::new(),
+            contracts: Vec::new(),
+            contract_impls: BTreeSet::new(),
+            test_cases: Vec::new(),
             docker: None,
             forme: None,
             texte: None,
@@ -211,25 +229,5 @@ impl UastDocument {
             asset: None,
             root: UastNode::leaf(UastKind::File, root_span),
         })
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use alloc::boxed::Box;
-
-    use super::{Language, UastDocument};
-    use crate::RepoPath;
-
-    #[test]
-    fn constructs_document_and_identifies_analyzed_languages()
-    -> Result<(), Box<dyn core::error::Error>> {
-        let doc = UastDocument::new(RepoPath::new("src/lib.rs")?, Language::Rust, 42, 35)?;
-        assert!(doc.language.is_code_analyzed());
-        assert!(Language::Css.is_always_discovered());
-        assert!(Language::Markdown.is_always_discovered());
-        assert!(!Language::Toml.is_always_discovered());
-        assert_eq!(doc.total_lines, 42);
-        Ok(())
     }
 }

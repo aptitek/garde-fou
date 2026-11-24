@@ -9,7 +9,7 @@ use super::markdown_scan::{
     check_mdx_logic, detect_raw_html_tag, extract_md_images, strip_inline_code_spans,
 };
 use crate::cst::line_metrics;
-use crate::{LanguageExtractor, ParseError};
+use crate::types::{LanguageExtractor, ParseError};
 
 /// Safe-Rust Markdown (`.md`) and MDX (`.mdx`) extractor.
 #[derive(Clone, Copy, Debug, Default)]

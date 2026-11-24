@@ -5,7 +5,7 @@ use gf_core::{
 };
 
 use crate::cst::line_metrics;
-use crate::{LanguageExtractor, ParseError};
+use crate::types::{LanguageExtractor, ParseError};
 
 /// Safe-Rust stylesheet extractor for `.css` and `.scss` files.
 #[derive(Clone, Copy, Debug, Default)]

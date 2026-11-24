@@ -7,30 +7,12 @@ use alloc::string::String;
 use alloc::vec::Vec;
 
 use gf_core::{
-    Diagnostic, DockerDocument, FeatureId, FromStage, LanguageId, ProjectContext, RepoPath,
-    Severity, Span, UastDocument, Validation,
+    Diagnostic, DockerDocument, FeatureId, FromStage, LanguageId, ProjectContext, RepoPath, Span,
+    UastDocument, Validation,
 };
 
+use crate::checks::rule_error as docker_error;
 use crate::docker_instr_checks::check_instruction;
-
-/// Constructs a blocking `GF03x` `Dockerfile` diagnostic.
-pub fn docker_error(
-    rule_id: &str,
-    message: String,
-    remediation: &str,
-    loc: (&RepoPath, Span),
-) -> Diagnostic {
-    Diagnostic {
-        rule_id: String::from(rule_id),
-        severity: Severity::Error,
-        message,
-        remediation: String::from(remediation),
-        measured: 1,
-        threshold: 0,
-        path: loc.0.clone(),
-        span: loc.1,
-    }
-}
 
 /// Evaluates `GF030`–`GF034` whenever `ctx.features` contains [`FeatureId::Docker`].
 pub fn check_docker_feature(

@@ -140,6 +140,7 @@ const DOMAIN_DIR_FEATURES: &[(&str, FeatureId)] = &[
     ("i18n", FeatureId::I18n),
     ("content", FeatureId::Content),
     ("courses", FeatureId::Content),
+    (".storybook", FeatureId::Storybook),
 ];
 
 const fn feature_for_domain(domain: DomainKind) -> Option<FeatureId> {

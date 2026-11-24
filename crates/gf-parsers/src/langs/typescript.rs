@@ -6,6 +6,7 @@ use gf_core::{
 };
 use tree_sitter::Node;
 
+use crate::anti_cheat::populate_cst_fortress;
 use crate::complexity::ComplexityRules;
 use crate::cst::{
     CallableSpec, assemble_callable, collect_syntax_errors, count_named_kinds, field_name_string,
@@ -15,7 +16,7 @@ use crate::fingerprint::collect_referenced_symbols;
 use crate::langs::{
     typescript_jsx::extract_jsx_ui_and_a11y, typescript_ui::extract_ts_style_and_i18n,
 };
-use crate::{LanguageExtractor, ParseError};
+use crate::types::{LanguageExtractor, ParseError};
 
 const TS_COMPLEXITY: ComplexityRules = ComplexityRules {
     nesting_branches: &[
@@ -99,6 +100,7 @@ impl LanguageExtractor for TypeScriptExtractor {
         doc.syntax_errors = collect_syntax_errors(root);
         doc.referenced_symbols = collect_referenced_symbols(root, source);
         walk_ts(root, source, &mut doc);
+        populate_cst_fortress(root, source, &mut doc);
         extract_ts_style_and_i18n(root, source, &mut doc);
         if matches!(self.dialect, TsDialect::Tsx | TsDialect::Jsx) {
             extract_jsx_ui_and_a11y(root, source, &mut doc);

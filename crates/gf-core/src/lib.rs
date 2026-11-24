@@ -11,6 +11,9 @@ extern crate alloc;
 #[cfg(test)]
 extern crate std;
 
+pub mod boundaries;
+pub mod clean_code;
+pub mod commit_msg;
 pub mod config;
 pub mod context;
 pub mod diagnostic;
@@ -53,3 +56,11 @@ pub use metrics::{
 pub use path::{RepoPath, RepoPathError};
 pub use uast::{Language, UastDocument, UastKind, UastNode};
 pub use validation::Validation;
+pub use {
+    boundaries::{BoundaryRule, IntegrityConfig, LockStatus, default_atomic_design_boundaries},
+    clean_code::{
+        BypassFinding, CleanCodeConfig, ContractDecl, ContractImpl, KissYagniFinding,
+        KissYagniKind, TddConfig, TddParityGates, TestCaseSummary, YagniGates,
+    },
+    commit_msg::{CommitConfig, validate_commit_message},
+};
