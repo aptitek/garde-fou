@@ -55,7 +55,7 @@ fn setup_drift_fixture(dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
         dir.join("AGENTS.md"),
         format!("{initial_agents}\nCUSTOM_HUMAN_FOOTER_AFTER_MARKERS\n"),
     )?;
-    let _ = run_sync(
+    run_sync(
         dir,
         &SyncOptions {
             fetch_mode: SkillsFetchMode::Offline,
@@ -132,8 +132,8 @@ fn composes_only_matching_context_fragments_and_exact_thresholds()
     assert!(!web_agents.contains("Rust Quality Standards"));
     assert!(web_agents.contains("| `max_file_lines` | `250` |"));
 
-    let _ = fs::remove_dir_all(&rust_dir);
-    let _ = fs::remove_dir_all(&web_dir);
+    fs::remove_dir_all(&rust_dir)?;
+    fs::remove_dir_all(&web_dir)?;
     Ok(())
 }
 
@@ -185,7 +185,7 @@ fn gf070_detects_context_and_threshold_drift_until_garde_sync_runs()
         healed.diagnostics
     );
 
-    let _ = fs::remove_dir_all(&dir);
+    fs::remove_dir_all(&dir)?;
     Ok(())
 }
 
@@ -221,6 +221,6 @@ fn skills_from_dir_installs_safe_skills_and_rejects_poisoned_skills()
         check.diagnostics
     );
 
-    let _ = fs::remove_dir_all(&work);
+    fs::remove_dir_all(&work)?;
     Ok(())
 }

@@ -35,6 +35,7 @@ fn pyproject_toml(project_kebab: &str, ctx: &ProjectContext) -> String {
          \n\
          [tool.mypy]\n\
          python_version = \"3.12\"\n\
+         mypy_path = \"src\"\n\
          strict = true\n"
     )
 }

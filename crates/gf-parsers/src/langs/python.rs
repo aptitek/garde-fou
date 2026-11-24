@@ -11,10 +11,12 @@ use crate::anti_cheat::populate_cst_fortress;
 use crate::complexity::ComplexityRules;
 use crate::cst::{
     CallableSpec, assemble_callable, collect_syntax_errors, field_name_string, line_metrics,
-    node_span, node_text, parse_with_language,
+    node_span, node_text, parse_with_language, single_param_arity,
 };
 use crate::fingerprint::collect_referenced_symbols;
 use crate::types::{LanguageExtractor, ParseError};
+
+const PY_TUPLE_KINDS: &[&str] = &["tuple_pattern", "tuple"];
 
 const PY_COMPLEXITY: ComplexityRules = ComplexityRules {
     nesting_branches: &[
@@ -90,56 +92,77 @@ fn count_py_params(params_node: Option<Node<'_>>, source: &str, is_method: bool)
         return 0;
     };
     let mut cursor = node.walk();
-    let names: Vec<&str> = node
+    let params: Vec<Node<'_>> = node
         .named_children(&mut cursor)
-        .filter(|c| c.kind() != "comment")
-        .map(|c| node_text(c, source))
+        .filter(|c| {
+            !matches!(
+                c.kind(),
+                "comment" | "positional_separator" | "keyword_separator"
+            )
+        })
         .collect();
     let skip = usize::from(
         is_method
-            && names
-                .first()
-                .is_some_and(|first| *first == "self" || *first == "cls"),
+            && params.first().is_some_and(|first| {
+                let head = node_text(*first, source)
+                    .split(':')
+                    .next()
+                    .unwrap_or("")
+                    .trim();
+                head == "self" || head == "cls"
+            }),
     );
-    u32::try_from(names.len().saturating_sub(skip)).unwrap_or(u32::MAX)
+    params
+        .into_iter()
+        .skip(skip)
+        .map(|p| single_param_arity(p, Some(source), PY_TUPLE_KINDS))
+        .fold(0_u32, u32::saturating_add)
+}
+
+fn is_py_bool_field(assign_node: Node<'_>, source: &str) -> bool {
+    assign_node
+        .child_by_field_name("type")
+        .is_some_and(|ty| node_text(ty, source).trim().trim_start_matches(':').trim() == "bool")
+}
+
+fn tally_py_class_stmt(stmt: Node<'_>, source: &str, ty: &mut TypeDecl) {
+    match stmt.kind() {
+        "function_definition" => ty.method_count = ty.method_count.saturating_add(1),
+        "decorated_definition"
+            if stmt
+                .child_by_field_name("definition")
+                .is_some_and(|d| d.kind() == "function_definition") =>
+        {
+            ty.method_count = ty.method_count.saturating_add(1);
+        }
+        "expression_statement" => {
+            if let Some(assign) = stmt.named_child(0).filter(|c| c.kind() == "assignment") {
+                ty.field_count = ty.field_count.saturating_add(1);
+                if is_py_bool_field(assign, source) {
+                    ty.bool_field_count = ty.bool_field_count.saturating_add(1);
+                }
+            }
+        }
+        _ => {}
+    }
 }
 
 fn extract_py_class(node: Node<'_>, source: &str) -> TypeDecl {
-    let name = field_name_string(node, "name", "<class>", source);
-    let mut field_count = 0_u32;
-    let mut method_count = 0_u32;
-
+    let mut ty = TypeDecl {
+        name: field_name_string(node, "name", "<class>", source),
+        kind: TypeKind::Class,
+        span: node_span(node),
+        field_count: 0,
+        bool_field_count: 0,
+        method_count: 0,
+    };
     if let Some(body) = node.child_by_field_name("body") {
         let mut cursor = body.walk();
         for stmt in body.named_children(&mut cursor) {
-            match stmt.kind() {
-                "function_definition" => method_count = method_count.saturating_add(1),
-                "decorated_definition"
-                    if stmt
-                        .child_by_field_name("definition")
-                        .is_some_and(|d| d.kind() == "function_definition") =>
-                {
-                    method_count = method_count.saturating_add(1);
-                }
-                "expression_statement"
-                    if stmt
-                        .named_child(0)
-                        .is_some_and(|c| c.kind() == "assignment") =>
-                {
-                    field_count = field_count.saturating_add(1);
-                }
-                _ => {}
-            }
+            tally_py_class_stmt(stmt, source, &mut ty);
         }
     }
-
-    TypeDecl {
-        name,
-        kind: TypeKind::Class,
-        span: node_span(node),
-        field_count,
-        method_count,
-    }
+    ty
 }
 
 fn extract_py_fn(node: Node<'_>, source: &str, in_class: bool) -> CallableDecl {
@@ -166,6 +189,7 @@ fn maybe_push_py_export(node: Node<'_>, name: &str, span: gf_core::Span, doc: &m
     if is_module_child && !name.starts_with('_') {
         doc.exports.push(ExportDecl {
             symbol: String::from(name),
+            is_crate_internal: false,
             span,
         });
     }

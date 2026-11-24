@@ -6,21 +6,54 @@ use std::path::Path;
 use gf_core::RepoPath;
 use gf_parsers::parse_source;
 
-const SABOTAGE_PATTERNS: &[(&str, &str)] = &[
+pub use super::verifier::extract_skill_summary;
+
+const COMPACT_TOML_SABOTAGE: &[(&str, &str)] = &[
+    (
+        "require_lock=false",
+        "attempts to disable `integrity.require_lock`",
+    ),
+    (
+        "sync_policy=\"off\"",
+        "attempts to disable `agents.sync_policy`",
+    ),
+    (
+        "sync_policy='off'",
+        "attempts to disable `agents.sync_policy`",
+    ),
+    (
+        "forbid_unwrap=false",
+        "attempts to disable `rules.forbid_unwrap`",
+    ),
+];
+
+const LINE_SABOTAGE_PATTERNS: &[(&str, &str)] = &[
     (
         "--no-verify",
         "attempts to bypass Git hooks (`--no-verify`)",
     ),
     ("rm -rf", "contains destructive `rm -rf` command"),
+    ("rm -fr", "contains destructive `rm -fr` command"),
+    ("rm -r -f", "contains destructive `rm -r -f` command"),
+    ("rm -f -r", "contains destructive `rm -f -r` command"),
     ("rm garde-fou.toml", "attempts to delete `garde-fou.toml`"),
-    (
-        "sync_policy = \"off\"",
-        "attempts to disable `agents.sync_policy`",
-    ),
-    (
-        "require_lock = false",
-        "attempts to disable `integrity.require_lock`",
-    ),
+    ("rm garde.lock", "attempts to delete `garde.lock`"),
+];
+
+const HTML_COMMENT_INJECTION_MARKERS: &[&str] = &[
+    "ignore previous instructions",
+    "ignore all previous",
+    "disregard previous",
+    "system prompt",
+    "--no-verify",
+    "require_lock",
+    "sync_policy",
+    "forbid_unwrap",
+    "garde.lock",
+    "garde-fou.toml",
+    "curl ",
+    "wget ",
+    "rm -",
 ];
 
 /// Verified metadata extracted from a safe skill directory.
@@ -28,6 +61,36 @@ const SABOTAGE_PATTERNS: &[(&str, &str)] = &[
 pub struct AuditedSkill {
     /// Concise one-line description extracted from `SKILL.md`.
     pub summary: String,
+}
+
+fn check_stealth_unicode(rel_name: &str, content: &str) -> Result<(), String> {
+    for (byte_idx, ch) in content.char_indices() {
+        let code = u32::from(ch);
+        if matches!(ch, '\u{202A}'..='\u{202E}' | '\u{2066}'..='\u{2069}') {
+            return Err(format!(
+                "Bidi Trojan Source control character U+{code:04X} detected in `{rel_name}`"
+            ));
+        }
+        if matches!(ch, '\u{200B}'..='\u{200F}') || (ch == '\u{FEFF}' && byte_idx > 0) {
+            return Err(format!(
+                "zero-width invisible character U+{code:04X} detected in `{rel_name}`"
+            ));
+        }
+        if matches!(ch, '\u{E0000}'..='\u{E007F}') {
+            return Err(format!(
+                "hidden Unicode Tag character U+{code:05X} detected in `{rel_name}`"
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn has_git_commit_short_no_verify(line: &str) -> bool {
+    let tokens: Vec<&str> = line
+        .split(|c: char| c.is_whitespace() || matches!(c, ';' | '&' | '|' | '`'))
+        .filter(|t| !t.is_empty())
+        .collect();
+    tokens.windows(2).any(|w| w == ["git", "commit"]) && tokens.contains(&"-n")
 }
 
 fn has_piped_remote_shell(line: &str) -> bool {
@@ -40,8 +103,50 @@ fn has_piped_remote_shell(line: &str) -> bool {
     downloads && pipes_shell
 }
 
+fn check_html_comments(rel_name: &str, content: &str) -> Result<(), String> {
+    let mut rest = content;
+    while let Some((_, after_open)) = rest.split_once("<!--") {
+        let (comment_body, next_rest) = after_open.split_once("-->").unwrap_or((after_open, ""));
+        let lower = comment_body.to_ascii_lowercase();
+        if let Some(&marker) = HTML_COMMENT_INJECTION_MARKERS
+            .iter()
+            .find(|&&m| lower.contains(m))
+        {
+            return Err(format!(
+                "suspicious hidden HTML comment directive (`{marker}`) in `{rel_name}`"
+            ));
+        }
+        rest = next_rest;
+    }
+    Ok(())
+}
+
+fn audit_single_line(rel_name: &str, line: &str) -> Result<(), String> {
+    if let Some(&(_, reason)) = LINE_SABOTAGE_PATTERNS
+        .iter()
+        .find(|&&(needle, _)| line.contains(needle))
+    {
+        return Err(format!("{reason} in `{rel_name}`"));
+    }
+    if has_git_commit_short_no_verify(line) {
+        return Err(format!(
+            "attempts to bypass Git hooks (`git commit -n`) in `{rel_name}`"
+        ));
+    }
+    if has_piped_remote_shell(line) {
+        return Err(format!(
+            "contains unverified piped remote shell execution in `{rel_name}`"
+        ));
+    }
+    Ok(())
+}
+
 fn audit_text_file(rel_name: &str, content: &str) -> Result<(), String> {
-    let probe_path = RepoPath::new(rel_name).unwrap_or_else(|_| RepoPath::agents_md());
+    check_stealth_unicode(rel_name, content)?;
+    check_html_comments(rel_name, content)?;
+
+    let probe_path =
+        RepoPath::new(rel_name).map_err(|e| format!("invalid skill path `{rel_name}`: {e}"))?;
     if let Ok(doc) = parse_source(&probe_path, content)
         && let Some(sec) = doc.secret_findings.first()
     {
@@ -50,17 +155,21 @@ fn audit_text_file(rel_name: &str, content: &str) -> Result<(), String> {
             sec.kind, sec.redacted_preview
         ));
     }
+
+    let compact: String = content
+        .chars()
+        .filter(|c| !c.is_whitespace())
+        .flat_map(char::to_lowercase)
+        .collect();
+    if let Some(&(_, reason)) = COMPACT_TOML_SABOTAGE
+        .iter()
+        .find(|&&(needle, _)| compact.contains(needle))
+    {
+        return Err(format!("{reason} in `{rel_name}`"));
+    }
+
     for line in content.lines() {
-        for &(needle, reason) in SABOTAGE_PATTERNS {
-            if line.contains(needle) {
-                return Err(format!("{reason} in `{rel_name}`"));
-            }
-        }
-        if has_piped_remote_shell(line) {
-            return Err(format!(
-                "contains unverified piped remote shell execution in `{rel_name}`"
-            ));
-        }
+        audit_single_line(rel_name, line)?;
     }
     Ok(())
 }
@@ -94,62 +203,6 @@ fn walk_and_audit_dir(base: &Path, dir: &Path) -> Result<(), String> {
         }
     }
     Ok(())
-}
-
-fn parse_description_value<'a>(rest: &'a str, next: Option<&'a str>) -> Option<&'a str> {
-    let inline = rest.trim().trim_matches(['"', '\'']);
-    if !inline.is_empty() && !matches!(inline, ">" | ">-" | "|") {
-        return Some(inline);
-    }
-    let next_clean = next?.trim();
-    (!next_clean.is_empty() && next_clean != "---").then(|| next_clean.trim_matches(['"', '\'']))
-}
-
-fn extract_frontmatter_description(lines: &[&str]) -> Option<String> {
-    if lines.first().copied() != Some("---") {
-        return None;
-    }
-    let end = lines
-        .iter()
-        .skip(1)
-        .position(|&l| l == "---")
-        .map_or(lines.len(), |p| p + 1);
-    for idx in 1..end {
-        if let Some(rest) = lines[idx].strip_prefix("description:")
-            && let Some(val) = parse_description_value(rest, lines.get(idx + 1).copied())
-        {
-            return Some(truncate_summary(val));
-        }
-    }
-    None
-}
-
-/// Extracts a concise human/agent summary from `SKILL.md` frontmatter or prose.
-#[must_use]
-pub fn extract_skill_summary(raw_skill_md: &str, fallback_id: &str) -> String {
-    let lines: Vec<&str> = raw_skill_md
-        .lines()
-        .map(|l| l.trim_end_matches('\r'))
-        .collect();
-    if let Some(desc) = extract_frontmatter_description(&lines) {
-        return desc;
-    }
-    lines
-        .iter()
-        .map(|l| l.trim())
-        .find(|l| !l.is_empty() && !l.starts_with('#') && *l != "---")
-        .map_or_else(|| format!("Agent skill `{fallback_id}`."), truncate_summary)
-}
-
-fn truncate_summary(raw: &str) -> String {
-    let collapsed = raw.split_whitespace().collect::<Vec<_>>().join(" ");
-    let mut chars = collapsed.chars();
-    let head: String = chars.by_ref().take(120).collect();
-    if chars.next().is_some() {
-        format!("{head}...")
-    } else {
-        head
-    }
 }
 
 /// Audits `skill_dir` before allowing installation into `.agents/skills/<id>/`.

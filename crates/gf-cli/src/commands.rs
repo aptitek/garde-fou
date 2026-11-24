@@ -70,6 +70,7 @@ pub fn execute_check(args: &CheckArgs, cwd: &Path) -> Result<(String, ExitCode),
         no_cache: args.exec.no_cache,
         strict_tools: args.strict_tools,
         lcov_path: args.lcov.clone(),
+        mutants_path: args.mutants.clone(),
     };
     let report = run_check_with_options(cwd, &options)?;
     let exit = if report.is_clean() {

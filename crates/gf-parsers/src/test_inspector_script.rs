@@ -1,43 +1,141 @@
-//! TypeScript/JavaScript (`test(...)` / `it(...)`) and Python (`def test_*`)
-//! test-body assertion counters and tautology detectors (`GF076`).
+//! TypeScript/JavaScript (`test(...)` / `it(...)`) test-body assertion counter,
+//! reflexivity tautology detector, and polyglot CST test dispatcher (`GF076`).
 
-use gf_core::TestCaseSummary;
+use gf_core::{TestCaseSummary, UastDocument};
 use tree_sitter::Node;
 
 use crate::cst::{field_name_string, node_span, node_text};
+use crate::test_inspector::{
+    TestAssertionStats, compact_expr, compact_named_arg, try_extract_rust_test_fn,
+};
+use crate::test_inspector_py::try_extract_py_test_fn;
 
-fn inspect_single_ts_call(node: Node<'_>, source: &str, stats: &mut (u32, bool)) {
+const TS_EQUALITY_MATCHERS: &[&str] = &["toBe", "toEqual", "toStrictEqual"];
+const TS_ASSERT_EQUAL_FNS: &[&str] = &[
+    "assert.equal",
+    "assert.strictEqual",
+    "assert.deepEqual",
+    "assert.deepStrictEqual",
+];
+
+fn resolve_expect_call<'a>(obj: Node<'a>, source: &str) -> Option<(Node<'a>, bool)> {
+    if obj.kind() == "call_expression"
+        && obj
+            .child_by_field_name("function")
+            .is_some_and(|f| node_text(f, source).trim() == "expect")
+    {
+        return Some((obj, false));
+    }
+    if obj.kind() == "member_expression"
+        && field_name_string(obj, "property", "", source) == "not"
+        && let Some(inner) = obj.child_by_field_name("object")
+        && inner.kind() == "call_expression"
+        && inner
+            .child_by_field_name("function")
+            .is_some_and(|f| node_text(f, source).trim() == "expect")
+    {
+        return Some((inner, true));
+    }
+    None
+}
+
+#[derive(Clone, Copy)]
+struct TsExpectArgs<'a> {
+    matcher: &'a str,
+    negated: bool,
+    actual: &'a str,
+    expected: Option<&'a str>,
+}
+
+fn is_ts_tautological_expect(args: TsExpectArgs<'_>) -> bool {
+    if !args.negated
+        && TS_EQUALITY_MATCHERS.contains(&args.matcher)
+        && !args.actual.is_empty()
+        && args.expected == Some(args.actual)
+    {
+        return true;
+    }
+    let target_bool = if args.negated {
+        "toBeFalsy"
+    } else {
+        "toBeTruthy"
+    };
+    args.actual == "true" && args.matcher == target_bool
+}
+
+fn is_ts_weak_expect(args: TsExpectArgs<'_>) -> bool {
+    if args.negated {
+        args.matcher == "toBeUndefined"
+    } else {
+        matches!(args.matcher, "toBeDefined" | "toBeTruthy")
+    }
+}
+
+fn record_ts_matcher_outcome(args: TsExpectArgs<'_>, stats: &mut TestAssertionStats) {
+    let is_taut = is_ts_tautological_expect(args);
+    if !is_taut && is_ts_weak_expect(args) {
+        stats.record_weak();
+    } else {
+        stats.record_strong(is_taut);
+    }
+}
+
+fn try_inspect_ts_expect_chain(
+    call_node: Node<'_>,
+    callee: Node<'_>,
+    source: &str,
+    stats: &mut TestAssertionStats,
+) -> bool {
+    if callee.kind() != "member_expression" {
+        return false;
+    }
+    let Some(obj) = callee.child_by_field_name("object") else {
+        return false;
+    };
+    let Some((expect_call, negated)) = resolve_expect_call(obj, source) else {
+        return false;
+    };
+    let matcher = field_name_string(callee, "property", "", source);
+    let actual = compact_named_arg(expect_call, 0, source).unwrap_or_default();
+    let expected = compact_named_arg(call_node, 0, source);
+    record_ts_matcher_outcome(
+        TsExpectArgs {
+            matcher: &matcher,
+            negated,
+            actual: &actual,
+            expected: expected.as_deref(),
+        },
+        stats,
+    );
+    true
+}
+
+fn inspect_single_ts_call(node: Node<'_>, source: &str, stats: &mut TestAssertionStats) {
     let Some(callee) = node.child_by_field_name("function") else {
         return;
     };
-    let callee_txt: String = node_text(callee, source)
-        .chars()
-        .filter(|c| !c.is_whitespace())
-        .collect();
-    let is_expect = callee_txt.starts_with("expect(") && callee_txt.contains(").");
-    let is_assert = callee_txt == "assert"
-        || callee_txt.starts_with("assert.")
-        || callee_txt.starts_with("assert_");
-    if !(is_expect || is_assert) {
+    if try_inspect_ts_expect_chain(node, callee, source, stats) {
         return;
     }
-    stats.0 = stats.0.saturating_add(1);
-    let full_txt: String = node_text(node, source)
-        .chars()
-        .filter(|c| !c.is_whitespace())
-        .collect();
-    stats.1 |= matches!(
-        full_txt.as_str(),
-        "expect(true).toBe(true)"
-            | "expect(true).toEqual(true)"
-            | "expect(true).toBeTruthy()"
-            | "expect(1).toBe(1)"
-            | "assert(true)"
-            | "assert.ok(true)"
-    );
+    let callee_txt = compact_expr(node_text(callee, source));
+    if callee_txt != "assert"
+        && !callee_txt.starts_with("assert.")
+        && !callee_txt.starts_with("assert_")
+    {
+        return;
+    }
+    let arg0 = compact_named_arg(node, 0, source).unwrap_or_default();
+    let arg1 = compact_named_arg(node, 1, source);
+    let is_taut = if TS_ASSERT_EQUAL_FNS.contains(&callee_txt.as_str()) {
+        !arg0.is_empty() && arg1.as_deref() == Some(arg0.as_str())
+    } else {
+        matches!(callee_txt.as_str(), "assert" | "assert.ok")
+            && matches!(arg0.as_str(), "true" | "!false")
+    };
+    stats.record_strong(is_taut);
 }
 
-fn inspect_ts_test_body(node: Node<'_>, source: &str, stats: &mut (u32, bool)) {
+fn inspect_ts_test_body(node: Node<'_>, source: &str, stats: &mut TestAssertionStats) {
     if node.kind() == "call_expression" {
         inspect_single_ts_call(node, source, stats);
     }
@@ -47,38 +145,7 @@ fn inspect_ts_test_body(node: Node<'_>, source: &str, stats: &mut (u32, bool)) {
     }
 }
 
-fn inspect_single_py_node(node: Node<'_>, source: &str, stats: &mut (u32, bool)) {
-    if node.kind() == "assert_statement" {
-        stats.0 = stats.0.saturating_add(1);
-        let expr = node_text(node, source)
-            .trim()
-            .strip_prefix("assert")
-            .map_or("", str::trim);
-        stats.1 |= matches!(expr, "True" | "1 == 1" | "1==1");
-    } else if node.kind() == "call"
-        && let Some(fn_node) = node.child_by_field_name("function")
-    {
-        let callee = node_text(fn_node, source).trim();
-        if callee.starts_with("self.assert")
-            || callee.starts_with("pytest.raises")
-            || callee.contains(".assert_")
-        {
-            stats.0 = stats.0.saturating_add(1);
-            stats.1 |= node_text(node, source).replace(' ', "") == "self.assertTrue(True)";
-        }
-    }
-}
-
-fn inspect_py_test_body(node: Node<'_>, source: &str, stats: &mut (u32, bool)) {
-    inspect_single_py_node(node, source, stats);
-    let mut c = node.walk();
-    for ch in node.children(&mut c) {
-        inspect_py_test_body(ch, source, stats);
-    }
-}
-
-/// Extracts a TypeScript/JS `test(...)` or `it(...)` [`TestCaseSummary`].
-pub fn try_extract_ts_test_call(node: Node<'_>, source: &str) -> Option<TestCaseSummary> {
+fn try_extract_ts_test_call(node: Node<'_>, source: &str) -> Option<TestCaseSummary> {
     let callee = node_text(node.child_by_field_name("function")?, source).trim();
     if !matches!(
         callee,
@@ -97,30 +164,24 @@ pub fn try_extract_ts_test_call(node: Node<'_>, source: &str) -> Option<TestCase
         .first()
         .map_or("<test>", |n| node_text(*n, source))
         .trim_matches(['"', '\'', '`']);
-    let mut stats = (0_u32, false);
+    let mut stats = TestAssertionStats::default();
     inspect_ts_test_body(cb, source, &mut stats);
-    Some(TestCaseSummary {
-        name: String::from(title),
-        assertion_count: stats.0,
-        has_tautology: stats.1,
-        span: node_span(node),
-    })
+    Some(stats.into_summary(String::from(title), node_span(node)))
 }
 
-/// Extracts a Python `def test_*` [`TestCaseSummary`].
-pub fn try_extract_py_test_fn(node: Node<'_>, source: &str) -> Option<TestCaseSummary> {
-    let name = field_name_string(node, "name", "", source);
-    if !name.starts_with("test_") {
-        return None;
+/// Extracts [`TestCaseSummary`] records across Rust, TypeScript/JS, and Python CSTs (`GF076`).
+pub fn extract_test_cases(root: Node<'_>, source: &str, doc: &mut UastDocument) {
+    let extracted = match root.kind() {
+        "function_item" => try_extract_rust_test_fn(root, source),
+        "function_definition" => try_extract_py_test_fn(root, source),
+        "call_expression" => try_extract_ts_test_call(root, source),
+        _ => None,
+    };
+    if let Some(tc) = extracted {
+        doc.test_cases.push(tc);
     }
-    let mut stats = (0_u32, false);
-    if let Some(body) = node.child_by_field_name("body") {
-        inspect_py_test_body(body, source, &mut stats);
+    let mut c = root.walk();
+    for ch in root.children(&mut c) {
+        extract_test_cases(ch, source, doc);
     }
-    Some(TestCaseSummary {
-        name,
-        assertion_count: stats.0,
-        has_tautology: stats.1,
-        span: node_span(node),
-    })
 }

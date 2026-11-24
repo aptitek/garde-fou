@@ -1,4 +1,4 @@
-//! Pure `#![no_std]` local, workspace-wide, 6-domain, security, and coverage rule engine.
+//! Pure `#![no_std]` local, workspace-wide, 6-domain, security, governance, and coverage rule engine.
 //!
 //! Depends exclusively on [`gf_core`] and transforms [`UastDocument`] values,
 //! [`ProjectContext`], [`LcovSummary`], and [`Config`] into deterministic [`Diagnostic`]s.
@@ -13,54 +13,70 @@ extern crate std;
 mod asset_and_script_checks;
 mod boundary_checks;
 mod checks;
+mod clone_checks;
 mod docker_checks;
 mod docker_instr_checks;
 mod domain_checks;
+mod governance_checks;
 mod i18n_checks;
 mod import_resolver;
 mod kiss_yagni_checks;
+mod mutation_checks;
+mod rust_import_resolver;
 mod security_checks;
 mod tarjan;
 mod tdd_checks;
+mod tdd_parity;
 mod tool_checks;
+mod type_and_uast_checks;
 mod workspace_checks;
 
 use alloc::vec::Vec;
 use gf_core::{Config, Diagnostic, ProjectContext, UastDocument, Validation};
 
-use asset_and_script_checks::check_workspace_assets_and_scripts;
-use boundary_checks::check_architecture_boundaries;
-use checks::{
-    check_callables, check_file_metrics, check_root_uast, check_syntax_errors, check_types,
+use {
+    asset_and_script_checks::check_workspace_assets_and_scripts,
+    boundary_checks::check_architecture_boundaries,
+    checks::{check_callables, check_file_metrics, check_syntax_errors},
+    clone_checks::check_type2_clones,
+    docker_checks::check_docker_feature,
+    domain_checks::check_single_file_domains,
+    i18n_checks::check_workspace_i18n,
+    kiss_yagni_checks::{check_local_kiss_yagni_and_bypass, check_single_impl_contracts},
+    security_checks::check_native_secrets,
+    tarjan::check_dependency_cycles,
+    tdd_checks::check_local_test_assertions,
+    tdd_parity::check_workspace_tdd,
+    tool_checks::check_local_tool_and_lang_rules,
+    type_and_uast_checks::{check_root_uast, check_types},
+    workspace_checks::check_dead_exports,
 };
-use docker_checks::check_docker_feature;
-use domain_checks::check_single_file_domains;
-use i18n_checks::check_workspace_i18n;
-use kiss_yagni_checks::{check_local_kiss_yagni_and_bypass, check_single_impl_contracts};
-use security_checks::check_native_secrets;
-use tarjan::check_dependency_cycles;
-use tdd_checks::{check_local_test_assertions, check_workspace_tdd};
-use tool_checks::check_local_tool_and_lang_rules;
-use workspace_checks::{check_dead_exports, check_type2_clones};
 pub use {
-    security_checks::evaluate_lcov_coverage,
+    checks::SourceLoc,
+    governance_checks::{
+        check_agentic_governance, check_architecture_purity, check_lock_integrity,
+    },
+    mutation_checks::evaluate_mutation_summary,
+    security_checks::{evaluate_crap_scores, evaluate_lcov_coverage},
     tarjan::find_scc_cycles,
-    tdd_checks::{check_agentic_governance, check_lock_integrity},
     tool_checks::convert_external_tool_findings,
 };
 
-/// Evaluates all pure single-file rules applicatively without short-circuiting.
-#[must_use]
-pub fn evaluate_document_validated(
-    doc: &UastDocument,
-    config: &Config,
-) -> Validation<(), Diagnostic> {
+fn check_local_srp_and_uast(doc: &UastDocument, config: &Config) -> Validation<(), Diagnostic> {
     Validation::<(), Diagnostic>::collect_all([
         check_syntax_errors(doc),
         check_file_metrics(doc, config),
         check_callables(doc, config),
         check_types(doc, config),
         check_root_uast(doc, config),
+    ])
+}
+
+fn check_local_domains_and_fortress(
+    doc: &UastDocument,
+    config: &Config,
+) -> Validation<(), Diagnostic> {
+    Validation::<(), Diagnostic>::collect_all([
         check_native_secrets(doc),
         check_single_file_domains(doc, config),
         check_local_kiss_yagni_and_bypass(doc, config),
@@ -69,10 +85,8 @@ pub fn evaluate_document_validated(
     ])
 }
 
-/// Evaluates all pure single-file rules and returns deterministically sorted diagnostics.
-#[must_use]
-pub fn evaluate_document(doc: &UastDocument, config: &Config) -> Vec<Diagnostic> {
-    match evaluate_document_validated(doc, config) {
+fn into_sorted_diagnostics(validation: Validation<(), Diagnostic>) -> Vec<Diagnostic> {
+    match validation {
         Validation::Valid(()) => Vec::new(),
         Validation::Invalid(mut diagnostics) => {
             diagnostics.sort();
@@ -81,8 +95,26 @@ pub fn evaluate_document(doc: &UastDocument, config: &Config) -> Vec<Diagnostic>
     }
 }
 
-/// Evaluates cross-file DRY clones (`GF020`), dead exports (`GF021`), `docker` (`GF030`–`GF034`),
-/// 6-domain (`GF062`–`GF065`), DAG/boundaries (`GF071`–`GF072`), YAGNI (`GF075`), and TDD (`GF076`).
+/// Evaluates all pure single-file rules applicatively without short-circuiting.
+#[must_use]
+pub fn evaluate_document_validated(
+    doc: &UastDocument,
+    config: &Config,
+) -> Validation<(), Diagnostic> {
+    Validation::<(), Diagnostic>::collect_all([
+        check_local_srp_and_uast(doc, config),
+        check_local_domains_and_fortress(doc, config),
+    ])
+}
+
+/// Evaluates all pure single-file rules and returns deterministically sorted diagnostics.
+#[must_use]
+pub fn evaluate_document(doc: &UastDocument, config: &Config) -> Vec<Diagnostic> {
+    into_sorted_diagnostics(evaluate_document_validated(doc, config))
+}
+
+/// Evaluates all cross-file workspace rules applicatively (`GF020`–`GF021`, `GF030`–`GF034`,
+/// `GF062`–`GF065`, `GF071`–`GF072`, `GF075`–`GF076`, `GF078`).
 #[must_use]
 pub fn evaluate_workspace(
     docs: &[UastDocument],
@@ -99,6 +131,7 @@ pub fn evaluate_workspace(
         check_architecture_boundaries(docs, ctx, config),
         check_single_impl_contracts(docs, ctx, config),
         check_workspace_tdd(docs, ctx, config),
+        check_architecture_purity(docs, config),
     ])
 }
 
@@ -109,11 +142,5 @@ pub fn evaluate_workspace_sorted(
     ctx: &ProjectContext,
     config: &Config,
 ) -> Vec<Diagnostic> {
-    match evaluate_workspace(docs, ctx, config) {
-        Validation::Valid(()) => Vec::new(),
-        Validation::Invalid(mut diagnostics) => {
-            diagnostics.sort();
-            diagnostics
-        }
-    }
+    into_sorted_diagnostics(evaluate_workspace(docs, ctx, config))
 }

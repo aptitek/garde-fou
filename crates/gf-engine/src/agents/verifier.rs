@@ -9,7 +9,6 @@ use gf_core::{
     compose_agents_managed_block, extract_agents_managed_block,
 };
 
-use super::skill_audit::extract_skill_summary;
 use crate::types::EngineError;
 
 pub(super) const AGENTS_MD_FILENAME: &str = "AGENTS.md";
@@ -18,6 +17,58 @@ pub(super) const CORE_SKILL_ID: &str = "garde-fou";
 
 pub(super) fn normalize_lf(raw: &str) -> String {
     raw.replace("\r\n", "\n").replace('\r', "\n")
+}
+
+fn truncate_summary(raw: &str) -> String {
+    let collapsed = raw.split_whitespace().collect::<Vec<_>>().join(" ");
+    let mut chars = collapsed.chars();
+    let head: String = chars.by_ref().take(120).collect();
+    if chars.next().is_some() {
+        format!("{head}...")
+    } else {
+        head
+    }
+}
+
+fn parse_description_value(rest: &str, next_line: Option<&str>) -> Option<String> {
+    let inline = rest.trim().trim_matches(['"', '\'']);
+    if !inline.is_empty() && !matches!(inline, ">" | ">-" | "|") {
+        return Some(truncate_summary(inline));
+    }
+    let next = next_line?.trim();
+    (!next.is_empty() && next != "---").then(|| truncate_summary(next.trim_matches(['"', '\''])))
+}
+
+fn extract_frontmatter_description(lines: &[&str]) -> Option<String> {
+    if lines.first().copied() != Some("---") {
+        return None;
+    }
+    let end = lines
+        .iter()
+        .skip(1)
+        .position(|&l| l == "---")
+        .map_or(lines.len(), |p| p + 1);
+    (1..end).find_map(|idx| {
+        let rest = lines[idx].strip_prefix("description:")?;
+        parse_description_value(rest, lines.get(idx + 1).copied())
+    })
+}
+
+/// Extracts a concise human/agent summary from `SKILL.md` frontmatter or prose.
+#[must_use]
+pub fn extract_skill_summary(raw_skill_md: &str, fallback_id: &str) -> String {
+    let lines: Vec<&str> = raw_skill_md
+        .lines()
+        .map(|l| l.trim_end_matches('\r'))
+        .collect();
+    if let Some(desc) = extract_frontmatter_description(&lines) {
+        return desc;
+    }
+    lines
+        .iter()
+        .map(|l| l.trim())
+        .find(|l| !l.is_empty() && !l.starts_with('#') && *l != "---")
+        .map_or_else(|| format!("Agent skill `{fallback_id}`."), truncate_summary)
 }
 
 /// Enumerates all installed skills under `<root>/.agents/skills/*/SKILL.md` in deterministic order.

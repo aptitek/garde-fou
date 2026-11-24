@@ -87,47 +87,51 @@ impl DictTree for toml::Value {
     }
 }
 
-fn record_dict_leaf(
-    prefix: &str,
-    str_val: Option<&str>,
-    source: &str,
-    out: (&mut BTreeSet<String>, &mut Vec<TexteIssue>),
-) {
-    if prefix.is_empty() {
-        return;
-    }
-    let (keys, issues) = out;
-    keys.insert(String::from(prefix));
-    if let Some(s) = str_val
-        && let Some(reason) = value_violation(s)
-    {
-        let leaf = prefix.rsplit('.').next().unwrap_or(prefix);
-        issues.push(TexteIssue {
-            key: String::from(prefix),
-            detail: String::from(reason),
-            span: find_key_span(source, leaf),
-        });
-    }
+struct DictAccumulator<'a> {
+    source: &'a str,
+    keys: BTreeSet<String>,
+    forbidden_values: Vec<TexteIssue>,
 }
 
-fn flatten_dict_tree<T: DictTree>(
-    prefix: &str,
-    node: &T,
-    source: &str,
-    out: (&mut BTreeSet<String>, &mut Vec<TexteIssue>),
-) {
-    let (keys, issues) = out;
-    if let Some(entries) = node.as_entries() {
-        for (k, child) in entries {
-            let next = if prefix.is_empty() {
-                String::from(k)
-            } else {
-                format!("{prefix}.{k}")
-            };
-            flatten_dict_tree(&next, child, source, (keys, issues));
+impl<'a> DictAccumulator<'a> {
+    const fn new(source: &'a str) -> Self {
+        Self {
+            source,
+            keys: BTreeSet::new(),
+            forbidden_values: Vec::new(),
         }
-    } else {
-        record_dict_leaf(prefix, node.as_str_leaf(), source, (keys, issues));
+    }
+
+    fn record_leaf(&mut self, prefix: &str, str_val: Option<&str>) {
+        if prefix.is_empty() {
+            return;
+        }
+        self.keys.insert(String::from(prefix));
+        if let Some(s) = str_val
+            && let Some(reason) = value_violation(s)
+        {
+            let leaf = prefix.rsplit('.').next().unwrap_or(prefix);
+            self.forbidden_values.push(TexteIssue {
+                key: String::from(prefix),
+                detail: String::from(reason),
+                span: find_key_span(self.source, leaf),
+            });
+        }
+    }
+
+    fn flatten<T: DictTree>(&mut self, prefix: &str, node: &T) {
+        if let Some(entries) = node.as_entries() {
+            for (k, child) in entries {
+                let next = if prefix.is_empty() {
+                    String::from(k)
+                } else {
+                    format!("{prefix}.{k}")
+                };
+                self.flatten(&next, child);
+            }
+        } else {
+            self.record_leaf(prefix, node.as_str_leaf());
+        }
     }
 }
 
@@ -144,12 +148,11 @@ pub fn extract_i18n_dictionary(
     let (total_lines, effective_lines) = line_metrics(source);
     let mut doc = UastDocument::new(path.clone(), lang, total_lines, effective_lines)?;
     let locale = infer_locale_from_path(path);
-    let mut keys = BTreeSet::new();
-    let mut forbidden_values = Vec::new();
+    let mut acc = DictAccumulator::new(source);
 
     if lang == Language::Json {
         match serde_json::from_str::<serde_json::Value>(source) {
-            Ok(root) => flatten_dict_tree("", &root, source, (&mut keys, &mut forbidden_values)),
+            Ok(root) => acc.flatten("", &root),
             Err(err) => doc.syntax_errors.push(SyntaxErrorNode {
                 message: format!("invalid i18n JSON: {err}"),
                 span: Span::FIRST,
@@ -157,7 +160,7 @@ pub fn extract_i18n_dictionary(
         }
     } else {
         match toml::from_str::<toml::Value>(source) {
-            Ok(root) => flatten_dict_tree("", &root, source, (&mut keys, &mut forbidden_values)),
+            Ok(root) => acc.flatten("", &root),
             Err(err) => doc.syntax_errors.push(SyntaxErrorNode {
                 message: format!("invalid i18n TOML: {err}"),
                 span: Span::FIRST,
@@ -167,8 +170,8 @@ pub fn extract_i18n_dictionary(
 
     doc.texte = Some(TexteDocument {
         locale,
-        keys,
-        forbidden_values,
+        keys: acc.keys,
+        forbidden_values: acc.forbidden_values,
     });
     Ok(doc)
 }

@@ -1,4 +1,4 @@
-//! Workspace-wide pure rules: Type-2 AST structural clones (`GF020`) & dead exports (`GF021`).
+//! Workspace entrypoint classification and public / crate-internal dead export detection (`GF021`).
 
 use alloc::collections::{BTreeMap, BTreeSet};
 use alloc::format;
@@ -6,13 +6,15 @@ use alloc::string::String;
 use alloc::vec::Vec;
 
 use gf_core::{
-    Config, Diagnostic, DomainKind, Language, ProjectContext, RepoPath, Severity, Span,
+    Config, Diagnostic, DomainKind, ExportDecl, Language, ProjectContext, RepoPath, Severity,
     UastDocument, Validation, classify_path, glob_matches,
 };
 
 const UNIVERSAL_ENTRYPOINT_GLOBS: &[&str] = &[
     "src/lib.rs",
     "src/main.*",
+    "crates/*/src/lib.rs",
+    "crates/*/src/main.rs",
     "src/index.*",
     "main.*",
     "index.*",
@@ -26,89 +28,27 @@ const UNIVERSAL_ENTRYPOINT_GLOBS: &[&str] = &[
     "**/*_test.*",
 ];
 
-#[derive(Clone, Copy, Eq, Ord, PartialEq, PartialOrd)]
-struct CloneSite<'a> {
-    path: &'a RepoPath,
-    span: Span,
-    name: &'a str,
-    effective_lines: u32,
-}
-
-/// Detects Type-2 AST clones (`GF020`) across all functions and methods in `docs`.
-pub fn check_type2_clones(docs: &[UastDocument], config: &Config) -> Validation<(), Diagnostic> {
-    let min_lines = config.limits.min_clone_lines;
-    let min_nodes = config.limits.min_clone_nodes;
-    let mut buckets: BTreeMap<u128, Vec<CloneSite<'_>>> = BTreeMap::new();
-
-    for doc in docs {
-        for callable in &doc.callables {
-            if callable.effective_lines < min_lines || callable.ast_node_count < min_nodes {
-                continue;
-            }
-            let Some(hash) = callable.structural_hash else {
-                continue;
-            };
-            buckets.entry(hash).or_default().push(CloneSite {
-                path: &doc.path,
-                span: callable.span,
-                name: &callable.name,
-                effective_lines: callable.effective_lines,
-            });
-        }
-    }
-
-    let mut diags = Vec::new();
-    for mut sites in buckets.into_values() {
-        if sites.len() < 2 {
-            continue;
-        }
-        sites.sort();
-        emit_clone_group(&sites, min_lines, &mut diags);
-    }
-    Validation::<(), Diagnostic>::from_errors(diags)
-}
-
-fn emit_clone_group(sites: &[CloneSite<'_>], min_lines: u32, out: &mut Vec<Diagnostic>) {
-    let origin = sites[0];
-    for (idx, site) in sites.iter().enumerate() {
-        let peer = if idx == 0 { sites[1] } else { origin };
-        out.push(Diagnostic {
-            rule_id: String::from("GF020"),
-            severity: Severity::Error,
-            message: format!(
-                "Type-2 AST clone: callable `{}` duplicates `{}` at `{}:{}`",
-                site.name,
-                peer.name,
-                peer.path,
-                peer.span.start_line()
-            ),
-            remediation: String::from(
-                "Extract the duplicated control-flow structure into a shared generic or parameterized function; never rename variables or literals cosmetically to mask copy-paste.",
-            ),
-            measured: site.effective_lines,
-            threshold: min_lines,
-            path: site.path.clone(),
-            span: site.span,
-        });
-    }
-}
-
 pub fn is_entrypoint_file(path: &RepoPath, ctx: &ProjectContext, config: &Config) -> bool {
     let raw = path.as_str();
-    if UNIVERSAL_ENTRYPOINT_GLOBS
+    UNIVERSAL_ENTRYPOINT_GLOBS
         .iter()
         .any(|pat| glob_matches(pat, raw))
+        || config.entrypoints.iter().any(|pat| glob_matches(pat, raw))
+        || ctx.frameworks.iter().any(|fw| {
+            fw.implicit_entrypoints()
+                .iter()
+                .any(|pat| glob_matches(pat, raw))
+        })
+}
+
+fn crate_scope_prefix(path: &RepoPath) -> &str {
+    let raw = path.as_str();
+    if let Some(after) = raw.strip_prefix("crates/")
+        && let Some((crate_name, _)) = after.split_once('/')
     {
-        return true;
+        return &raw[..=(7 + crate_name.len())];
     }
-    if config.entrypoints.iter().any(|pat| glob_matches(pat, raw)) {
-        return true;
-    }
-    ctx.frameworks.iter().any(|fw| {
-        fw.implicit_entrypoints()
-            .iter()
-            .any(|pat| glob_matches(pat, raw))
-    })
+    ""
 }
 
 fn build_reference_index(docs: &[UastDocument]) -> BTreeMap<&str, BTreeSet<&RepoPath>> {
@@ -126,7 +66,58 @@ fn build_reference_index(docs: &[UastDocument]) -> BTreeMap<&str, BTreeSet<&Repo
     index
 }
 
-/// Detects exported symbols in non-entrypoint modules never referenced elsewhere (`GF021`).
+fn is_export_used(
+    export: &ExportDecl,
+    owner_path: &RepoPath,
+    ref_index: &BTreeMap<&str, BTreeSet<&RepoPath>>,
+) -> bool {
+    let Some(paths) = ref_index.get(export.symbol.as_str()) else {
+        return false;
+    };
+    if export.is_crate_internal {
+        let own_crate = crate_scope_prefix(owner_path);
+        paths
+            .iter()
+            .any(|p| *p != owner_path && crate_scope_prefix(p) == own_crate)
+    } else {
+        paths.iter().any(|p| *p != owner_path)
+    }
+}
+
+fn check_doc_dead_exports(
+    doc: &UastDocument,
+    is_entry: bool,
+    ref_index: &BTreeMap<&str, BTreeSet<&RepoPath>>,
+    out: &mut Vec<Diagnostic>,
+) {
+    for export in &doc.exports {
+        if (!export.is_crate_internal && is_entry) || is_export_used(export, &doc.path, ref_index) {
+            continue;
+        }
+        let scope_label = if export.is_crate_internal {
+            "crate-internal (`pub(crate)`)"
+        } else {
+            "public"
+        };
+        out.push(Diagnostic {
+            rule_id: String::from("GF021"),
+            severity: Severity::Error,
+            message: format!(
+                "dead {scope_label} export `{}` in `{}` is unused",
+                export.symbol, doc.path
+            ),
+            remediation: String::from(
+                "Narrow symbol visibility to module-private (remove `pub` / `pub(crate)` / `export`) or delete genuinely unused code.",
+            ),
+            measured: 1,
+            threshold: 0,
+            path: doc.path.clone(),
+            span: export.span,
+        });
+    }
+}
+
+/// Detects dead `pub`/`export` symbols and unused `pub(crate)` exports (`GF021`).
 pub fn check_dead_exports(
     docs: &[UastDocument],
     ctx: &ProjectContext,
@@ -134,36 +125,12 @@ pub fn check_dead_exports(
 ) -> Validation<(), Diagnostic> {
     let ref_index = build_reference_index(docs);
     let mut diags = Vec::new();
-
     for doc in docs {
-        let domain = classify_path(&doc.path, &config.domains);
-        if domain != DomainKind::Code
-            || doc.language == Language::Dockerfile
-            || is_entrypoint_file(&doc.path, ctx, config)
+        if classify_path(&doc.path, &config.domains) == DomainKind::Code
+            && doc.language != Language::Dockerfile
         {
-            continue;
-        }
-        for export in &doc.exports {
-            let used_elsewhere = ref_index
-                .get(export.symbol.as_str())
-                .is_some_and(|paths| paths.iter().any(|p| *p != &doc.path));
-            if !used_elsewhere {
-                diags.push(Diagnostic {
-                    rule_id: String::from("GF021"),
-                    severity: Severity::Error,
-                    message: format!(
-                        "dead public export `{}` in `{}` is unused across the workspace",
-                        export.symbol, doc.path
-                    ),
-                    remediation: String::from(
-                        "Narrow symbol visibility to module-private (remove `pub` / `export`) or delete genuinely unused code instead of leaving dead public exports.",
-                    ),
-                    measured: 1,
-                    threshold: 0,
-                    path: doc.path.clone(),
-                    span: export.span,
-                });
-            }
+            let is_entry = is_entrypoint_file(&doc.path, ctx, config);
+            check_doc_dead_exports(doc, is_entry, &ref_index, &mut diags);
         }
     }
     Validation::<(), Diagnostic>::from_errors(diags)

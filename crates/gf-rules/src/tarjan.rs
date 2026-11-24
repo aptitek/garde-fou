@@ -6,7 +6,7 @@ use alloc::vec::Vec;
 
 use gf_core::{Diagnostic, Span, UastDocument, Validation};
 
-use crate::checks::rule_error;
+use crate::checks::{SourceLoc, rule_error};
 use crate::import_resolver::resolve_import_indices;
 
 struct TarjanState {
@@ -80,17 +80,27 @@ impl TarjanState {
     }
 }
 
-fn enqueue_scc_neighbors(
-    from: usize,
-    neighbors: &BTreeSet<usize>,
-    member_set: &BTreeSet<usize>,
-    ctx: (&mut BTreeMap<usize, usize>, &mut VecDeque<usize>),
-) {
-    let (parent, queue) = ctx;
-    for &nxt in neighbors {
-        if member_set.contains(&nxt) && !parent.contains_key(&nxt) {
-            parent.insert(nxt, from);
-            queue.push_back(nxt);
+struct SccBfs<'a> {
+    member_set: &'a BTreeSet<usize>,
+    parent: &'a mut BTreeMap<usize, usize>,
+    queue: VecDeque<usize>,
+}
+
+impl<'a> SccBfs<'a> {
+    const fn new(member_set: &'a BTreeSet<usize>, parent: &'a mut BTreeMap<usize, usize>) -> Self {
+        Self {
+            member_set,
+            parent,
+            queue: VecDeque::new(),
+        }
+    }
+
+    fn enqueue_neighbors(&mut self, from: usize, neighbors: &BTreeSet<usize>) {
+        for &nxt in neighbors {
+            if self.member_set.contains(&nxt) && !self.parent.contains_key(&nxt) {
+                self.parent.insert(nxt, from);
+                self.queue.push_back(nxt);
+            }
         }
     }
 }
@@ -101,16 +111,16 @@ fn bfs_last_hop_to_start(
     adj: &BTreeMap<usize, BTreeSet<usize>>,
     parent: &mut BTreeMap<usize, usize>,
 ) -> Option<usize> {
-    let mut queue = VecDeque::new();
-    enqueue_scc_neighbors(start, adj.get(&start)?, member_set, (parent, &mut queue));
-    while let Some(cur) = queue.pop_front() {
+    let mut bfs = SccBfs::new(member_set, parent);
+    bfs.enqueue_neighbors(start, adj.get(&start)?);
+    while let Some(cur) = bfs.queue.pop_front() {
         let Some(neighbors) = adj.get(&cur) else {
             continue;
         };
         if neighbors.contains(&start) {
             return Some(cur);
         }
-        enqueue_scc_neighbors(cur, neighbors, member_set, (parent, &mut queue));
+        bfs.enqueue_neighbors(cur, neighbors);
     }
     None
 }
@@ -165,6 +175,12 @@ pub fn find_scc_cycles(
     cycles
 }
 
+#[derive(Clone, Copy, Eq, Ord, PartialEq, PartialOrd)]
+struct DirectedEdge {
+    from: usize,
+    to: usize,
+}
+
 /// Evaluates inter-file import DAG acyclicity (`GF071`) across the workspace.
 pub fn check_dependency_cycles(docs: &[UastDocument]) -> Validation<(), Diagnostic> {
     let path_index: BTreeMap<&str, usize> = docs
@@ -174,7 +190,7 @@ pub fn check_dependency_cycles(docs: &[UastDocument]) -> Validation<(), Diagnost
         .collect();
 
     let mut adj: BTreeMap<usize, BTreeSet<usize>> = BTreeMap::new();
-    let mut edge_spans: BTreeMap<(usize, usize), Span> = BTreeMap::new();
+    let mut edge_spans: BTreeMap<DirectedEdge, Span> = BTreeMap::new();
 
     for (from_idx, doc) in docs.iter().enumerate() {
         for imp in &doc.imports {
@@ -182,7 +198,12 @@ pub fn check_dependency_cycles(docs: &[UastDocument]) -> Validation<(), Diagnost
                 resolve_import_indices(&doc.path, doc.language, &imp.module_source, &path_index)
             {
                 adj.entry(from_idx).or_default().insert(to_idx);
-                edge_spans.entry((from_idx, to_idx)).or_insert(imp.span);
+                edge_spans
+                    .entry(DirectedEdge {
+                        from: from_idx,
+                        to: to_idx,
+                    })
+                    .or_insert(imp.span);
             }
         }
     }
@@ -195,13 +216,16 @@ pub fn check_dependency_cycles(docs: &[UastDocument]) -> Validation<(), Diagnost
             .collect::<Vec<_>>()
             .join(" -> ");
         for pair in cycle.windows(2) {
-            let (u, v) = (pair[0], pair[1]);
-            let span = edge_spans.get(&(u, v)).copied().unwrap_or(Span::FIRST);
+            let edge = DirectedEdge {
+                from: pair[0],
+                to: pair[1],
+            };
+            let span = edge_spans.get(&edge).copied().unwrap_or(Span::FIRST);
             diags.push(rule_error(
                 "GF071",
                 format!("circular dependency cycle detected: {chain_str}"),
                 "Break the dependency cycle by extracting shared types/contracts into a lower-layer leaf module so imports form a strict DAG.",
-                (&docs[u].path, span),
+                SourceLoc::new(&docs[edge.from].path, span),
             ));
         }
     }

@@ -17,7 +17,7 @@ pub const LOCK_FILENAME: &str = "garde.lock";
 pub enum ScanScope {
     /// Analyze the full repository workspace.
     All,
-    /// Analyze staged Git changes while still enforcing workspace-wide rules via `v4` cache.
+    /// Analyze staged Git changes while still enforcing workspace-wide rules via `v6` cache.
     StagedOnly,
 }
 
@@ -32,6 +32,8 @@ pub struct CheckOptions {
     pub strict_tools: bool,
     /// Optional explicit path to an `LCOV` coverage report (`GF050`).
     pub lcov_path: Option<String>,
+    /// Optional explicit path to a `cargo-mutants` / `Stryker` JSON report (`GF052`).
+    pub mutants_path: Option<String>,
 }
 
 impl CheckOptions {
@@ -43,6 +45,7 @@ impl CheckOptions {
             no_cache,
             strict_tools: false,
             lcov_path: None,
+            mutants_path: None,
         }
     }
 }
@@ -62,7 +65,7 @@ pub struct CheckReport {
     pub context: ProjectContext,
     /// Total number of target source files checked in this scope.
     pub files_checked: usize,
-    /// Number of files served directly from `.garde-fou-cache/v4/`.
+    /// Number of files served directly from `.garde-fou-cache/v6/`.
     pub cache_hits: usize,
     /// Number of files parsed from source on cache miss.
     pub cache_misses: usize,

@@ -8,7 +8,7 @@ use gf_core::{
     Config, Diagnostic, ExternalToolFinding, Span, UastDocument, Validation, glob_matches,
 };
 
-use crate::checks::rule_error;
+use crate::checks::{SourceLoc, rule_error};
 
 fn is_declared_cli_entrypoint(path_str: &str, config: &Config) -> bool {
     config
@@ -33,7 +33,7 @@ pub fn check_local_tool_and_lang_rules(
             "GF080",
             format!("[{}] {}", finding.code, finding.message),
             &finding.remediation,
-            (&doc.path, finding.span),
+            SourceLoc::new(&doc.path, finding.span),
         ));
     }
 
@@ -45,7 +45,7 @@ pub fn check_local_tool_and_lang_rules(
                 cfg_finding.tool, cfg_finding.key, cfg_finding.message
             ),
             &cfg_finding.remediation,
-            (&doc.path, cfg_finding.span),
+            SourceLoc::new(&doc.path, cfg_finding.span),
         ));
     }
 
@@ -72,7 +72,7 @@ pub fn convert_external_tool_findings(findings: &[ExternalToolFinding]) -> Vec<D
                 "GF082",
                 format!("[{}:{code}] {} (col {col})", f.tool, f.message.trim()),
                 f.remediation.trim(),
-                (&f.path, span),
+                SourceLoc::new(&f.path, span),
             )
         })
         .collect();

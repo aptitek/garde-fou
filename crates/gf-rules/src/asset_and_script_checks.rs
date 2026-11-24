@@ -11,7 +11,7 @@ use gf_core::{
     glob_matches,
 };
 
-use crate::checks::rule_error as domain_diag;
+use crate::checks::{SourceLoc, rule_error as domain_diag};
 
 const IMPLICIT_PUBLIC_ASSETS: &[&str] = &[
     "public/favicon.*",
@@ -38,7 +38,7 @@ fn collapse_segments(path: &str) -> String {
         match seg {
             "" | "." => {}
             ".." => {
-                let _ = stack.pop();
+                stack.pop();
             }
             other => stack.push(other),
         }
@@ -93,7 +93,7 @@ fn collect_referenced_assets<'a>(
                     "GF064",
                     format!("broken asset reference `{raw_ref}` in `{}`", doc.path),
                     "Ensure every referenced image, icon, or font exists inside `assets/` (`asset_globs`).",
-                    (&doc.path, Span::FIRST),
+                    SourceLoc::new(&doc.path, Span::FIRST),
                 ));
             }
         }
@@ -119,7 +119,7 @@ fn check_asset_links_and_orphans(
                 "GF064",
                 format!("orphan asset `{}` is never referenced across the workspace", doc.path),
                 "Delete unused static assets or reference them explicitly from `Code`, `Forme`, or `Contenus`.",
-                (&doc.path, Span::FIRST),
+                SourceLoc::new(&doc.path, Span::FIRST),
             ));
         }
     }
@@ -177,7 +177,7 @@ fn check_code_script_imports(doc: &UastDocument, config: &Config, out: &mut Vec<
                     doc.path, imp.module_source
                 ),
                 "Extract shared domain logic into `src/` (`Code` domain); keep `scripts/` strictly standalone.",
-                (&doc.path, imp.span),
+                SourceLoc::new(&doc.path, imp.span),
             ));
         }
     }
@@ -209,8 +209,8 @@ fn check_scripts_boundary_and_tests(
                         "script `{}` in `Scripts` domain has no automated test coverage",
                         doc.path
                     ),
-                    "Add an automated unit/smoke test under `tests/` exercising this script and referencing its path.",
-                    (&doc.path, Span::FIRST),
+                    "Add an automated unit/smoke test under `tests/` exercising this script via process execution.",
+                    SourceLoc::new(&doc.path, Span::FIRST),
                 ));
             }
             _ => {}

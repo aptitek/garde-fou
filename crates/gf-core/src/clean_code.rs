@@ -1,35 +1,36 @@
 //! KISS, YAGNI, Anti-Bypass (`GF070`, `GF073`–`GF075`), and TDD Fortress (`GF076`)
-//! configuration and `UAST` projection types.
+//! algebraic configuration and `UAST` projection types.
 
+use alloc::collections::BTreeSet;
 use alloc::format;
 use alloc::string::String;
+use alloc::vec::Vec;
 use serde::{Deserialize, Serialize};
 
 use crate::diagnostic::Span;
 
-/// Boolean YAGNI gates grouped to keep every struct `<= 2` booleans.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct YagniGates {
-    /// Forbid barrel wildcard re-exports (`export *`, `from x import *`, `pub use *`).
-    pub forbid_wildcard_exports: bool,
-    /// Forbid behavioral `trait`/`interface`/`Protocol` contracts with `<= 1` concrete impl.
-    pub forbid_single_impl_traits: bool,
+/// Individually configurable structural YAGNI rule (`GF074` & `GF075`).
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
+pub enum YagniRule {
+    /// Forbid barrel wildcard re-exports (`export *`, `from x import *`, `pub use *`, `GF074`).
+    WildcardExports,
+    /// Forbid behavioral `trait`/`interface`/`Protocol` contracts with `<= 1` concrete impl (`GF075`).
+    SingleImplTraits,
 }
 
-impl YagniGates {
-    /// Strict defaults (`true` for both YAGNI gates).
+impl YagniRule {
+    /// Canonical compact token for deterministic cache hashing.
     #[must_use]
-    pub const fn strict_defaults() -> Self {
-        Self {
-            forbid_wildcard_exports: true,
-            forbid_single_impl_traits: true,
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::WildcardExports => "wildcard_exports",
+            Self::SingleImplTraits => "single_impl_traits",
         }
     }
 }
 
 /// `[clean_code]` configuration governing KISS (`GF073`) and YAGNI (`GF074`–`GF075`).
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct CleanCodeConfig {
     /// Maximum allowed nested ternary depth (`0` forbids nested ternaries).
@@ -40,34 +41,46 @@ pub struct CleanCodeConfig {
     pub max_bool_parameters: u32,
     /// Forbid `TODO`, `FIXME`, `HACK`, `XXX` comments and commented-out code in `Code`.
     pub forbid_todos: bool,
-    /// Structural YAGNI toggles (`export *` and single-implementation traits).
-    pub yagni: YagniGates,
+    /// Active structural YAGNI rules (`WildcardExports`, `SingleImplTraits`).
+    pub yagni_rules: BTreeSet<YagniRule>,
 }
 
 impl CleanCodeConfig {
     /// Strict zero-compromise KISS & YAGNI defaults.
     #[must_use]
-    pub const fn strict_defaults() -> Self {
+    pub fn strict_defaults() -> Self {
         Self {
             max_nested_ternaries: 0,
             max_property_chain: 4,
             max_bool_parameters: 1,
             forbid_todos: true,
-            yagni: YagniGates::strict_defaults(),
+            yagni_rules: BTreeSet::from([YagniRule::WildcardExports, YagniRule::SingleImplTraits]),
         }
+    }
+
+    /// Returns `true` when barrel wildcard re-exports are forbidden (`GF074`).
+    #[must_use]
+    pub fn has_wildcard_exports(&self) -> bool {
+        self.yagni_rules.contains(&YagniRule::WildcardExports)
+    }
+
+    /// Returns `true` when single-implementation behavioral contracts are forbidden (`GF075`).
+    #[must_use]
+    pub fn has_single_impl_traits(&self) -> bool {
+        self.yagni_rules.contains(&YagniRule::SingleImplTraits)
     }
 
     /// Deterministic fragment for `BLAKE3` cache keys.
     #[must_use]
     pub fn canonical_fragment(&self) -> String {
+        let rules: Vec<&str> = self.yagni_rules.iter().map(|r| r.as_str()).collect();
         format!(
-            "cc(nt={},pc={},bp={},td={},wc={},si={})",
+            "cc(nt={},pc={},bp={},td={},yg={})",
             self.max_nested_ternaries,
             self.max_property_chain,
             self.max_bool_parameters,
             self.forbid_todos,
-            self.yagni.forbid_wildcard_exports,
-            self.yagni.forbid_single_impl_traits,
+            rules.join(","),
         )
     }
 }
@@ -78,24 +91,34 @@ impl Default for CleanCodeConfig {
     }
 }
 
-/// Companion file parity gates grouped for `[tdd]` (`<= 2` booleans).
-#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct TddParityGates {
+/// Optional 1:1 companion file parity gate under `[tdd]` (`GF076`).
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
+pub enum TddParityGate {
     /// Require 1:1 unit test coverage (inline tests or companion test file) per `Code` module.
-    pub require_companion: bool,
+    CompanionTest,
     /// Require `.stories.tsx` companion per Atomic Design UI component.
-    pub require_stories: bool,
+    ComponentStories,
+}
+
+impl TddParityGate {
+    /// Canonical compact token for deterministic cache hashing.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::CompanionTest => "companion",
+            Self::ComponentStories => "stories",
+        }
+    }
 }
 
 /// `[tdd]` configuration governing assertion integrity and companion parity (`GF076`).
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct TddConfig {
-    /// Block tests with zero assertions or tautological assertions (`assert!(true)`).
+    /// Block tests with zero assertions, tautologies, or weak-only existence checks.
     pub forbid_assertion_free_tests: bool,
-    /// Optional 1:1 companion test and `.stories` gates.
-    pub parity: TddParityGates,
+    /// Active 1:1 companion test and `.stories` gates.
+    pub parity_gates: BTreeSet<TddParityGate>,
 }
 
 impl TddConfig {
@@ -104,21 +127,30 @@ impl TddConfig {
     pub const fn strict_defaults() -> Self {
         Self {
             forbid_assertion_free_tests: true,
-            parity: TddParityGates {
-                require_companion: false,
-                require_stories: false,
-            },
+            parity_gates: BTreeSet::new(),
         }
+    }
+
+    /// Returns `true` when 1:1 companion test files are required (`GF076`).
+    #[must_use]
+    pub fn require_companion(&self) -> bool {
+        self.parity_gates.contains(&TddParityGate::CompanionTest)
+    }
+
+    /// Returns `true` when 1:1 `.stories` files are required for UI components (`GF076`).
+    #[must_use]
+    pub fn require_stories(&self) -> bool {
+        self.parity_gates.contains(&TddParityGate::ComponentStories)
     }
 
     /// Deterministic fragment for `BLAKE3` cache keys.
     #[must_use]
     pub fn canonical_fragment(&self) -> String {
+        let gates: Vec<&str> = self.parity_gates.iter().map(|g| g.as_str()).collect();
         format!(
-            "tdd(af={},cp={},st={})",
+            "tdd(af={},pg={})",
             self.forbid_assertion_free_tests,
-            self.parity.require_companion,
-            self.parity.require_stories,
+            gates.join(","),
         )
     }
 }
@@ -199,6 +231,8 @@ pub struct TestCaseSummary {
     pub assertion_count: u32,
     /// `true` if a tautological assertion (e.g. `assert!(true)`) was found.
     pub has_tautology: bool,
+    /// `true` if the test only performs weak existence checks (`is_ok()`, `toBeDefined()`) without verifying values.
+    pub has_weak_only_assertion: bool,
     /// 1-indexed source span of the test declaration.
     pub span: Span,
 }

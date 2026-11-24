@@ -181,7 +181,7 @@ fn workspace_check_and_blake3_fingerprint_match_across_crlf_and_lf()
     assert_eq!(rep_lf.cache_fingerprint, rep_crlf.cache_fingerprint);
     assert_eq!(rep_lf.diagnostics, rep_crlf.diagnostics);
 
-    let _ = fs::remove_dir_all(&dir_lf);
-    let _ = fs::remove_dir_all(&dir_crlf);
+    fs::remove_dir_all(&dir_lf)?;
+    fs::remove_dir_all(&dir_crlf)?;
     Ok(())
 }

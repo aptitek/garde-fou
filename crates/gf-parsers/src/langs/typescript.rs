@@ -1,22 +1,24 @@
 //! Safe `Tree-sitter` extractor for TypeScript, TSX, JavaScript, and JSX.
 
-use gf_core::{
-    CallableDecl, CallableKind, ExportDecl, ImportDecl, Language, RepoPath, TypeDecl, TypeKind,
-    UastDocument,
-};
+mod module_graph;
+
+use gf_core::{CallableDecl, CallableKind, Language, RepoPath, TypeDecl, TypeKind, UastDocument};
 use tree_sitter::Node;
 
 use crate::anti_cheat::populate_cst_fortress;
 use crate::complexity::ComplexityRules;
 use crate::cst::{
     CallableSpec, assemble_callable, collect_syntax_errors, count_named_kinds, field_name_string,
-    line_metrics, node_span, node_text, parse_with_language,
+    line_metrics, node_span, node_text, parse_with_language, single_param_arity,
 };
 use crate::fingerprint::collect_referenced_symbols;
 use crate::langs::{
     typescript_jsx::extract_jsx_ui_and_a11y, typescript_ui::extract_ts_style_and_i18n,
 };
 use crate::types::{LanguageExtractor, ParseError};
+use module_graph::{extract_ts_import, record_ts_call_expr, record_ts_export_stmt};
+
+const TS_TUPLE_KINDS: &[&str] = &["tuple_type", "array_pattern"];
 
 const TS_COMPLEXITY: ComplexityRules = ComplexityRules {
     nesting_branches: &[
@@ -109,72 +111,63 @@ impl LanguageExtractor for TypeScriptExtractor {
     }
 }
 
-fn count_ts_params(params_node: Option<Node<'_>>) -> u32 {
+fn count_ts_params(params_node: Option<Node<'_>>, source: &str) -> u32 {
     let Some(node) = params_node else {
         return 0;
     };
     let mut cursor = node.walk();
-    u32::try_from(node.named_children(&mut cursor).count()).unwrap_or(u32::MAX)
+    node.named_children(&mut cursor)
+        .filter(|c| {
+            c.kind() != "comment"
+                && node_text(*c, source).split(':').next().unwrap_or("").trim() != "this"
+        })
+        .map(|p| single_param_arity(p, Some(source), TS_TUPLE_KINDS))
+        .fold(0_u32, u32::saturating_add)
 }
 
-fn extract_import(node: Node<'_>, source: &str) -> ImportDecl {
-    let module_source = node
-        .child_by_field_name("source")
-        .map_or("", |s| node_text(s, source))
-        .trim_matches(['"', '\'', '`'])
-        .to_string();
-    ImportDecl {
-        module_source,
-        symbols: Vec::new(),
-        span: node_span(node),
-    }
-}
-
-fn extract_exports(node: Node<'_>, source: &str, out: &mut Vec<ExportDecl>) {
-    let span = node_span(node);
-    let Some(decl) = node.child_by_field_name("declaration") else {
-        return;
+fn count_ts_bool_fields(body: Option<Node<'_>>, field_kinds: &[&str], source: &str) -> u32 {
+    let Some(b) = body else {
+        return 0;
     };
-    if let Some(name) = decl.child_by_field_name("name") {
-        out.push(ExportDecl {
-            symbol: String::from(node_text(name, source)),
-            span,
-        });
-        return;
-    }
-    if decl.kind() == "lexical_declaration" {
-        let mut cursor = decl.walk();
-        for child in decl.named_children(&mut cursor) {
-            if child.kind() == "variable_declarator"
-                && let Some(name) = child.child_by_field_name("name")
-            {
-                out.push(ExportDecl {
-                    symbol: String::from(node_text(name, source)),
-                    span,
-                });
-            }
-        }
-    }
+    let mut cursor = b.walk();
+    let matched = b
+        .named_children(&mut cursor)
+        .filter(|ch| {
+            field_kinds.contains(&ch.kind())
+                && ch.child_by_field_name("type").is_some_and(|t| {
+                    node_text(t, source).trim().trim_start_matches(':').trim() == "boolean"
+                })
+        })
+        .count();
+    u32::try_from(matched).unwrap_or(u32::MAX)
 }
 
 fn extract_ts_type(node: Node<'_>, source: &str) -> Option<TypeDecl> {
     let span = node_span(node);
     let body = node.child_by_field_name("body");
     match node.kind() {
-        "class_declaration" => Some(TypeDecl {
-            name: field_name_string(node, "name", "<class>", source),
-            kind: TypeKind::Class,
-            span,
-            field_count: count_named_kinds(body, &["public_field_definition", "field_definition"]),
-            method_count: count_named_kinds(body, &["method_definition"]),
-        }),
-        "interface_declaration" => Some(TypeDecl {
-            name: field_name_string(node, "name", "<interface>", source),
-            kind: TypeKind::Interface,
-            span,
-            field_count: count_named_kinds(body, &["property_signature"]),
-            method_count: count_named_kinds(body, &["method_signature"]),
-        }),
+        "class_declaration" => {
+            let f_kinds = &["public_field_definition", "field_definition"];
+            Some(TypeDecl {
+                name: field_name_string(node, "name", "<class>", source),
+                kind: TypeKind::Class,
+                span,
+                field_count: count_named_kinds(body, f_kinds),
+                bool_field_count: count_ts_bool_fields(body, f_kinds, source),
+                method_count: count_named_kinds(body, &["method_definition"]),
+            })
+        }
+        "interface_declaration" => {
+            let f_kinds = &["property_signature"];
+            Some(TypeDecl {
+                name: field_name_string(node, "name", "<interface>", source),
+                kind: TypeKind::Interface,
+                span,
+                field_count: count_named_kinds(body, f_kinds),
+                bool_field_count: count_ts_bool_fields(body, f_kinds, source),
+                method_count: count_named_kinds(body, &["method_signature"]),
+            })
+        }
         _ => None,
     }
 }
@@ -185,11 +178,10 @@ fn build_ts_callable(
     target: Node<'_>,
     source: &str,
 ) -> CallableDecl {
-    let param_count = if target.child_by_field_name("parameter").is_some() {
-        1
-    } else {
-        count_ts_params(target.child_by_field_name("parameters"))
-    };
+    let param_count = target.child_by_field_name("parameter").map_or_else(
+        || count_ts_params(target.child_by_field_name("parameters"), source),
+        |p| single_param_arity(p, Some(source), TS_TUPLE_KINDS),
+    );
     assemble_callable(
         CallableSpec {
             name,
@@ -216,8 +208,9 @@ fn record_ts_declarator(node: Node<'_>, source: &str, doc: &mut UastDocument) {
 
 fn record_ts_node(node: Node<'_>, source: &str, doc: &mut UastDocument) {
     match node.kind() {
-        "import_statement" => doc.imports.push(extract_import(node, source)),
-        "export_statement" => extract_exports(node, source, &mut doc.exports),
+        "import_statement" => doc.imports.push(extract_ts_import(node, source)),
+        "export_statement" => record_ts_export_stmt(node, source, doc),
+        "call_expression" => record_ts_call_expr(node, source, doc),
         "function_declaration" => doc.callables.push(build_ts_callable(
             field_name_string(node, "name", "<fn>", source),
             CallableKind::Function,

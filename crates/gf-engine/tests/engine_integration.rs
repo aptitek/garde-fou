@@ -32,7 +32,7 @@ fn rejects_unknown_fields_in_garde_fou_toml() -> Result<(), Box<dyn std::error::
     )?;
     let res = run_check_with_options(&dir, &CheckOptions::new(ScanScope::All, true));
     assert!(matches!(res, Err(EngineError::InvalidConfig(_))));
-    let _ = fs::remove_dir_all(&dir);
+    fs::remove_dir_all(&dir)?;
     Ok(())
 }
 
@@ -61,7 +61,7 @@ fn populates_blake3_cache_and_serves_subsequent_hits() -> Result<(), Box<dyn std
         (2, 0, 2)
     );
     assert!(first.is_clean());
-    assert!(dir.join(".garde-fou-cache/v5").is_dir());
+    assert!(dir.join(".garde-fou-cache/v6").is_dir());
 
     let second = run_check_with_options(&dir, &CheckOptions::new(ScanScope::All, false))?;
     assert_eq!(
@@ -69,7 +69,7 @@ fn populates_blake3_cache_and_serves_subsequent_hits() -> Result<(), Box<dyn std
         (2, 2, 0)
     );
     assert_eq!(first.cache_fingerprint, second.cache_fingerprint);
-    let _ = fs::remove_dir_all(&dir);
+    fs::remove_dir_all(&dir)?;
     Ok(())
 }
 
@@ -87,7 +87,7 @@ fn invalidates_cache_entry_when_source_file_changes() -> Result<(), Box<dyn std:
     let invalidated = run_check_with_options(&dir, &CheckOptions::new(ScanScope::All, false))?;
     assert_eq!((invalidated.cache_hits, invalidated.cache_misses), (1, 1));
     assert!(!invalidated.is_clean());
-    let _ = fs::remove_dir_all(&dir);
+    fs::remove_dir_all(&dir)?;
     Ok(())
 }
 
@@ -134,7 +134,7 @@ fn discovers_only_staged_files_and_respects_ignore_paths() -> Result<(), Box<dyn
 
     let direct_report = run_check(&dir, ScanScope::StagedOnly, &Config::strict_defaults())?;
     assert_eq!(direct_report.files_checked, 2);
-    let _ = fs::remove_dir_all(&dir);
+    fs::remove_dir_all(&dir)?;
     Ok(())
 }
 

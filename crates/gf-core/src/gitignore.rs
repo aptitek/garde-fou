@@ -31,6 +31,9 @@ const BASE_GARDE_FOU_COV: &[&str] = &[
     "*.profraw",
     "*.profdata",
     "mutants.out*/",
+    "reports/mutation/",
+    ".stryker-tmp/",
+    ".mutmut-cache",
 ];
 
 const BASE_SECRETS_ENV: &[&str] = &[".env", ".env.*", "!.env.example", "*.pem", "*.key"];

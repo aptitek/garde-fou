@@ -1,19 +1,21 @@
 //! Safe `Tree-sitter` extractor for Rust (`.rs`).
 
-use gf_core::{
-    CallableDecl, CallableKind, ExportDecl, ImportDecl, Language, RepoPath, TypeDecl, TypeKind,
-    UastDocument, UastKind, UastNode,
-};
+use gf_core::{CallableDecl, CallableKind, Language, RepoPath, TypeDecl, TypeKind, UastDocument};
 use tree_sitter::Node;
 
+use super::rust_effects::{extract_use, has_preceding_cfg_test_attr, maybe_push_export};
+use super::rust_guardrails::inspect_rust_guardrail_node;
 use crate::anti_cheat::populate_cst_fortress;
 use crate::complexity::ComplexityRules;
 use crate::cst::{
     CallableSpec, assemble_callable, collect_syntax_errors, count_children_of_kind,
-    field_name_string, line_metrics, node_span, node_text, parse_with_language,
+    effective_param_arity, field_name_string, line_metrics, node_span, node_text,
+    parse_with_language,
 };
 use crate::fingerprint::collect_referenced_symbols;
 use crate::types::{LanguageExtractor, ParseError};
+
+const RUST_TUPLE_KINDS: &[&str] = &["tuple_type", "tuple_pattern"];
 
 const RUST_COMPLEXITY: ComplexityRules = ComplexityRules {
     nesting_branches: &[
@@ -46,104 +48,98 @@ impl LanguageExtractor for RustExtractor {
         let root = tree.root_node();
         doc.syntax_errors = collect_syntax_errors(root);
         doc.referenced_symbols = collect_referenced_symbols(root, source);
-        walk_rust(root, source, &mut doc);
+        walk_rust(root, source, false, &mut doc);
         populate_cst_fortress(root, source, &mut doc);
         Ok(doc)
     }
 }
 
-fn is_top_level_public(node: Node<'_>, source: &str) -> bool {
-    if node.parent().is_none_or(|p| p.kind() != "source_file") {
-        return false;
-    }
-    let mut cursor = node.walk();
-    node.children(&mut cursor)
-        .any(|c| c.kind() == "visibility_modifier" && node_text(c, source) == "pub")
-}
-
-fn extract_use(node: Node<'_>, source: &str) -> ImportDecl {
-    let raw = node
-        .child_by_field_name("argument")
-        .map_or_else(|| node_text(node, source), |arg| node_text(arg, source))
-        .trim();
-    let symbols = raw
-        .split_once('{')
-        .and_then(|(_, rest)| rest.rsplit_once('}'))
-        .map_or_else(Vec::new, |(inner, _)| {
-            inner
-                .split(',')
-                .map(str::trim)
-                .filter(|s| !s.is_empty())
-                .map(String::from)
-                .collect()
-        });
-    ImportDecl {
-        module_source: String::from(raw),
-        symbols,
-        span: node_span(node),
-    }
+fn count_struct_bool_fields(body: Option<Node<'_>>, source: &str) -> u32 {
+    let Some(b) = body else {
+        return 0;
+    };
+    let mut cursor = b.walk();
+    let matched = b
+        .named_children(&mut cursor)
+        .filter(|ch| match ch.kind() {
+            "field_declaration" => ch
+                .child_by_field_name("type")
+                .is_some_and(|t| node_text(t, source).trim() == "bool"),
+            "ordered_field_declaration" => ch
+                .child_by_field_name("type")
+                .or_else(|| {
+                    let mut fc = ch.walk();
+                    ch.named_children(&mut fc).last()
+                })
+                .is_some_and(|t| node_text(t, source).trim() == "bool"),
+            _ => false,
+        })
+        .count();
+    u32::try_from(matched).unwrap_or(u32::MAX)
 }
 
 fn extract_type(node: Node<'_>, source: &str) -> Option<TypeDecl> {
     let span = node_span(node);
     let body = node.child_by_field_name("body");
-    match node.kind() {
-        "struct_item" => Some(TypeDecl {
-            name: field_name_string(node, "name", "<anon>", source),
-            kind: TypeKind::Struct,
-            span,
-            field_count: count_children_of_kind(
-                body,
-                &["field_declaration", "ordered_field_declaration"],
-            ),
-            method_count: 0,
-        }),
-        "enum_item" => Some(TypeDecl {
-            name: field_name_string(node, "name", "<anon>", source),
-            kind: TypeKind::Enum,
-            span,
-            field_count: count_children_of_kind(body, &["enum_variant"]),
-            method_count: 0,
-        }),
-        "trait_item" => Some(TypeDecl {
-            name: field_name_string(node, "name", "<anon>", source),
-            kind: TypeKind::Interface,
-            span,
-            field_count: 0,
-            method_count: count_children_of_kind(
-                body,
-                &["function_item", "function_signature_item"],
-            ),
-        }),
-        "impl_item" => Some(TypeDecl {
-            name: field_name_string(node, "type", "<impl>", source),
-            kind: TypeKind::Impl,
-            span,
-            field_count: 0,
-            method_count: count_children_of_kind(body, &["function_item"]),
-        }),
-        _ => None,
-    }
+    let (kind, name, field_count, bool_field_count, method_count) = match node.kind() {
+        "struct_item" => (
+            TypeKind::Struct,
+            field_name_string(node, "name", "<anon>", source),
+            count_children_of_kind(body, &["field_declaration", "ordered_field_declaration"]),
+            count_struct_bool_fields(body, source),
+            0,
+        ),
+        "enum_item" => (
+            TypeKind::Enum,
+            field_name_string(node, "name", "<anon>", source),
+            count_children_of_kind(body, &["enum_variant"]),
+            0,
+            0,
+        ),
+        "trait_item" => (
+            TypeKind::Interface,
+            field_name_string(node, "name", "<anon>", source),
+            0,
+            0,
+            count_children_of_kind(body, &["function_item", "function_signature_item"]),
+        ),
+        "impl_item" => (
+            TypeKind::Impl,
+            field_name_string(node, "type", "<impl>", source),
+            0,
+            0,
+            count_children_of_kind(body, &["function_item"]),
+        ),
+        _ => return None,
+    };
+    Some(TypeDecl {
+        name,
+        kind,
+        span,
+        field_count,
+        bool_field_count,
+        method_count,
+    })
 }
 
 fn extract_fn(node: Node<'_>, source: &str) -> CallableDecl {
     let is_method = node
         .parent()
         .is_some_and(|p| p.kind() == "declaration_list");
-    let kind = if is_method {
-        CallableKind::Method
-    } else {
-        CallableKind::Function
-    };
     assemble_callable(
         CallableSpec {
             name: field_name_string(node, "name", "<fn>", source),
-            kind,
+            kind: if is_method {
+                CallableKind::Method
+            } else {
+                CallableKind::Function
+            },
             decl_node: node,
             body_node: node.child_by_field_name("body"),
-            param_count: count_children_of_kind(
+            param_count: effective_param_arity(
                 node.child_by_field_name("parameters"),
                 &["parameter"],
+                RUST_TUPLE_KINDS,
             ),
         },
         source,
@@ -166,9 +162,10 @@ fn extract_named_closure(node: Node<'_>, source: &str) -> Option<CallableDecl> {
             kind: CallableKind::Closure,
             decl_node: val,
             body_node: Some(body),
-            param_count: count_children_of_kind(
+            param_count: effective_param_arity(
                 val.child_by_field_name("parameters"),
-                &["parameter", "identifier"],
+                &["parameter", "identifier", "tuple_pattern"],
+                RUST_TUPLE_KINDS,
             ),
         },
         source,
@@ -176,24 +173,28 @@ fn extract_named_closure(node: Node<'_>, source: &str) -> Option<CallableDecl> {
     ))
 }
 
-fn maybe_push_export(node: Node<'_>, symbol: &str, source: &str, doc: &mut UastDocument) {
-    if is_top_level_public(node, source) {
-        doc.exports.push(ExportDecl {
-            symbol: String::from(symbol),
-            span: node_span(node),
-        });
+fn record_rust_type_node(node: Node<'_>, source: &str, in_cfg_test: bool, doc: &mut UastDocument) {
+    let Some(ty) = extract_type(node, source) else {
+        return;
+    };
+    if !in_cfg_test {
+        maybe_push_export(node, &ty.name, source, doc);
     }
+    doc.types.push(ty);
 }
 
-fn record_rust_node(node: Node<'_>, source: &str, doc: &mut UastDocument) {
+fn record_rust_node(node: Node<'_>, source: &str, in_cfg_test: bool, doc: &mut UastDocument) {
+    inspect_rust_guardrail_node(node, source, in_cfg_test, doc);
     match node.kind() {
         "use_declaration" => doc.imports.push(extract_use(node, source)),
         "function_item" => {
             let callable = extract_fn(node, source);
-            maybe_push_export(node, &callable.name, source, doc);
+            if !in_cfg_test {
+                maybe_push_export(node, &callable.name, source, doc);
+            }
             doc.callables.push(callable);
         }
-        "const_item" | "type_item" | "static_item" => {
+        "const_item" | "type_item" | "static_item" if !in_cfg_test => {
             let name = field_name_string(node, "name", "", source);
             if !name.is_empty() {
                 maybe_push_export(node, &name, source, doc);
@@ -204,25 +205,16 @@ fn record_rust_node(node: Node<'_>, source: &str, doc: &mut UastDocument) {
                 doc.callables.push(closure);
             }
         }
-        "unsafe_block" => doc.root.children.push(UastNode::leaf(
-            UastKind::ForbiddenCall {
-                symbol: String::from("unsafe"),
-            },
-            node_span(node),
-        )),
-        _ => {
-            if let Some(ty) = extract_type(node, source) {
-                maybe_push_export(node, &ty.name, source, doc);
-                doc.types.push(ty);
-            }
-        }
+        _ => record_rust_type_node(node, source, in_cfg_test, doc),
     }
 }
 
-fn walk_rust(node: Node<'_>, source: &str, doc: &mut UastDocument) {
-    record_rust_node(node, source, doc);
+fn walk_rust(node: Node<'_>, source: &str, in_cfg_test: bool, doc: &mut UastDocument) {
+    let next_in_test =
+        in_cfg_test || (node.kind() == "mod_item" && has_preceding_cfg_test_attr(node, source));
+    record_rust_node(node, source, next_in_test, doc);
     let mut cursor = node.walk();
     for child in node.children(&mut cursor) {
-        walk_rust(child, source, doc);
+        walk_rust(child, source, next_in_test, doc);
     }
 }

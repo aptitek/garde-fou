@@ -18,6 +18,7 @@ pub mod clean_code;
 pub mod commit_msg;
 pub mod config;
 pub mod context;
+pub mod coverage;
 pub mod diagnostic;
 pub mod docker;
 pub mod domain_summaries;
@@ -26,6 +27,7 @@ pub mod gitignore;
 pub mod glob;
 pub mod lcov;
 pub mod metrics;
+pub mod mutation;
 pub mod path;
 pub mod policies;
 pub mod skills_catalog;
@@ -34,7 +36,8 @@ pub mod uast;
 pub mod validation;
 
 pub use config::{
-    Config, CoverageConfig, LimitsConfig, ProjectConfig, ScannerPolicy, ScannersConfig,
+    ArchitectureConfig, Config, CoverageConfig, ForbiddenRuleKind, ForbiddenRulesConfig,
+    LimitsConfig, ProjectConfig, ScannerPolicy, ScannersConfig,
 };
 pub use context::{FeatureId, FrameworkId, LanguageId, ProjectContext};
 pub use diagnostic::{Diagnostic, Severity, Span, SpanError};
@@ -52,11 +55,12 @@ pub use gitignore::{
     MANAGED_END, MANAGED_START, compose_dockerignore, compose_gitignore, merge_managed_block,
 };
 pub use glob::glob_matches;
-pub use lcov::{FileCoverage, LcovSummary, parse_lcov};
+pub use lcov::{FileCoverage, LcovSummary, compute_crap_score, parse_lcov};
 pub use metrics::{
-    CallableDecl, CallableKind, ExportDecl, ImportDecl, SecretFinding, SyntaxErrorNode, TypeDecl,
-    TypeKind,
+    CallableDecl, CallableKind, EffectSighting, EffectSightingKind, ExportDecl, ImportDecl,
+    SecretFinding, SyntaxErrorNode, TypeDecl, TypeKind,
 };
+pub use mutation::{MutationConfig, MutationSummary, SurvivedMutant, truncate_replacement};
 pub use path::{RepoPath, RepoPathError};
 pub use uast::{Language, UastDocument, UastKind, UastNode};
 pub use validation::Validation;
@@ -69,7 +73,7 @@ pub use {
     boundaries::{BoundaryRule, IntegrityConfig, LockStatus, default_atomic_design_boundaries},
     clean_code::{
         BypassFinding, CleanCodeConfig, ContractDecl, ContractImpl, KissYagniFinding,
-        KissYagniKind, TddConfig, TddParityGates, TestCaseSummary, YagniGates,
+        KissYagniKind, TddConfig, TddParityGate, TestCaseSummary, YagniRule,
     },
     commit_msg::{CommitConfig, validate_commit_message},
     skills_catalog::{

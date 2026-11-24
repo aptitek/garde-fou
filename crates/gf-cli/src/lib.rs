@@ -52,6 +52,8 @@ mod tests {
             "--strict-tools",
             "--lcov",
             "coverage/lcov.info",
+            "--mutants",
+            "mutants.out/outcomes.json",
             "--format",
             "agent",
         ])?;
@@ -64,6 +66,7 @@ mod tests {
                 },
                 strict_tools: true,
                 lcov: Some(String::from("coverage/lcov.info")),
+                mutants: Some(String::from("mutants.out/outcomes.json")),
                 format: OutputFormat::Agent,
             })
         );
@@ -108,7 +111,7 @@ mod tests {
         let (_, check_code) = execute(&fresh_check, &dir)?;
         assert_eq!(check_code, ExitCode::SUCCESS);
 
-        let _ = fs::remove_dir_all(&dir);
+        fs::remove_dir_all(&dir)?;
         Ok(())
     }
 }

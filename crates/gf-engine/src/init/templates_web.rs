@@ -1,5 +1,5 @@
 //! Strict TypeScript / Web (`React`, `Astro`, `Next.js`) scaffolding templates,
-//! wired cleanly to `Forme`, `Texte` (`t(...)`), and `Asset` when 6-domain features are active.
+//! wired cleanly to `Forme`, `Texte` (`t(...)`), `Asset`, and `Vitest` (`GF076`).
 
 use gf_core::{FeatureId, FrameworkId, ProjectContext};
 
@@ -34,7 +34,8 @@ fn package_json(project_kebab: &str, ctx: &ProjectContext) -> String {
          \x20 \"type\": \"module\",\n\
          \x20 \"dependencies\": {deps},\n\
          \x20 \"devDependencies\": {{\n\
-         \x20   \"typescript\": \"^5.7.0\"\n\
+         \x20   \"typescript\": \"^5.7.0\",\n\
+         \x20   \"vitest\": \"^3.0.0\"\n\
          \x20 }}\n\
          }}\n"
     )
@@ -105,32 +106,44 @@ fn render_ui_component(import_prefix: &str, project_kebab: &str, ctx: &ProjectCo
     )
 }
 
-fn render_index_and_test_ts(has_i18n: bool) -> (String, String) {
+fn render_index_ts(has_i18n: bool) -> String {
     let i18n_fn = if has_i18n {
         "\nexport function t(key: string): string {\n  return key;\n}\n"
     } else {
         ""
     };
-    let index_ts = format!(
+    format!(
         "export function formatTitle(raw: string): string {{\n\
          \x20 const trimmed = raw.trim();\n\
          \x20 return trimmed.length > 0 ? trimmed : \"Garde-fou App\";\n\
          }}\n{i18n_fn}"
-    );
-    let i18n_test_import = if has_i18n { ", t" } else { "" };
-    let i18n_test_call = if has_i18n {
-        " && t(\"app.title\").length > 0 && t(\"app.cta\").length > 0 && t(\"app.logo_alt\").length > 0"
-    } else {
-        ""
-    };
-    let test_ts = format!(
-        "import {{ formatTitle{i18n_test_import} }} from \"../src/index\";\n\
+    )
+}
+
+fn render_test_ts(has_i18n: bool) -> String {
+    if has_i18n {
+        return String::from(
+            "import { expect, test } from \"vitest\";\n\
+             import { formatTitle, t } from \"../src/index\";\n\
+             \n\
+             test(\"trims surrounding whitespace and resolves i18n keys\", () => {\n\
+             \x20 expect(formatTitle(\"   Astro \")).toBe(\"Astro\");\n\
+             \x20 expect(formatTitle(\"   \")).toBe(\"Garde-fou App\");\n\
+             \x20 expect(t(\"app.title\")).toBe(\"app.title\");\n\
+             \x20 expect(t(\"app.cta\")).toBe(\"app.cta\");\n\
+             \x20 expect(t(\"app.logo_alt\")).toBe(\"app.logo_alt\");\n\
+             });\n",
+        );
+    }
+    String::from(
+        "import { expect, test } from \"vitest\";\n\
+         import { formatTitle } from \"../src/index\";\n\
          \n\
-         export function verifyFormatTitle(): boolean {{\n\
-         \x20 return formatTitle(\"   Astro \") === \"Astro\"{i18n_test_call};\n\
-         }}\n"
-    );
-    (index_ts, test_ts)
+         test(\"trims surrounding whitespace and falls back when blank\", () => {\n\
+         \x20 expect(formatTitle(\"   Astro \")).toBe(\"Astro\");\n\
+         \x20 expect(formatTitle(\"   \")).toBe(\"Garde-fou App\");\n\
+         });\n",
+    )
 }
 
 /// Generates non-destructive TypeScript starter files `(relative_path, contents)`.
@@ -141,7 +154,6 @@ pub fn web_files(project_kebab: &str, ctx: &ProjectContext) -> Vec<(String, Stri
     let has_i18n = ctx.features.contains(&FeatureId::I18n);
     let uses_jsx =
         has_page_router || has_react || has_i18n || ctx.features.contains(&FeatureId::Ui);
-    let (index_ts, test_ts) = render_index_and_test_ts(has_i18n);
 
     let mut files = vec![
         (
@@ -149,8 +161,11 @@ pub fn web_files(project_kebab: &str, ctx: &ProjectContext) -> Vec<(String, Stri
             package_json(project_kebab, ctx),
         ),
         (String::from("tsconfig.json"), tsconfig_json(uses_jsx)),
-        (String::from("src/index.ts"), index_ts),
-        (String::from("tests/index.test.ts"), test_ts),
+        (String::from("src/index.ts"), render_index_ts(has_i18n)),
+        (
+            String::from("tests/index.test.ts"),
+            render_test_ts(has_i18n),
+        ),
     ];
 
     if has_page_router {

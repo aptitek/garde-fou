@@ -16,6 +16,7 @@ max_imports_per_file = 15
 max_methods_per_type = 10
 min_clone_lines = 15
 min_clone_nodes = 40
+min_clone_similarity_pct = 85
 max_struct_bools = 2
 
 [rules]
@@ -26,6 +27,7 @@ forbid_panic = true
 forbid_todo = true
 forbid_unimplemented = true
 forbid_dbg = true
+forbid_silent_error_swallow = true
 
 [integrity]
 require_lock = true
@@ -115,6 +117,9 @@ entrypoints = [
 no_std_crates = ["gf-core", "gf-rules"]
 io_allowed_crates = ["gf-engine", "gf-cli"]
 console_allowed_crates = ["gf-cli"]
+
+[mutation]
+min_mutation_score = 95
 
 [cache]
 enabled = true

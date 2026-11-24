@@ -1,5 +1,7 @@
-//! Behavioral contract (`trait` / `interface` / `ABC` / `Protocol`) and concrete
-//! implementation extractor (`GF075` YAGNI single-implementation check).
+//! Behavioral contract (`trait` / `interface` / `type` object / `ABC` / `Protocol`)
+//! and concrete implementation extractor (`GF075` YAGNI single-implementation check).
+
+mod ts_contracts;
 
 use gf_core::{ContractDecl, ContractImpl, UastDocument};
 use tree_sitter::Node;
@@ -7,6 +9,7 @@ use tree_sitter::Node;
 use crate::cst::{
     count_children_of_kind, count_named_kinds, field_name_string, node_span, node_text,
 };
+use ts_contracts::{has_pub_visibility, normalize_contract_ident, record_ts_contracts};
 
 const PY_ABSTRACT_BASES: &[&str] = &["ABC", "Protocol"];
 const PY_IGNORED_BASES: &[&str] = &[
@@ -18,27 +21,11 @@ const PY_IGNORED_BASES: &[&str] = &[
     "Enum",
     "IntEnum",
     "StrEnum",
+    "BaseModel",
+    "TypedDict",
+    "NamedTuple",
+    "Generic",
 ];
-
-fn normalize_contract_ident(raw: &str) -> &str {
-    let before_generics = raw.split('<').next().unwrap_or(raw).trim();
-    before_generics
-        .rsplit("::")
-        .next()
-        .and_then(|s| s.rsplit('.').next())
-        .unwrap_or(before_generics)
-        .trim()
-}
-
-fn has_pub_visibility(node: Node<'_>, source: &str) -> bool {
-    let mut c = node.walk();
-    node.children(&mut c).any(|ch| {
-        (ch.kind() == "visibility_modifier" && node_text(ch, source) == "pub")
-            || node
-                .parent()
-                .is_some_and(|p| p.kind() == "export_statement")
-    })
-}
 
 fn record_rust_contracts(node: Node<'_>, source: &str, doc: &mut UastDocument) {
     if node.kind() == "trait_item" {
@@ -69,101 +56,6 @@ fn record_rust_contracts(node: Node<'_>, source: &str, doc: &mut UastDocument) {
     }
 }
 
-fn count_ts_interface_methods(body: Option<Node<'_>>) -> u32 {
-    let direct = count_named_kinds(body, &["method_signature", "call_signature"]);
-    let Some(b) = body else {
-        return direct;
-    };
-    let mut fn_props = 0_u32;
-    let mut cursor = b.walk();
-    for ch in b.named_children(&mut cursor) {
-        if ch.kind() == "property_signature"
-            && ch
-                .child_by_field_name("type")
-                .is_some_and(|t| node_contains_kind(t, "function_type"))
-        {
-            fn_props = fn_props.saturating_add(1);
-        }
-    }
-    direct.saturating_add(fn_props)
-}
-
-fn node_contains_kind(node: Node<'_>, kind: &str) -> bool {
-    if node.kind() == kind {
-        return true;
-    }
-    let mut c = node.walk();
-    node.children(&mut c).any(|ch| node_contains_kind(ch, kind))
-}
-
-fn collect_heritage_types(node: Node<'_>, source: &str, out: &mut Vec<String>) {
-    if matches!(node.kind(), "type_identifier" | "identifier") {
-        let name = normalize_contract_ident(node_text(node, source));
-        if !name.is_empty() {
-            out.push(String::from(name));
-        }
-        return;
-    }
-    let mut c = node.walk();
-    for ch in node.named_children(&mut c) {
-        if ch.kind() != "type_arguments" {
-            collect_heritage_types(ch, source, out);
-        }
-    }
-}
-
-fn record_ts_class_impls(node: Node<'_>, source: &str, doc: &mut UastDocument) {
-    let cls = field_name_string(node, "name", "<class>", source);
-    let mut bases = Vec::new();
-    let mut c = node.walk();
-    for ch in node.named_children(&mut c) {
-        if matches!(
-            ch.kind(),
-            "class_heritage" | "implements_clause" | "extends_clause"
-        ) {
-            collect_heritage_types(ch, source, &mut bases);
-        }
-    }
-    for contract in bases {
-        doc.contract_impls.insert(ContractImpl {
-            contract,
-            implementor: cls.clone(),
-        });
-    }
-}
-
-fn record_ts_contracts(node: Node<'_>, source: &str, doc: &mut UastDocument) {
-    match node.kind() {
-        "interface_declaration" => {
-            let methods = count_ts_interface_methods(node.child_by_field_name("body"));
-            if methods >= 1 {
-                doc.contracts.push(ContractDecl {
-                    name: field_name_string(node, "name", "<interface>", source),
-                    method_count: methods,
-                    is_public: has_pub_visibility(node, source),
-                    span: node_span(node),
-                });
-            }
-        }
-        "abstract_class_declaration" => {
-            let methods = count_named_kinds(
-                node.child_by_field_name("body"),
-                &["abstract_method_signature", "method_definition"],
-            );
-            if methods >= 1 {
-                doc.contracts.push(ContractDecl {
-                    name: field_name_string(node, "name", "<abstract>", source),
-                    method_count: methods,
-                    is_public: has_pub_visibility(node, source),
-                    span: node_span(node),
-                });
-            }
-        }
-        "class_declaration" => record_ts_class_impls(node, source, doc),
-        _ => {}
-    }
-}
-
 fn collect_py_superclasses(node: Node<'_>, source: &str) -> Vec<String> {
     let Some(sup) = node.child_by_field_name("superclasses") else {
         return Vec::new();
@@ -186,10 +78,11 @@ fn record_python_contracts(node: Node<'_>, source: &str, doc: &mut UastDocument)
         node.child_by_field_name("body"),
         &["function_definition", "decorated_definition"],
     );
-    let is_abstract = bases
+    if bases
         .iter()
-        .any(|b| PY_ABSTRACT_BASES.contains(&b.as_str()));
-    if is_abstract && methods >= 1 {
+        .any(|b| PY_ABSTRACT_BASES.contains(&b.as_str()))
+        && methods >= 1
+    {
         doc.contracts.push(ContractDecl {
             name: cls_name,
             method_count: methods,

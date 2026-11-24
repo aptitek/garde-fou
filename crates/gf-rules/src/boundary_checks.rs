@@ -10,8 +10,13 @@ use gf_core::{
     Validation, default_atomic_design_boundaries, glob_matches,
 };
 
-use crate::checks::rule_error;
+use crate::checks::{SourceLoc, rule_error};
 use crate::import_resolver::{normalize_join, resolve_import_indices};
+
+struct BoundaryIndex<'a> {
+    docs: &'a [UastDocument],
+    path_index: &'a BTreeMap<&'a str, usize>,
+}
 
 fn dir_of(path: &str) -> &str {
     path.rsplit_once('/').map_or("", |(d, _)| d)
@@ -20,12 +25,16 @@ fn dir_of(path: &str) -> &str {
 fn candidate_target_strings(
     doc: &UastDocument,
     imp: &ImportDecl,
-    docs: &[UastDocument],
-    path_index: &BTreeMap<&str, usize>,
+    index: &BoundaryIndex<'_>,
 ) -> Vec<String> {
     let mut targets = Vec::new();
-    for idx in resolve_import_indices(&doc.path, doc.language, &imp.module_source, path_index) {
-        targets.push(String::from(docs[idx].path.as_str()));
+    for idx in resolve_import_indices(
+        &doc.path,
+        doc.language,
+        &imp.module_source,
+        index.path_index,
+    ) {
+        targets.push(String::from(index.docs[idx].path.as_str()));
     }
     let raw = imp.module_source.trim();
     if raw.starts_with('.') {
@@ -79,12 +88,11 @@ fn violates_boundary(rule: &BoundaryRule, targets: &[String]) -> Option<String> 
 fn check_doc_boundaries(
     doc: &UastDocument,
     matching_rules: &[&BoundaryRule],
-    ctx: (&[UastDocument], &BTreeMap<&str, usize>),
+    index: &BoundaryIndex<'_>,
     diags: &mut Vec<Diagnostic>,
 ) {
-    let (docs, path_index) = ctx;
     for imp in &doc.imports {
-        let targets = candidate_target_strings(doc, imp, docs, path_index);
+        let targets = candidate_target_strings(doc, imp, index);
         for rule in matching_rules {
             if let Some(why) = violates_boundary(rule, &targets) {
                 diags.push(rule_error(
@@ -94,7 +102,7 @@ fn check_doc_boundaries(
                         doc.path, imp.module_source, rule.reason
                     ),
                     &rule.reason,
-                    (&doc.path, imp.span),
+                    SourceLoc::new(&doc.path, imp.span),
                 ));
             }
         }
@@ -120,6 +128,10 @@ pub fn check_architecture_boundaries(
         .enumerate()
         .map(|(idx, d)| (d.path.as_str(), idx))
         .collect();
+    let index = BoundaryIndex {
+        docs,
+        path_index: &path_index,
+    };
 
     let mut diags = Vec::new();
     for doc in docs {
@@ -128,7 +140,7 @@ pub fn check_architecture_boundaries(
             .filter(|r| glob_matches(&r.from, doc.path.as_str()))
             .collect();
         if !matching_rules.is_empty() {
-            check_doc_boundaries(doc, &matching_rules, (docs, &path_index), &mut diags);
+            check_doc_boundaries(doc, &matching_rules, &index, &mut diags);
         }
     }
     Validation::<(), Diagnostic>::from_errors(diags)

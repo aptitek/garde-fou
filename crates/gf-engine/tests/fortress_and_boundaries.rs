@@ -65,7 +65,7 @@ fn tarjan_detects_three_file_cycle_with_closed_chain() -> Result<(), Box<dyn std
         "unexpected cycle chain: {cycle_msgs:?}"
     );
 
-    let _ = fs::remove_dir_all(&dir);
+    fs::remove_dir_all(&dir)?;
     Ok(())
 }
 
@@ -114,7 +114,7 @@ fn atomic_design_blocks_atoms_importing_molecules_or_services()
         report.diagnostics
     );
 
-    let _ = fs::remove_dir_all(&dir);
+    fs::remove_dir_all(&dir)?;
     Ok(())
 }
 
@@ -174,7 +174,7 @@ fn dirty_code_triggers_gf070_gf073_gf074_gf075_and_gf076_together()
         );
     }
 
-    let _ = fs::remove_dir_all(&dir);
+    fs::remove_dir_all(&dir)?;
     Ok(())
 }
 
@@ -203,7 +203,7 @@ fn garde_lock_blocks_unauthorized_toml_tampering() -> Result<(), Box<dyn std::er
             .any(|d| d.rule_id == "GF070")
     );
 
-    let _ = run_lock(&dir)?;
+    run_lock(&dir)?;
     let clean = run_check_with_options(&dir, &CheckOptions::new(ScanScope::All, true))?;
     assert!(
         clean.is_clean(),
@@ -227,7 +227,7 @@ fn garde_lock_blocks_unauthorized_toml_tampering() -> Result<(), Box<dyn std::er
             .any(|d| d.rule_id == "GF070" && d.message.contains("garde.lock"))
     );
 
-    let _ = fs::remove_dir_all(&dir);
+    fs::remove_dir_all(&dir)?;
     Ok(())
 }
 

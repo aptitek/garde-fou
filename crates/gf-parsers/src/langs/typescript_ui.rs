@@ -1,10 +1,7 @@
 //! TypeScript / JavaScript style-leak (`GF060`), inline-asset (`GF064`), and `t(...)` (`GF062`)
 //! AST extraction.
 
-use gf_core::{
-    DomainLayoutConfig, StyleLeakFinding, StyleLeakKind, UastDocument, classify_path,
-    is_asset_extension,
-};
+use gf_core::{StyleLeakFinding, StyleLeakKind, UastDocument, is_asset_extension};
 use tree_sitter::Node;
 
 use crate::cst::{node_span, node_text};
@@ -177,7 +174,6 @@ fn handle_string_node(node: Node<'_>, source: &str, doc: &mut UastDocument) {
 
 /// Extracts CSS-in-JS leaks, raw colors/units, `t("...")` keys, and asset refs from TS/JS ASTs.
 pub fn extract_ts_style_and_i18n(root: Node<'_>, source: &str, doc: &mut UastDocument) {
-    let _ = classify_path(&doc.path, &DomainLayoutConfig::strict_defaults());
     walk_style_i18n(root, source, doc);
 }
 

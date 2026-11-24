@@ -171,7 +171,7 @@ pub fn run_sync(root: &Path, options: &SyncOptions) -> Result<SyncReport, Engine
     let should_lock = (root.join(LOCK_FILENAME).is_file() || config.integrity.require_lock)
         && root.join(DEFAULT_CONFIG_FILENAME).is_file();
     if should_lock {
-        let _ = write_garde_lock(root)?;
+        write_garde_lock(root)?;
     }
 
     Ok(SyncReport {

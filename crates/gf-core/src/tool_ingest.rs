@@ -29,17 +29,23 @@ pub enum ExternalToolId {
     Eslint,
     /// `shellcheck` POSIX shell script analyzer.
     Shellcheck,
+    /// `cargo-mutants` Rust mutation testing runner (`mutants.toml`).
+    CargoMutants,
+    /// `Stryker` JS/TS mutation testing runner (`stryker.config.json`).
+    Stryker,
 }
 
 impl ExternalToolId {
     /// All known ecosystem tool identifiers in deterministic order.
-    pub const ALL: [Self; 6] = [
+    pub const ALL: [Self; 8] = [
         Self::Ruff,
         Self::Mypy,
         Self::Pyright,
         Self::Tsc,
         Self::Eslint,
         Self::Shellcheck,
+        Self::CargoMutants,
+        Self::Stryker,
     ];
 
     /// Canonical lowercase CLI/config name of the tool.
@@ -52,6 +58,8 @@ impl ExternalToolId {
             Self::Tsc => "tsc",
             Self::Eslint => "eslint",
             Self::Shellcheck => "shellcheck",
+            Self::CargoMutants => "cargo-mutants",
+            Self::Stryker => "stryker",
         }
     }
 }
@@ -180,6 +188,12 @@ impl ToolsConfig {
 pub fn is_audited_tool_config_file(path: &RepoPath) -> bool {
     matches!(
         path.file_name(),
-        "pyproject.toml" | "ruff.toml" | ".ruff.toml" | "tsconfig.json"
+        "pyproject.toml"
+            | "ruff.toml"
+            | ".ruff.toml"
+            | "tsconfig.json"
+            | "mutants.toml"
+            | "stryker.config.json"
+            | "stryker.conf.json"
     )
 }

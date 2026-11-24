@@ -1,4 +1,4 @@
-//! Normalized structural, complexity, and AST fingerprint metadata.
+//! Normalized structural, complexity, AST fingerprint, and effect-sighting metadata.
 
 use alloc::string::String;
 use alloc::vec::Vec;
@@ -37,11 +37,13 @@ pub struct ImportDecl {
     pub span: Span,
 }
 
-/// Normalized public symbol export declaration (`pub`, `export`, Python public symbol).
+/// Normalized symbol export declaration (`pub`, `pub(crate)`, `export`, Python public symbol).
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct ExportDecl {
     /// Exported symbol identifier.
     pub symbol: String,
+    /// `true` for `pub(crate)` / `pub(super)` items tracked for crate-internal dead code (`GF021`).
+    pub is_crate_internal: bool,
     /// Source span of the exported declaration.
     pub span: Span,
 }
@@ -61,7 +63,7 @@ pub enum TypeKind {
     Impl,
 }
 
-/// Normalized composite type or `impl` declaration with SRP metrics.
+/// Normalized composite type or `impl` declaration with SRP and boolean-field metrics.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct TypeDecl {
     /// Identifier of the type or `impl` target.
@@ -72,6 +74,8 @@ pub struct TypeDecl {
     pub span: Span,
     /// Number of declared fields, properties, or variants.
     pub field_count: u32,
+    /// Number of direct `bool` / `boolean` fields inspected by `GF009`.
+    pub bool_field_count: u32,
     /// Number of associated methods or member functions.
     pub method_count: u32,
 }
@@ -87,7 +91,7 @@ pub enum CallableKind {
     Closure,
 }
 
-/// Normalized function, method, or named closure with complexity and clone-detection metrics.
+/// Normalized function, method, or named closure with complexity and Type-2/Type-3 clone metrics.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct CallableDecl {
     /// Identifier of the callable.
@@ -108,6 +112,34 @@ pub struct CallableDecl {
     pub max_nesting_depth: u32,
     /// Type-2 normalized `BLAKE3` 128-bit structural AST hash (`$ID` / `$LIT` normalized).
     pub structural_hash: Option<u128>,
+    /// Deterministic 8-register `MinHash` sketch over 5-gram AST shingles for Type-3 clones (`GF020`).
+    pub shingle_sketch: Option<[u64; 8]>,
     /// Total number of non-comment AST nodes inside the callable body.
     pub ast_node_count: u32,
+}
+
+/// Category of architectural effect or error-swallowing construct (`GF011` & `GF078`).
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
+pub enum EffectSightingKind {
+    /// Presence of `#![no_std]` crate-level attribute (`GF078`).
+    HasNoStdAttr,
+    /// Usage or import of `std::` outside `#[cfg(test)]` (`GF078`).
+    StdUsage,
+    /// Import or call to I/O primitives (`fs`, `net`, `process`, `env`, `GF078`).
+    IoImportOrCall,
+    /// Console output primitive (`println!`, `eprintln!`, `console.log`, `print`, `GF078`).
+    ConsoleOutput,
+    /// Silent error absorption (`let _ = fallible()`, `.unwrap_or_default()`, `GF011`).
+    SilentErrorSwallow,
+}
+
+/// Architectural effect or silent error-swallowing sighting attached to [`crate::UastDocument`].
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct EffectSighting {
+    /// Category of effect or error-swallowing sighting.
+    pub kind: EffectSightingKind,
+    /// Matched symbol, path, or statement summary.
+    pub detail: String,
+    /// 1-indexed source span.
+    pub span: Span,
 }

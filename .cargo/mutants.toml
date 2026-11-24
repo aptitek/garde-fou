@@ -1,0 +1,11 @@
+profile = "mutants"
+cap_lints = true
+examine_globs = [
+    "crates/gf-core/src/**/*.rs",
+    "crates/gf-rules/src/**/*.rs",
+]
+exclude_globs = [
+    "crates/gf-core/src/agent_templates.rs",
+]
+timeout_multiplier = 3.0
+minimum_test_timeout = 20.0

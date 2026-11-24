@@ -27,7 +27,12 @@ fn should_descend(entry_path: &Path, root: &Path) -> bool {
     };
     !rel.components().any(|comp| {
         let s = comp.as_os_str();
-        s == ".git" || s == ".garde-fou-cache" || s == "target" || s == ".agents"
+        s == ".git"
+            || s == ".garde-fou-cache"
+            || s == "target"
+            || s == ".agents"
+            || s == "mutants.out"
+            || s == ".stryker-tmp"
     })
 }
 

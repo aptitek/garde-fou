@@ -4,17 +4,18 @@ use std::fs;
 use std::path::Path;
 
 use gf_core::{
-    Config, CoverageConfig, DomainLayoutConfig, FeatureId, FrameworkId, LanguageId, LimitsConfig,
-    ProjectConfig, ScannerPolicy, ScannersConfig,
+    ArchitectureConfig, Config, CoverageConfig, DomainLayoutConfig, FeatureId,
+    ForbiddenRulesConfig, FrameworkId, LanguageId, LimitsConfig, MutationConfig, ProjectConfig,
+    ScannerPolicy, ScannersConfig,
 };
 
 use crate::config_fortress::{
-    merge_agents, merge_boundaries, merge_clean_code, merge_commit, merge_integrity, merge_tdd,
-    merge_tools,
+    CoverageSection, MutationSection, merge_agents, merge_boundaries, merge_clean_code,
+    merge_commit, merge_integrity, merge_tdd, merge_tools,
 };
 use crate::config_schema::{
-    CoverageSection, DomainsSection, LimitsSection, ProjectSection, RawManifest, RulesSection,
-    ScannersSection, default_cache_dir,
+    ArchitectureSection, DomainsSection, LimitsSection, PathsAndCache, ProjectSection, RawManifest,
+    RulesSection, ScannersSection, default_cache_dir,
 };
 use crate::types::{DEFAULT_CONFIG_FILENAME, EngineError};
 
@@ -33,21 +34,29 @@ fn parse_project_section(raw: Option<ProjectSection>) -> Result<ProjectConfig, E
     let Some(section) = raw else {
         return Ok(ProjectConfig::empty());
     };
+    if section.name.as_deref().is_some_and(|n| n.trim().is_empty()) {
+        return Err(EngineError::InvalidConfig(String::from(
+            "`project.name` must not be empty",
+        )));
+    }
     let mut cfg = ProjectConfig::empty();
     for item in section.languages {
-        let id = LanguageId::from_config_str(&item)
-            .ok_or_else(|| EngineError::InvalidConfig(format!("unknown language `{item}`")))?;
-        cfg.languages.insert(id);
+        cfg.languages.insert(
+            LanguageId::from_config_str(&item)
+                .ok_or_else(|| EngineError::InvalidConfig(format!("unknown language `{item}`")))?,
+        );
     }
     for item in section.features {
-        let id = FeatureId::from_config_str(&item)
-            .ok_or_else(|| EngineError::InvalidConfig(format!("unknown feature `{item}`")))?;
-        cfg.features.insert(id);
+        cfg.features.insert(
+            FeatureId::from_config_str(&item)
+                .ok_or_else(|| EngineError::InvalidConfig(format!("unknown feature `{item}`")))?,
+        );
     }
     for item in section.frameworks {
-        let id = FrameworkId::from_config_str(&item)
-            .ok_or_else(|| EngineError::InvalidConfig(format!("unknown framework `{item}`")))?;
-        cfg.frameworks.insert(id);
+        cfg.frameworks
+            .insert(FrameworkId::from_config_str(&item).ok_or_else(|| {
+                EngineError::InvalidConfig(format!("unknown framework `{item}`"))
+            })?);
     }
     Ok(cfg)
 }
@@ -73,30 +82,56 @@ fn parse_scanners_section(raw: Option<ScannersSection>) -> Result<ScannersConfig
     })
 }
 
+fn check_pct_bound(field: &str, pct: Option<u32>) -> Result<(), EngineError> {
+    if let Some(val) = pct
+        && val > 100
+    {
+        return Err(EngineError::InvalidConfig(format!(
+            "{field} {val} exceeds 100%"
+        )));
+    }
+    Ok(())
+}
+
 fn parse_coverage_section(raw: Option<CoverageSection>) -> Result<CoverageConfig, EngineError> {
     let Some(cov) = raw else {
         return Ok(CoverageConfig::empty());
     };
-    if let Some(pct) = cov.min_line_coverage
-        && pct > 100
-    {
-        return Err(EngineError::InvalidConfig(format!(
-            "min_line_coverage {pct} exceeds 100%"
-        )));
-    }
+    check_pct_bound("min_line_coverage", cov.min_line_coverage)?;
+    check_pct_bound("min_branch_coverage", cov.min_branch_coverage)?;
     Ok(CoverageConfig {
         min_line_coverage: cov.min_line_coverage,
+        min_branch_coverage: cov.min_branch_coverage,
+        max_crap_score: cov.max_crap_score,
         lcov_path: cov.lcov_path,
     })
 }
 
-fn merge_limits(raw: Option<LimitsSection>) -> LimitsConfig {
+fn parse_mutation_section(raw: Option<MutationSection>) -> Result<MutationConfig, EngineError> {
+    let Some(m) = raw else {
+        return Ok(MutationConfig::empty());
+    };
+    check_pct_bound("min_mutation_score", m.min_mutation_score)?;
+    Ok(MutationConfig {
+        min_mutation_score: m.min_mutation_score,
+        zero_survivor_globs: m.zero_survivor_globs,
+        report_path: m.report_path,
+    })
+}
+
+fn merge_limits(raw: Option<LimitsSection>) -> Result<LimitsConfig, EngineError> {
     let base = LimitsConfig::strict_defaults();
     let Some(s) = raw else {
-        return base;
+        return Ok(base);
     };
-    let _ = s.struct_bools;
-    LimitsConfig {
+    if let Some(pct) = s.clone_similarity_pct
+        && !(1..=100).contains(&pct)
+    {
+        return Err(EngineError::InvalidConfig(format!(
+            "min_clone_similarity_pct {pct} must be in 1..=100"
+        )));
+    }
+    Ok(LimitsConfig {
         max_file_lines: s.file_lines.unwrap_or(base.max_file_lines),
         max_function_lines: s.function_lines.unwrap_or(base.max_function_lines),
         max_parameters: s.parameters.unwrap_or(base.max_parameters),
@@ -109,9 +144,13 @@ fn merge_limits(raw: Option<LimitsSection>) -> LimitsConfig {
         max_nesting_depth: s.nesting_depth.unwrap_or(base.max_nesting_depth),
         max_imports_per_file: s.imports_per_file.unwrap_or(base.max_imports_per_file),
         max_methods_per_type: s.methods_per_type.unwrap_or(base.max_methods_per_type),
+        max_struct_bools: s.struct_bools.unwrap_or(base.max_struct_bools),
         min_clone_lines: s.clone_lines.unwrap_or(base.min_clone_lines),
         min_clone_nodes: s.clone_nodes.unwrap_or(base.min_clone_nodes),
-    }
+        min_clone_similarity_pct: s
+            .clone_similarity_pct
+            .unwrap_or(base.min_clone_similarity_pct),
+    })
 }
 
 fn merge_domains(raw: Option<DomainsSection>) -> DomainLayoutConfig {
@@ -131,24 +170,16 @@ fn merge_domains(raw: Option<DomainsSection>) -> DomainLayoutConfig {
     }
 }
 
-fn forbid_constructs_enabled(rules: Option<RulesSection>) -> bool {
-    rules.is_none_or(|r| {
-        r.forbid_unsafe
-            || r.forbid_unwrap
-            || r.forbid_expect
-            || r.forbid_panic
-            || r.forbid_todo
-            || r.forbid_unimplemented
-            || r.forbid_dbg
-    })
-}
-
 fn build_loaded_config(mut raw: RawManifest) -> Result<LoadedWorkspaceConfig, EngineError> {
     let project = parse_project_section(raw.project.take())?;
-    let limits = merge_limits(raw.limits.take());
+    let limits = merge_limits(raw.limits.take())?;
     let domains = merge_domains(raw.domains.take());
     let integrity = merge_integrity(raw.integrity.take());
     let boundaries = merge_boundaries(core::mem::take(&mut raw.boundaries));
+    let architecture = raw
+        .architecture
+        .take()
+        .map_or_else(ArchitectureConfig::empty, ArchitectureSection::into_config);
     let clean_code = merge_clean_code(raw.clean_code.take());
     let tdd = merge_tdd(raw.tdd.take());
     let commit = merge_commit(raw.commit.take());
@@ -156,8 +187,12 @@ fn build_loaded_config(mut raw: RawManifest) -> Result<LoadedWorkspaceConfig, En
     let tools = merge_tools(raw.tools.take())?;
     let scanners = parse_scanners_section(raw.scanners.take())?;
     let coverage = parse_coverage_section(raw.coverage.take())?;
-    let forbid_panicking_constructs = forbid_constructs_enabled(raw.rules.take());
-    let ((ignore_paths, entrypoints), (cache_enabled, cache_dir)) = raw.into_paths_and_cache();
+    let mutation = parse_mutation_section(raw.mutation.take())?;
+    let rules = raw.rules.take().map_or_else(
+        || Ok(ForbiddenRulesConfig::strict_defaults()),
+        RulesSection::into_config,
+    )?;
+    let paths_cache: PathsAndCache = raw.into_paths_and_cache()?;
 
     Ok(LoadedWorkspaceConfig {
         analyzer: Config {
@@ -166,6 +201,7 @@ fn build_loaded_config(mut raw: RawManifest) -> Result<LoadedWorkspaceConfig, En
             domains,
             integrity,
             boundaries,
+            architecture,
             clean_code,
             tdd,
             commit,
@@ -173,12 +209,13 @@ fn build_loaded_config(mut raw: RawManifest) -> Result<LoadedWorkspaceConfig, En
             tools,
             scanners,
             coverage,
-            forbid_panicking_constructs,
-            ignore_paths,
-            entrypoints,
+            mutation,
+            rules,
+            ignore_paths: paths_cache.ignore_paths,
+            entrypoints: paths_cache.entrypoints,
         },
-        cache_enabled,
-        cache_dir,
+        cache_enabled: paths_cache.cache_enabled,
+        cache_dir: paths_cache.cache_dir,
     })
 }
 
@@ -196,7 +233,6 @@ pub fn load_workspace_config(root: &Path) -> Result<LoadedWorkspaceConfig, Engin
             cache_dir: default_cache_dir(),
         });
     }
-
     let content = fs::read_to_string(&path)?;
     let raw: RawManifest =
         toml::from_str(&content).map_err(|err| EngineError::InvalidConfig(err.to_string()))?;

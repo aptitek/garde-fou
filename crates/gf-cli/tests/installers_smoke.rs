@@ -41,11 +41,17 @@ fn compute_sha256_hex(archive_path: &Path) -> Result<String, std::io::Error> {
 }
 
 #[cfg(unix)]
+struct StagedRelease {
+    dist: PathBuf,
+    archive_name: String,
+}
+
+#[cfg(unix)]
 fn stage_release_archive(
     root: &Path,
     work: &Path,
     target: &str,
-) -> Result<(PathBuf, String), Box<dyn std::error::Error>> {
+) -> Result<StagedRelease, Box<dyn std::error::Error>> {
     let stage = work.join("stage");
     let dist = work.join("dist");
     fs::create_dir_all(&stage)?;
@@ -69,7 +75,7 @@ fn stage_release_archive(
         dist.join("SHA256SUMS"),
         format!("{digest}  {archive_name}\n"),
     )?;
-    Ok((dist, archive_name))
+    Ok(StagedRelease { dist, archive_name })
 }
 
 #[cfg(unix)]
@@ -86,12 +92,12 @@ fn posix_install_sh_verifies_sha256_and_rejects_tampered_archives()
     fs::create_dir_all(&bin)?;
 
     let target = "x86_64-unknown-linux-musl";
-    let (dist, archive_name) = stage_release_archive(&root, &work, target)?;
+    let staged = stage_release_archive(&root, &work, target)?;
 
     let ok_install = Command::new("sh")
         .arg(&script)
         .arg("--from-dir")
-        .arg(&dist)
+        .arg(&staged.dist)
         .arg("--install-dir")
         .arg(&bin)
         .env("GARDE_TARGET", target)
@@ -102,20 +108,20 @@ fn posix_install_sh_verifies_sha256_and_rejects_tampered_archives()
     assert!(ver.status.success());
 
     fs::write(
-        dist.join("SHA256SUMS"),
-        format!("{:064}  {archive_name}\n", 0),
+        staged.dist.join("SHA256SUMS"),
+        format!("{:064}  {}\n", 0, staged.archive_name),
     )?;
     let bad_install = Command::new("sh")
         .arg(&script)
         .arg("--from-dir")
-        .arg(&dist)
+        .arg(&staged.dist)
         .arg("--install-dir")
         .arg(work.join("bin-bad"))
         .env("GARDE_TARGET", target)
         .output()?;
     assert!(!bad_install.status.success());
 
-    let _ = fs::remove_dir_all(&work);
+    fs::remove_dir_all(&work)?;
     Ok(())
 }
 
@@ -123,15 +129,30 @@ fn posix_install_sh_verifies_sha256_and_rejects_tampered_archives()
 fn powershell_install_ps1_enforces_strict_mode_and_sha256_verification()
 -> Result<(), Box<dyn std::error::Error>> {
     let root = workspace_root()?;
-    let ps1_rel = "scripts/install.ps1";
-    let sh_rel = "scripts/install.sh";
-    assert!(root.join(sh_rel).is_file());
+    let ps1_script = root.join("scripts/install.ps1");
+    assert!(ps1_script.is_file());
 
-    let content = fs::read_to_string(root.join(ps1_rel))?;
+    let content = fs::read_to_string(&ps1_script)?;
     assert!(content.contains("Set-StrictMode -Version Latest"));
     assert!(content.contains("$ErrorActionPreference = 'Stop'"));
     assert!(content.contains("Get-FileHash"));
     assert!(content.contains("SHA256SUMS"));
     assert!(content.contains("SHA-256 mismatch"));
+
+    if Command::new("pwsh")
+        .arg("-Version")
+        .output()
+        .is_ok_and(|out| out.status.success())
+    {
+        let ast_ok = Command::new("pwsh")
+            .args([
+                "-NoProfile",
+                "-Command",
+                "param($p) $errs = $null; $null = [System.Management.Automation.Language.Parser]::ParseFile($p, [ref]$null, [ref]$errs); if ($errs) { exit 1 }",
+            ])
+            .arg(&ps1_script)
+            .status()?;
+        assert!(ast_ok.success());
+    }
     Ok(())
 }

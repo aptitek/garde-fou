@@ -1,6 +1,7 @@
-//! Static `.svg` security analyzer (`GF064`) and cross-language script-mention collector (`GF065`).
+//! Static `.svg` security analyzer (`GF064`) and process-invocation script-mention
+//! collector (`GF065`).
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use gf_core::{
     AssetDocument, AssetHazard, AssetHazardKind, Language, RepoPath, Span, UastDocument,
@@ -10,6 +11,24 @@ use crate::cst::line_metrics;
 use crate::types::ParseError;
 
 const SCRIPT_EXTENSIONS: &[&str] = &["sh", "bash", "ps1", "py", "ts", "js", "mjs", "cjs"];
+
+const PROCESS_EXEC_MARKERS: &[&str] = &[
+    "Command::new",
+    ".arg(",
+    ".args(",
+    "subprocess.",
+    "Popen",
+    "execFile",
+    "spawn",
+    "sh ",
+    "bash ",
+    "pwsh ",
+    "pwsh\"",
+    "pwsh'",
+    "python",
+    "tsx ",
+    "node ",
+];
 
 fn parse_event_attr_at(lower_line: &str, idx: usize) -> Option<&str> {
     let bytes = lower_line.as_bytes();
@@ -107,19 +126,86 @@ fn record_candidate_token(tok: &str, out: &mut BTreeSet<String>) {
     }
 }
 
-/// Scans string literals in `source` for script file paths or filenames (`GF065` test coverage).
-#[must_use]
-pub fn collect_script_mentions(source: &str) -> BTreeSet<String> {
-    let mut out = BTreeSet::new();
+fn scan_quoted_scripts_in_chunk(chunk: &str, out: &mut BTreeSet<String>) {
     for quote in ['"', '\'', '`'] {
         let mut inside = false;
-        for segment in source.split(quote) {
+        for segment in chunk.split(quote) {
             if inside {
                 for word in segment.split_whitespace() {
-                    record_candidate_token(word, &mut out);
+                    record_candidate_token(word, out);
                 }
             }
             inside = !inside;
+        }
+    }
+}
+
+fn has_process_exec_marker(text: &str) -> bool {
+    PROCESS_EXEC_MARKERS.iter().any(|m| text.contains(m))
+}
+
+fn extract_assigned_ident(stmt: &str) -> Option<&str> {
+    let lhs = stmt.split('=').next()?.trim();
+    let ident = lhs
+        .rsplit(|c: char| !c.is_ascii_alphanumeric() && c != '_')
+        .find(|tok| !tok.is_empty())?;
+    (!ident.starts_with('_')).then_some(ident)
+}
+
+fn chunk_mentions_ident(chunk: &str, ident: &str) -> bool {
+    chunk
+        .split(|c: char| !c.is_ascii_alphanumeric() && c != '_')
+        .any(|tok| tok == ident)
+}
+
+fn record_assigned_script_binding(
+    trimmed: &str,
+    bound_scripts: &mut BTreeMap<String, BTreeSet<String>>,
+) {
+    if !trimmed.contains('=') {
+        return;
+    }
+    let Some(ident) = extract_assigned_ident(trimmed) else {
+        return;
+    };
+    let mut candidates = BTreeSet::new();
+    scan_quoted_scripts_in_chunk(trimmed, &mut candidates);
+    if !candidates.is_empty() {
+        bound_scripts
+            .entry(String::from(ident))
+            .or_default()
+            .extend(candidates);
+    }
+}
+
+/// Scans process-invocation expressions in test `source` for executed script paths (`GF065`).
+#[must_use]
+pub fn collect_script_mentions(source: &str) -> BTreeSet<String> {
+    let mut out = BTreeSet::new();
+    let mut bound_scripts: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
+    let mut exec_chunks: Vec<&str> = Vec::new();
+
+    for line in source.lines() {
+        let trimmed = line.trim();
+        if trimmed.starts_with("//") || trimmed.starts_with('#') {
+            continue;
+        }
+        if has_process_exec_marker(trimmed) {
+            scan_quoted_scripts_in_chunk(trimmed, &mut out);
+            exec_chunks.push(trimmed);
+        } else {
+            record_assigned_script_binding(trimmed, &mut bound_scripts);
+        }
+    }
+
+    for stmt in source.split(';').filter(|s| has_process_exec_marker(s)) {
+        scan_quoted_scripts_in_chunk(stmt, &mut out);
+        exec_chunks.push(stmt);
+    }
+
+    for (ident, scripts) in bound_scripts {
+        if exec_chunks.iter().any(|c| chunk_mentions_ident(c, &ident)) {
+            out.extend(scripts);
         }
     }
     out

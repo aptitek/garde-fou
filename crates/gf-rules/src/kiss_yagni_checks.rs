@@ -7,29 +7,32 @@ use alloc::string::String;
 use alloc::vec::Vec;
 
 use gf_core::{
-    Config, Diagnostic, DomainKind, KissYagniFinding, KissYagniKind, ProjectContext, RepoPath,
-    Severity, Span, UastDocument, Validation, classify_path,
+    Config, Diagnostic, DomainKind, KissYagniFinding, KissYagniKind, ProjectContext, Severity,
+    UastDocument, Validation, classify_path,
 };
 
-use crate::checks::rule_error;
+use crate::checks::{SourceLoc, rule_error};
 use crate::workspace_checks::is_entrypoint_file;
 
-fn measured_diag(
-    rule_id: &str,
+struct MeasuredSpec<'a> {
+    rule_id: &'static str,
     message: String,
-    remediation: &str,
-    ctx: (&RepoPath, Span, u32, u32),
-) -> Diagnostic {
-    let (path, span, measured, threshold) = ctx;
+    remediation: &'static str,
+    loc: SourceLoc<'a>,
+    measured: u32,
+    threshold: u32,
+}
+
+fn measured_diag(spec: MeasuredSpec<'_>) -> Diagnostic {
     Diagnostic {
-        rule_id: String::from(rule_id),
+        rule_id: String::from(spec.rule_id),
         severity: Severity::Error,
-        message,
-        remediation: String::from(remediation),
-        measured,
-        threshold,
-        path: path.clone(),
-        span,
+        message: spec.message,
+        remediation: String::from(spec.remediation),
+        measured: spec.measured,
+        threshold: spec.threshold,
+        path: spec.loc.path.clone(),
+        span: spec.loc.span,
     }
 }
 
@@ -39,28 +42,33 @@ fn evaluate_kiss_item(
     config: &Config,
 ) -> Option<Diagnostic> {
     let cc = &config.clean_code;
+    let loc = SourceLoc::new(&doc.path, item.span);
     match item.kind {
         KissYagniKind::NestedTernary if item.measured > cc.max_nested_ternaries => {
-            Some(measured_diag(
-                "GF073",
-                format!(
+            Some(measured_diag(MeasuredSpec {
+                rule_id: "GF073",
+                message: format!(
                     "KISS violation: {} (max {})",
                     item.detail, cc.max_nested_ternaries
                 ),
-                "Replace nested ternary expressions with early-return helper functions or explicit `if`/`match` branches.",
-                (&doc.path, item.span, item.measured, cc.max_nested_ternaries),
-            ))
+                remediation: "Replace nested ternary expressions with early-return helper functions or explicit `if`/`match` branches.",
+                loc,
+                measured: item.measured,
+                threshold: cc.max_nested_ternaries,
+            }))
         }
         KissYagniKind::PropertyChain if item.measured > cc.max_property_chain => {
-            Some(measured_diag(
-                "GF073",
-                format!(
+            Some(measured_diag(MeasuredSpec {
+                rule_id: "GF073",
+                message: format!(
                     "KISS violation: {} (max {})",
                     item.detail, cc.max_property_chain
                 ),
-                "Respect the Law of Demeter: expose a domain method on the owning type instead of chaining raw internal field accesses.",
-                (&doc.path, item.span, item.measured, cc.max_property_chain),
-            ))
+                remediation: "Respect the Law of Demeter: expose a domain method on the owning type instead of chaining raw internal field accesses.",
+                loc,
+                measured: item.measured,
+                threshold: cc.max_property_chain,
+            }))
         }
         _ => None,
     }
@@ -73,23 +81,26 @@ fn evaluate_yagni_item(
     config: &Config,
 ) -> Option<Diagnostic> {
     let cc = &config.clean_code;
+    let loc = SourceLoc::new(&doc.path, item.span);
     match item.kind {
-        KissYagniKind::WildcardReExport if cc.yagni.forbid_wildcard_exports => Some(rule_error(
+        KissYagniKind::WildcardReExport if cc.has_wildcard_exports() => Some(rule_error(
             "GF074",
             format!("YAGNI barrel/wildcard violation: {}", item.detail),
             "Replace wildcard `export *` / `import *` / `pub use *` with explicit named symbol imports/exports.",
-            (&doc.path, item.span),
+            loc,
         )),
         KissYagniKind::ExcessiveBoolParams if item.measured > cc.max_bool_parameters => {
-            Some(measured_diag(
-                "GF074",
-                format!(
+            Some(measured_diag(MeasuredSpec {
+                rule_id: "GF074",
+                message: format!(
                     "YAGNI boolean-flag overload: {} (max {})",
                     item.detail, cc.max_bool_parameters
                 ),
-                "Replace multiple `bool` flag parameters with a dedicated `enum` or small typed options struct.",
-                (&doc.path, item.span, item.measured, cc.max_bool_parameters),
-            ))
+                remediation: "Replace multiple `bool` flag parameters with a dedicated `enum` or small typed options struct.",
+                loc,
+                measured: item.measured,
+                threshold: cc.max_bool_parameters,
+            }))
         }
         KissYagniKind::TodoMarker | KissYagniKind::CommentedOutCode
             if cc.forbid_todos && domain == DomainKind::Code =>
@@ -97,8 +108,8 @@ fn evaluate_yagni_item(
             Some(rule_error(
                 "GF074",
                 format!("unresolved code debt in `Code`: {}", item.detail),
-                "Resolve deferred work immediately or track it in your issue tracker instead of leaving `TODO`/`FIXME` comments in `Code`.",
-                (&doc.path, item.span),
+                "Resolve deferred work immediately or delete commented-out code instead of leaving `TODO`/`FIXME` or dead code blocks in `Code`.",
+                loc,
             ))
         }
         _ => None,
@@ -120,11 +131,8 @@ pub fn check_local_kiss_yagni_and_bypass(
                 "linter/typechecker bypass `{}` is strictly forbidden in `{}`",
                 bypass.directive, doc.path
             ),
-            concat!(
-                "Fix the underlying root cause instead of silencing static analysis with inline ignore comments or `#[",
-                "allow(...)]`."
-            ),
-            (&doc.path, bypass.span),
+            "Fix the underlying root cause instead of silencing static analysis with inline ignore comments or `#[allow(...)]`.",
+            SourceLoc::new(&doc.path, bypass.span),
         ));
     }
 
@@ -157,7 +165,7 @@ pub fn check_single_impl_contracts(
     ctx: &ProjectContext,
     config: &Config,
 ) -> Validation<(), Diagnostic> {
-    if !config.clean_code.yagni.forbid_single_impl_traits {
+    if !config.clean_code.has_single_impl_traits() {
         return Validation::Valid(());
     }
     let impl_counts = build_contract_impl_counts(docs);
@@ -173,15 +181,17 @@ pub fn check_single_impl_contracts(
                 .get(contract.name.as_str())
                 .map_or(0, BTreeSet::len);
             if count <= 1 {
-                diags.push(measured_diag(
-                    "GF075",
-                    format!(
+                diags.push(measured_diag(MeasuredSpec {
+                    rule_id: "GF075",
+                    message: format!(
                         "YAGNI single-implementation abstraction: `{}` in `{}` has {count} concrete implementation(s) (min 2)",
                         contract.name, doc.path
                     ),
-                    "Use a concrete struct/class/function directly until at least two genuine implementations exist, or expose public library extension traits from a declared entrypoint.",
-                    (&doc.path, contract.span, u32::try_from(count).unwrap_or(0), 2),
-                ));
+                    remediation: "Use a concrete struct/class/function directly until at least two genuine implementations exist, or expose public library extension traits from a declared entrypoint.",
+                    loc: SourceLoc::new(&doc.path, contract.span),
+                    measured: u32::try_from(count).unwrap_or(0),
+                    threshold: 2,
+                }));
             }
         }
     }

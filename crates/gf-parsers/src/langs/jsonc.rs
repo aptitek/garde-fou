@@ -2,6 +2,15 @@
 
 use gf_core::{ExternalToolId, Span, SyntaxErrorNode, ToolConfigFinding, UastDocument};
 
+/// Structured specification for a Tier 2 configuration hardening violation (`GF081`).
+pub(super) struct CfgViolationSpec<'a> {
+    pub tool: ExternalToolId,
+    pub key: &'a str,
+    pub span: Span,
+    pub message: String,
+    pub remediation: &'static str,
+}
+
 fn skip_line_comment(chars: &mut core::iter::Peekable<core::str::Chars<'_>>, out: &mut String) {
     for ch in chars.by_ref() {
         if ch == '\n' {
@@ -12,12 +21,12 @@ fn skip_line_comment(chars: &mut core::iter::Peekable<core::str::Chars<'_>>, out
 }
 
 fn skip_block_comment(chars: &mut core::iter::Peekable<core::str::Chars<'_>>, out: &mut String) {
-    let _ = chars.next();
+    chars.next();
     while let Some(ch) = chars.next() {
         if ch == '\n' {
             out.push('\n');
         } else if ch == '*' && chars.peek() == Some(&'/') {
-            let _ = chars.next();
+            chars.next();
             return;
         }
     }
@@ -111,17 +120,13 @@ pub(super) fn line_span_containing(source: &str, needle: &str) -> Span {
     Span::new(line_no, line_no).unwrap_or(Span::FIRST)
 }
 
-pub(super) fn push_cfg_finding(
-    out: &mut Vec<ToolConfigFinding>,
-    meta: (ExternalToolId, &str, Span),
-    text: (String, &'static str),
-) {
+pub(super) fn push_cfg_finding(out: &mut Vec<ToolConfigFinding>, spec: CfgViolationSpec<'_>) {
     out.push(ToolConfigFinding {
-        tool: meta.0,
-        key: String::from(meta.1),
-        span: meta.2,
-        message: text.0,
-        remediation: String::from(text.1),
+        tool: spec.tool,
+        key: String::from(spec.key),
+        span: spec.span,
+        message: spec.message,
+        remediation: String::from(spec.remediation),
     });
 }
 
@@ -137,17 +142,15 @@ fn audit_tsconfig_options(
     if !strict_true {
         push_cfg_finding(
             out,
-            (
-                ExternalToolId::Tsc,
-                "compilerOptions.strict",
-                line_span_containing(source, "strict"),
-            ),
-            (
-                String::from(
+            CfgViolationSpec {
+                tool: ExternalToolId::Tsc,
+                key: "compilerOptions.strict",
+                span: line_span_containing(source, "strict"),
+                message: String::from(
                     "`tsconfig.json` must enforce `\"strict\": true` inside `compilerOptions`",
                 ),
-                "Set `\"strict\": true` inside `\"compilerOptions\"` in `tsconfig.json`.",
-            ),
+                remediation: "Set `\"strict\": true` inside `\"compilerOptions\"` in `tsconfig.json`.",
+            },
         );
     }
     for sub_flag in ["noImplicitAny", "strictNullChecks"] {
@@ -158,17 +161,15 @@ fn audit_tsconfig_options(
         {
             push_cfg_finding(
                 out,
-                (
-                    ExternalToolId::Tsc,
-                    &format!("compilerOptions.{sub_flag}"),
-                    line_span_containing(source, sub_flag),
-                ),
-                (
-                    format!(
+                CfgViolationSpec {
+                    tool: ExternalToolId::Tsc,
+                    key: &format!("compilerOptions.{sub_flag}"),
+                    span: line_span_containing(source, sub_flag),
+                    message: format!(
                         "`\"{sub_flag}\": false` weakens TypeScript strict mode in `tsconfig.json`"
                     ),
-                    "Remove `false` overrides on strictness flags inside `compilerOptions`.",
-                ),
+                    remediation: "Remove `false` overrides on strictness flags inside `compilerOptions`.",
+                },
             );
         }
     }
@@ -190,4 +191,56 @@ pub(super) fn audit_tsconfig_json(source: &str, doc: &mut UastDocument) {
         .get("compilerOptions")
         .and_then(serde_json::Value::as_object);
     audit_tsconfig_options(opts, source, &mut doc.tool_config_findings);
+}
+
+fn is_disabled_stryker_break(val: &serde_json::Value) -> bool {
+    val.is_null() || val.as_u64() == Some(0) || val.as_i64() == Some(0) || val.as_f64() == Some(0.0)
+}
+
+pub(super) fn audit_stryker_json(file_name: &str, source: &str, doc: &mut UastDocument) {
+    let cleaned = strip_jsonc_to_json(source);
+    let parsed: serde_json::Value = match serde_json::from_str(&cleaned) {
+        Ok(v) => v,
+        Err(err) => {
+            doc.syntax_errors.push(SyntaxErrorNode {
+                message: format!("invalid JSON/JSONC in `{file_name}`: {err}"),
+                span: Span::FIRST,
+            });
+            return;
+        }
+    };
+    if parsed
+        .get("mutate")
+        .and_then(serde_json::Value::as_array)
+        .is_some_and(Vec::is_empty)
+    {
+        push_cfg_finding(
+            &mut doc.tool_config_findings,
+            CfgViolationSpec {
+                tool: ExternalToolId::Stryker,
+                key: "mutate",
+                span: line_span_containing(source, "mutate"),
+                message: String::from("empty `\"mutate\": []` disables all Stryker mutations"),
+                remediation: "Configure `\"mutate\": [\"src/**/*.ts\", \"!src/**/*.test.ts\"]` in `stryker.config.json`.",
+            },
+        );
+    }
+    if parsed
+        .get("thresholds")
+        .and_then(|t| t.get("break"))
+        .is_some_and(is_disabled_stryker_break)
+    {
+        push_cfg_finding(
+            &mut doc.tool_config_findings,
+            CfgViolationSpec {
+                tool: ExternalToolId::Stryker,
+                key: "thresholds.break",
+                span: line_span_containing(source, "break"),
+                message: String::from(
+                    "`\"thresholds.break\"` must not be `null` or `0` in Stryker configuration",
+                ),
+                remediation: "Set a non-zero breaking mutation threshold (e.g. `\"thresholds\": { \"break\": 80 }`).",
+            },
+        );
+    }
 }

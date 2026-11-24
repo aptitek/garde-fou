@@ -12,6 +12,7 @@ mod kiss_yagni;
 pub mod langs;
 mod secrets;
 mod test_inspector;
+mod test_inspector_py;
 mod test_inspector_script;
 pub mod types;
 
@@ -185,7 +186,9 @@ pub fn parse_source_with_domains(
         anti_cheat::scan_hash_line_comments(source, &mut doc);
     }
     doc.secret_findings = secrets::extract_secret_findings(path, source);
-    if ts_dialect_for_language(lang).is_some() || matches!(lang, Language::Rust | Language::Python)
+    if classify_path(path, domains) == DomainKind::Tests
+        && (ts_dialect_for_language(lang).is_some()
+            || matches!(lang, Language::Rust | Language::Python))
     {
         doc.script_refs = collect_script_mentions(source);
     }

@@ -52,9 +52,17 @@ jobs:\n\
     runs-on: ubuntu-latest\n\
     steps:\n\
       - uses: actions/checkout@v4\n\
-      - name: Install garde\n\
+      - name: Install garde (SHA-256 verified)\n\
         run: |\n\
-          curl -fsSL https://github.com/aptitek/garde-fou/releases/latest/download/install.sh | sh\n\
+          set -euo pipefail\n\
+          BASE_URL=\"https://github.com/aptitek/garde-fou/releases/latest/download\"\n\
+          ARCHIVE=\"garde-x86_64-unknown-linux-gnu.tar.gz\"\n\
+          curl -fsSLO \"${BASE_URL}/${ARCHIVE}\"\n\
+          curl -fsSLO \"${BASE_URL}/${ARCHIVE}.sha256\"\n\
+          sha256sum -c \"${ARCHIVE}.sha256\"\n\
+          mkdir -p \"$HOME/.local/bin\"\n\
+          tar -xzf \"${ARCHIVE}\" -C \"$HOME/.local/bin\" garde\n\
+          rm -f \"${ARCHIVE}\" \"${ARCHIVE}.sha256\"\n\
           echo \"$HOME/.local/bin\" >> \"$GITHUB_PATH\"\n\
       - name: Run Garde-fou\n\
         run: garde check --no-cache\n";

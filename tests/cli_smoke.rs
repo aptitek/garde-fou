@@ -79,6 +79,6 @@ fn cli_init_no_cache_and_cache_hit_succeed() -> Result<(), Box<dyn std::error::E
     assert!(lock.status.success());
     assert!(String::from_utf8(lock.stdout)?.contains("garde.lock"));
 
-    let _ = fs::remove_dir_all(&dir);
+    fs::remove_dir_all(&dir)?;
     Ok(())
 }

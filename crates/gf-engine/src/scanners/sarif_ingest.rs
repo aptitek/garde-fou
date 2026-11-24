@@ -43,7 +43,7 @@ fn strip_windows_file_slash(s: &str) -> &str {
     }
 }
 
-fn normalize_artifact_uri(
+pub(super) fn normalize_artifact_uri(
     uri: Option<&str>,
     workspace_root: &Path,
     fallback: &str,

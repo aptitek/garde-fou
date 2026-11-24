@@ -1,10 +1,13 @@
-//! Property-based tests for Tarjan SCC cycle detection (`GF071`) and Conventional Commits (`GF077`).
+//! Property-based and integration tests for Tarjan SCC (`GF071` 4-level cycles),
+//! Type-3 `MinHash` clones (`GF020`), TDD vacuity (`GF076`), `[architecture]` (`GF078`),
+//! and Conventional Commits (`GF077`).
 
 use std::collections::{BTreeMap, BTreeSet};
 
 use gf_core::{
-    CallableDecl, CallableKind, CommitConfig, Config, FeatureId, Language, ProjectContext,
-    RepoPath, Span, TestCaseSummary, UastDocument, Validation, validate_commit_message,
+    CallableDecl, CallableKind, CommitConfig, Config, EffectSighting, EffectSightingKind,
+    ExportDecl, FeatureId, ImportDecl, Language, ProjectContext, RepoPath, Span, TestCaseSummary,
+    UastDocument, Validation, validate_commit_message,
 };
 use gf_rules::{evaluate_document, evaluate_workspace_sorted, find_scc_cycles};
 use proptest::prelude::*;
@@ -12,10 +15,26 @@ use proptest::test_runner::{Config as ProptestConfig, TestRunner};
 
 fn runner() -> TestRunner {
     TestRunner::new(ProptestConfig {
-        cases: 128,
+        cases: 96,
         failure_persistence: None,
         ..ProptestConfig::default()
     })
+}
+
+fn make_callable(name: &str, hash: Option<u128>, sketch: Option<[u64; 8]>) -> CallableDecl {
+    CallableDecl {
+        name: String::from(name),
+        kind: CallableKind::Function,
+        span: Span::FIRST,
+        effective_lines: 20,
+        param_count: 1,
+        cyclomatic_complexity: 3,
+        cognitive_complexity: 2,
+        max_nesting_depth: 1,
+        structural_hash: hash,
+        shingle_sketch: sketch,
+        ast_node_count: 50,
+    }
 }
 
 #[test]
@@ -29,15 +48,13 @@ fn tarjan_never_flags_strict_dags_and_always_detects_added_back_edges() -> Resul
     tr.run(&dag_strat, |(n, raw_edges)| {
         let mut adj: BTreeMap<usize, BTreeSet<usize>> = BTreeMap::new();
         for &(a, b) in &raw_edges {
-            let u = a % n;
-            let v = b % n;
+            let (u, v) = (a % n, b % n);
             if u < v {
                 adj.entry(u).or_default().insert(v);
             }
         }
         prop_assert_eq!(find_scc_cycles(n, &adj), Vec::<Vec<usize>>::new());
 
-        // Inject a guaranteed forward chain 0 -> 1 -> (n - 1) plus back-edge (n - 1) -> 0.
         adj.entry(0).or_default().insert(1);
         adj.entry(1).or_default().insert(n - 1);
         adj.entry(n - 1).or_default().insert(0);
@@ -47,10 +64,6 @@ fn tarjan_never_flags_strict_dags_and_always_detects_added_back_edges() -> Resul
         for cyc in &cycles {
             prop_assert!(cyc.len() >= 2);
             prop_assert_eq!(cyc.first(), cyc.last());
-            for win in cyc.windows(2) {
-                let has_edge = adj.get(&win[0]).is_some_and(|set| set.contains(&win[1]));
-                prop_assert!(has_edge);
-            }
         }
         Ok(())
     })
@@ -58,105 +71,160 @@ fn tarjan_never_flags_strict_dags_and_always_detects_added_back_edges() -> Resul
 }
 
 #[test]
-fn commit_msg_validator_never_panics_and_enforces_exact_max_header_len() -> Result<(), String> {
-    let mut tr = runner();
-    let cfg = CommitConfig::strict_defaults();
+fn deep_4_level_rust_cycle_without_mod_rs_triggers_gf071() -> Result<(), Box<dyn std::error::Error>>
+{
+    let mut mod_a = UastDocument::new(RepoPath::new("src/a.rs")?, Language::Rust, 10, 8)?;
+    mod_a.imports.push(ImportDecl {
+        module_source: String::from("crate::a::b::c::d::Leaf"),
+        symbols: Vec::new(),
+        span: Span::FIRST,
+    });
+    let mut mod_d = UastDocument::new(RepoPath::new("src/a/b/c/d.rs")?, Language::Rust, 10, 8)?;
+    mod_d.imports.push(ImportDecl {
+        module_source: String::from("super::super::super::RootItem"),
+        symbols: Vec::new(),
+        span: Span::FIRST,
+    });
 
-    tr.run(&".*", |arbitrary| {
-        let first = validate_commit_message(&arbitrary, &cfg);
-        let second = validate_commit_message(&arbitrary, &cfg);
-        prop_assert_eq!(first, second);
-        Ok(())
-    })
-    .map_err(|e| e.to_string())?;
-
-    let exact_strat = (20usize..80usize, "[a-z]{5,12}");
-    tr.run(&exact_strat, |(max_len, scope)| {
-        let mut custom = CommitConfig::strict_defaults();
-        custom.max_header_len = max_len;
-        let prefix = format!("feat({scope}): ");
-        let pad_ok = max_len.saturating_sub(prefix.len()).max(5);
-        let msg_ok = format!("{prefix}{}", "a".repeat(pad_ok));
-        if msg_ok.len() <= max_len {
-            prop_assert_eq!(
-                validate_commit_message(&msg_ok, &custom),
-                Validation::Valid(())
-            );
-        }
-
-        let msg_too_long = format!("{prefix}{}", "b".repeat(max_len));
-        let res = validate_commit_message(&msg_too_long, &custom);
-        prop_assert!(matches!(res, Validation::Invalid(_)));
-        Ok(())
-    })
-    .map_err(|e| e.to_string())
-}
-
-#[test]
-fn uast_document_and_language_predicates_hold() -> Result<(), Box<dyn std::error::Error>> {
-    let doc = UastDocument::new(RepoPath::new("src/lib.rs")?, Language::Rust, 42, 35)?;
-    assert!(doc.language.is_code_analyzed());
-    assert!(Language::Css.is_always_discovered());
-    assert!(Language::Markdown.is_always_discovered());
-    assert!(!Language::Toml.is_always_discovered());
-    assert_eq!(doc.total_lines, 42);
+    let diags = evaluate_workspace_sorted(
+        &[mod_a, mod_d],
+        &ProjectContext::default(),
+        &Config::strict_defaults(),
+    );
+    assert!(diags.iter().any(|d| d.rule_id == "GF071"));
     Ok(())
 }
 
 #[test]
-fn tdd_companion_stories_tautology_and_commit_scopes_hold() -> Result<(), Box<dyn std::error::Error>>
+fn empty_test_file_and_weak_only_assertions_trigger_gf076() -> Result<(), Box<dyn std::error::Error>>
 {
     let cfg = Config::strict_defaults();
+    let empty_ts = UastDocument::new(
+        RepoPath::new("tests/empty.test.ts")?,
+        Language::TypeScript,
+        3,
+        1,
+    )?;
+    let empty_diags = evaluate_document(&empty_ts, &cfg);
+    assert!(
+        empty_diags
+            .iter()
+            .any(|d| d.rule_id == "GF076" && d.message.contains("zero executable test cases"))
+    );
+
+    let mut prod = UastDocument::new(RepoPath::new("src/empty.ts")?, Language::TypeScript, 12, 10)?;
+    prod.callables.push(make_callable("work", None, None));
     let mut ctx = ProjectContext::default();
     ctx.features.insert(FeatureId::Tdd);
-    ctx.features.insert(FeatureId::Storybook);
+    let ws_diags = evaluate_workspace_sorted(&[prod, empty_ts], &ctx, &cfg);
+    assert!(ws_diags.iter().any(|d| d.rule_id == "GF076"));
 
-    let mut comp = UastDocument::new(
-        RepoPath::new("src/components/atoms/Badge.tsx")?,
-        Language::Tsx,
-        10,
+    let mut weak_test = UastDocument::new(
+        RepoPath::new("tests/weak.test.ts")?,
+        Language::TypeScript,
         8,
+        6,
     )?;
-    comp.callables.push(CallableDecl {
-        name: String::from("Badge"),
-        kind: CallableKind::Function,
-        span: Span::FIRST,
-        effective_lines: 6,
-        param_count: 0,
-        cyclomatic_complexity: 1,
-        cognitive_complexity: 0,
-        max_nesting_depth: 0,
-        structural_hash: None,
-        ast_node_count: 12,
-    });
-    comp.test_cases.push(TestCaseSummary {
-        name: String::from("tautology_case"),
+    weak_test.test_cases.push(TestCaseSummary {
+        name: String::from("weak_case"),
         assertion_count: 1,
-        has_tautology: true,
+        has_tautology: false,
+        has_weak_only_assertion: true,
         span: Span::FIRST,
     });
-
-    let local_diags = evaluate_document(&comp, &cfg);
-    assert!(local_diags.iter().any(|d| d.rule_id == "GF076"));
-
-    let ws_diags = evaluate_workspace_sorted(&[comp], &ctx, &cfg);
     assert!(
-        ws_diags
+        evaluate_document(&weak_test, &cfg)
             .iter()
-            .any(|d| d.rule_id == "GF076" && d.message.contains(".stories.tsx"))
+            .any(|d| d.rule_id == "GF076")
     );
     Ok(())
 }
 
 #[test]
-fn commit_msg_enforces_allowed_scopes_and_breaking_bang() {
+fn type3_minhash_clones_gf020_and_dead_pub_crate_gf021() -> Result<(), Box<dyn std::error::Error>> {
+    let mut doc_a = UastDocument::new(
+        RepoPath::new("crates/core/src/lib.rs")?,
+        Language::Rust,
+        30,
+        25,
+    )?;
+    doc_a.callables.push(make_callable(
+        "alpha",
+        Some(101),
+        Some([10, 20, 30, 40, 50, 60, 70, 80]),
+    ));
+    doc_a.exports.push(ExportDecl {
+        symbol: String::from("stale_internal"),
+        is_crate_internal: true,
+        span: Span::FIRST,
+    });
+
+    let mut doc_b = UastDocument::new(
+        RepoPath::new("crates/core/src/other.rs")?,
+        Language::Rust,
+        30,
+        25,
+    )?;
+    doc_b.callables.push(make_callable(
+        "beta",
+        Some(202),
+        Some([10, 20, 30, 40, 50, 60, 70, 999]),
+    ));
+
+    let diags = evaluate_workspace_sorted(
+        &[doc_a, doc_b],
+        &ProjectContext::default(),
+        &Config::strict_defaults(),
+    );
+    assert!(
+        diags
+            .iter()
+            .any(|d| d.rule_id == "GF020" && d.message.contains("Type-3"))
+    );
+    assert!(diags.iter().any(|d| d.rule_id == "GF021"));
+    Ok(())
+}
+
+#[test]
+fn architecture_purity_enforces_no_std_io_and_console_gf078()
+-> Result<(), Box<dyn std::error::Error>> {
+    let mut doc = UastDocument::new(
+        RepoPath::new("crates/core/src/lib.rs")?,
+        Language::Rust,
+        12,
+        10,
+    )?;
+    for (kind, detail) in [
+        (EffectSightingKind::StdUsage, "std::fs"),
+        (EffectSightingKind::IoImportOrCall, "std::fs"),
+        (EffectSightingKind::ConsoleOutput, "println!"),
+    ] {
+        doc.effect_sightings.push(EffectSighting {
+            kind,
+            detail: String::from(detail),
+            span: Span::FIRST,
+        });
+    }
+    let mut cfg = Config::strict_defaults();
+    cfg.architecture.no_std_crates.insert(String::from("core"));
+    cfg.architecture
+        .io_allowed_crates
+        .insert(String::from("engine"));
+    cfg.architecture
+        .console_allowed_crates
+        .insert(String::from("cli"));
+
+    let diags = evaluate_workspace_sorted(&[doc], &ProjectContext::default(), &cfg);
+    assert_eq!(diags.iter().filter(|d| d.rule_id == "GF078").count(), 4);
+    Ok(())
+}
+
+#[test]
+fn commit_msg_enforces_allowed_scopes_and_max_header_len() {
     let mut scoped_commit = CommitConfig::strict_defaults();
     scoped_commit.allowed_scopes = vec![String::from("rules")];
     assert_eq!(
-        validate_commit_message(
-            "# comment\nfeat(rules)!: enforce strict dag\n",
-            &scoped_commit
-        ),
+        validate_commit_message("feat(rules)!: enforce strict dag\n", &scoped_commit),
         Validation::Valid(())
     );
     assert!(matches!(

@@ -1,11 +1,14 @@
-//! Shared safe `Tree-sitter` CST utilities (spans, slices, line metrics, callable assembly).
+//! Shared safe `Tree-sitter` CST utilities (spans, slices, line metrics, tuple arity, callables).
+
+mod arity;
 
 use gf_core::{CallableDecl, CallableKind, Span, SyntaxErrorNode};
 use tree_sitter::{Language as TsLanguage, Node, Parser, Tree};
 
 use crate::complexity::{ComplexityRules, ComputedMetrics, compute_metrics};
-use crate::fingerprint::fingerprint_body;
+use crate::fingerprint::{BodyFingerprint, fingerprint_body};
 pub use crate::types::{ParseError, node_text};
+pub use arity::{effective_param_arity, single_param_arity};
 
 /// Inputs needed to assemble a normalized [`CallableDecl`] with complexity and Type-2 hash.
 pub struct CallableSpec<'a> {
@@ -17,31 +20,35 @@ pub struct CallableSpec<'a> {
     pub decl_node: Node<'a>,
     /// Optional body CST node analyzed for complexity and Type-2 fingerprinting.
     pub body_node: Option<Node<'a>>,
-    /// Declared parameter count (excluding `self` / `cls`).
+    /// Deployed parameter count (unpacking tuple-packed parameters, excluding `self` / `cls`).
     pub param_count: u32,
 }
 
-/// Assembles a [`CallableDecl`] with complexity metrics and Type-2 structural hash.
+/// Assembles a [`CallableDecl`] with complexity metrics and Type-2/Type-3 structural fingerprints.
 pub fn assemble_callable(
     spec: CallableSpec<'_>,
     source: &str,
     rules: &ComplexityRules,
 ) -> CallableDecl {
     let span = node_span(spec.decl_node);
-    let (metrics, structural_hash, ast_node_count) = spec.body_node.map_or(
+    let (metrics, fp) = spec.body_node.map_or(
         (
             ComputedMetrics {
                 cyclomatic: 1,
                 cognitive: 0,
                 max_nesting: 0,
             },
-            None,
-            0,
+            BodyFingerprint {
+                structural_hash: None,
+                shingle_sketch: None,
+                ast_node_count: 0,
+            },
         ),
         |body| {
-            let m = compute_metrics(body, source, rules);
-            let (hash, nodes) = fingerprint_body(body, source);
-            (m, hash, nodes)
+            (
+                compute_metrics(body, source, rules),
+                fingerprint_body(body, source),
+            )
         },
     );
 
@@ -54,8 +61,9 @@ pub fn assemble_callable(
         cyclomatic_complexity: metrics.cyclomatic,
         cognitive_complexity: metrics.cognitive,
         max_nesting_depth: metrics.max_nesting,
-        structural_hash,
-        ast_node_count,
+        structural_hash: fp.structural_hash,
+        shingle_sketch: fp.shingle_sketch,
+        ast_node_count: fp.ast_node_count,
     }
 }
 

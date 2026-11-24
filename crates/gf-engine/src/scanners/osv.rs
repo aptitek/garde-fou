@@ -1,7 +1,7 @@
 //! External `osv-scanner` runner producing unified `GF042` supply-chain diagnostics.
 
 use std::path::Path;
-use std::process::Command;
+use std::process::{Command, Output};
 
 use gf_core::{Diagnostic, ScannerPolicy};
 
@@ -64,11 +64,32 @@ fn has_any_lockfile(root: &Path) -> bool {
     SCANNABLE_LOCKFILES.iter().any(|lf| root.join(lf).is_file())
 }
 
-/// Runs `osv-scanner` according to `policy` and `scope`, returning `GF042` / `GF043` diagnostics.
+fn extract_osv_sarif_stdout(output: &Output) -> Result<Option<String>, EngineError> {
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let trimmed = stdout.trim();
+    if !trimmed.is_empty() && trimmed.starts_with('{') {
+        return Ok(Some(String::from(trimmed)));
+    }
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        let first_line = stderr
+            .lines()
+            .find(|l| !l.trim().is_empty())
+            .unwrap_or("scanner exited without SARIF output")
+            .trim();
+        return Err(EngineError::InvalidConfig(format!(
+            "osv-scanner failed (status {:?}): {first_line}",
+            output.status.code()
+        )));
+    }
+    Ok(None)
+}
+
+/// Runs `osv-scanner` according to `policy` and `scope`, failing closed on non-SARIF failure.
 ///
 /// # Errors
 ///
-/// Returns [`EngineError`] on unexpected I/O failure or malformed SARIF output.
+/// Returns [`EngineError`] on unexpected I/O failure, scanner crash, or malformed SARIF output.
 pub fn run_osv_scanner(
     root: &Path,
     scope: ScanScope,
@@ -87,11 +108,9 @@ pub fn run_osv_scanner(
             Ok(Vec::new())
         };
     }
-
-    if scope == ScanScope::StagedOnly && !has_staged_dependency_manifest(root) {
-        return Ok(Vec::new());
-    }
-    if !has_any_lockfile(root) {
+    if (scope == ScanScope::StagedOnly && !has_staged_dependency_manifest(root))
+        || !has_any_lockfile(root)
+    {
         return Ok(Vec::new());
     }
 
@@ -99,15 +118,12 @@ pub fn run_osv_scanner(
         .args(["scan", "source", "--format", "sarif", "-r", "."])
         .current_dir(root)
         .output()?;
-
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let trimmed = stdout.trim();
-    if trimmed.is_empty() || !trimmed.starts_with('{') {
+    let Some(sarif_text) = extract_osv_sarif_stdout(&output)? else {
         return Ok(Vec::new());
-    }
+    };
 
     ingest_sarif_json(
-        trimmed,
+        &sarif_text,
         root,
         SarifMapping {
             target_rule_id: "GF042",

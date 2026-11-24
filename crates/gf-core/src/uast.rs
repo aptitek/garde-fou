@@ -1,4 +1,4 @@
-//! Unified Abstract Syntax Tree (`UAST`) hub representations (`v5` schema).
+//! Unified Abstract Syntax Tree (`UAST`) hub representations (`v6` schema).
 
 use alloc::collections::BTreeSet;
 use alloc::string::String;
@@ -14,9 +14,10 @@ use crate::domain_summaries::{
     AssetDocument, ContenusDocument, FormeDocument, StyleLeakFinding, TexteDocument, UiCheckFinding,
 };
 use crate::metrics::{
-    CallableDecl, ExportDecl, ImportDecl, SecretFinding, SyntaxErrorNode, TypeDecl,
+    CallableDecl, EffectSighting, ExportDecl, ImportDecl, SecretFinding, SyntaxErrorNode, TypeDecl,
 };
 use crate::path::RepoPath;
+use crate::policies::ForbiddenRuleKind;
 use crate::tool_ingest::{LangRuleFinding, ToolConfigFinding};
 
 /// Source language, stylesheet, content, or asset format mapped into the `UAST`.
@@ -98,9 +99,11 @@ pub enum UastKind {
         /// Computed cognitive complexity score.
         cognitive_complexity: u32,
     },
-    /// Explicit call or construct flagged as potentially forbidden (`unwrap`, `panic!`, `unsafe`).
+    /// Explicit call or construct flagged under `[rules]` (`GF010`–`GF011`).
     ForbiddenCall {
-        /// Matched symbol or keyword.
+        /// Typed category enabling granular filtering via [`crate::ForbiddenRulesConfig`].
+        rule: ForbiddenRuleKind,
+        /// Exact symbol or macro detected (e.g. `".unwrap()"`, `"todo!"`, `"unsafe fn"`).
         symbol: String,
     },
 }
@@ -128,7 +131,7 @@ impl UastNode {
     }
 }
 
-/// Normalized `UAST` document produced by `gf-parsers`, cached in `.garde-fou-cache/v4/`,
+/// Normalized `UAST` document produced by `gf-parsers`, cached in `.garde-fou-cache/v6/`,
 /// and analyzed locally and globally by `gf-rules`.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct UastDocument {
@@ -144,7 +147,7 @@ pub struct UastDocument {
     pub syntax_errors: Vec<SyntaxErrorNode>,
     /// Module import declarations extracted from the file.
     pub imports: Vec<ImportDecl>,
-    /// Public symbol export declarations extracted from the file.
+    /// Public and crate-internal symbol export declarations extracted from the file.
     pub exports: Vec<ExportDecl>,
     /// Composite types and `impl` blocks extracted from the file.
     pub types: Vec<TypeDecl>,
@@ -172,12 +175,14 @@ pub struct UastDocument {
     pub contracts: Vec<ContractDecl>,
     /// Concrete `(contract, implementor)` bindings declared in this file (`GF075`).
     pub contract_impls: BTreeSet<ContractImpl>,
-    /// Unit/integration test cases with assertion counts and tautology flags (`GF076`).
+    /// Unit/integration test cases with assertion counts and quality flags (`GF076`).
     pub test_cases: Vec<TestCaseSummary>,
     /// Tier 1 native language-idiom & security AST findings (`GF080`).
     pub lang_rule_findings: Vec<LangRuleFinding>,
     /// Tier 2 static tool-configuration hardening findings (`GF081`).
     pub tool_config_findings: Vec<ToolConfigFinding>,
+    /// Architectural effect and silent error-swallowing sightings (`GF011`, `GF078`).
+    pub effect_sightings: Vec<EffectSighting>,
     /// Optional structured `Dockerfile` representation.
     pub docker: Option<DockerDocument>,
     /// Optional `Forme` stylesheet summary (`GF061`).
@@ -229,6 +234,7 @@ impl UastDocument {
             test_cases: Vec::new(),
             lang_rule_findings: Vec::new(),
             tool_config_findings: Vec::new(),
+            effect_sightings: Vec::new(),
             docker: None,
             forme: None,
             texte: None,

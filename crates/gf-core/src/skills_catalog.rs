@@ -79,8 +79,6 @@ pub struct RemoteSkillSpec {
     pub repo: &'static str,
     /// Preferred relative directory path inside `repo` containing `SKILL.md`.
     pub skill_path: &'static str,
-    /// Public `skills.sh` catalog URL.
-    pub skills_sh_url: &'static str,
     /// One-line description surfaced in `AGENTS.md`.
     pub summary: &'static str,
 }
@@ -98,6 +96,8 @@ pub struct ResolvedSkillSpec {
     pub skills_sh_url: String,
     /// Concise capability summary.
     pub summary: String,
+    /// Optional pinned Git commit SHA (`owner/repo@skill#commit_sha`).
+    pub pinned_rev: Option<String>,
 }
 
 impl From<RemoteSkillSpec> for ResolvedSkillSpec {
@@ -106,8 +106,9 @@ impl From<RemoteSkillSpec> for ResolvedSkillSpec {
             id: String::from(s.id),
             repo: String::from(s.repo),
             skill_path: String::from(s.skill_path),
-            skills_sh_url: String::from(s.skills_sh_url),
+            skills_sh_url: format!("https://skills.sh/{}/{}", s.repo, s.id),
             summary: String::from(s.summary),
+            pinned_rev: None,
         }
     }
 }
@@ -125,68 +126,57 @@ const SKILL_PBT: RemoteSkillSpec = RemoteSkillSpec {
     id: "property-based-testing",
     repo: "trailofbits/skills",
     skill_path: "plugins/property-based-testing/skills/property-based-testing",
-    skills_sh_url: "https://skills.sh/trailofbits/skills/property-based-testing",
     summary: "Property-based testing invariants (proptest, Hypothesis, fast-check).",
 };
-
 const SKILL_AST_GREP: RemoteSkillSpec = RemoteSkillSpec {
     id: "ast-grep",
     repo: "ast-grep/agent-skill",
     skill_path: "skills/ast-grep",
-    skills_sh_url: "https://skills.sh/ast-grep/agent-skill/ast-grep",
     summary: "Structural AST search and refactoring rules with ast-grep.",
 };
-
 const SKILL_RUST_BP: RemoteSkillSpec = RemoteSkillSpec {
     id: "rust-best-practices",
     repo: "apollographql/skills",
     skill_path: "skills/rust-best-practices",
-    skills_sh_url: "https://skills.sh/apollographql/skills/rust-best-practices",
     summary: "Idiomatic Safe Rust ownership, Clippy, and error-handling patterns.",
 };
-
 const SKILL_RUST_REVIEW: RemoteSkillSpec = RemoteSkillSpec {
     id: "rust-review",
     repo: "trailofbits/skills",
     skill_path: "plugins/rust-review/skills/rust-review",
-    skills_sh_url: "https://skills.sh/trailofbits/skills/rust-review",
     summary: "Security & panic-DoS auditing for Rust crates and workspaces.",
 };
-
 const SKILL_WEB_DESIGN: RemoteSkillSpec = RemoteSkillSpec {
     id: "web-design-guidelines",
     repo: "vercel-labs/agent-skills",
     skill_path: "skills/web-design-guidelines",
-    skills_sh_url: "https://skills.sh/vercel-labs/agent-skills/web-design-guidelines",
     summary: "UI accessibility (a11y), design tokens, and semantic HTML guidelines.",
 };
-
 const SKILL_REACT_BP: RemoteSkillSpec = RemoteSkillSpec {
     id: "vercel-react-best-practices",
     repo: "vercel-labs/agent-skills",
     skill_path: "skills/react-best-practices",
-    skills_sh_url: "https://skills.sh/vercel-labs/agent-skills/vercel-react-best-practices",
     summary: "React & Next.js component composition and rendering performance.",
 };
-
 const SKILL_MODERN_PYTHON: RemoteSkillSpec = RemoteSkillSpec {
     id: "modern-python",
     repo: "trailofbits/skills",
     skill_path: "plugins/modern-python/skills/modern-python",
-    skills_sh_url: "https://skills.sh/trailofbits/skills/modern-python",
     summary: "Modern Python workflows with uv, ruff, pytest, and strict type checking.",
 };
 
-/// Parses a custom `"owner/repo@skill"` string from `[agents] extra_skills`.
-///
-/// # Errors
-///
-/// Returns an error string if the format is not `<owner>/<repo>@<skill>`.
-pub fn parse_extra_skill_spec(raw: &str) -> Result<ResolvedSkillSpec, &'static str> {
-    let trimmed = raw.trim();
-    let Some((repo, skill_id)) = trimmed.split_once('@') else {
-        return Err("expected `owner/repo@skill` format in `agents.extra_skills`");
+fn split_pinned_rev(tail: &str) -> Result<(&str, Option<String>), &'static str> {
+    let Some((id, sha)) = tail.split_once('#') else {
+        return Ok((tail, None));
     };
+    if (7..=64).contains(&sha.len()) && sha.bytes().all(|b| b.is_ascii_hexdigit()) {
+        Ok((id, Some(String::from(sha))))
+    } else {
+        Err("invalid commit SHA in `agents.extra_skills` (expected 7..=64 hex)")
+    }
+}
+
+fn is_valid_repo_and_skill(repo: &str, skill_id: &str) -> bool {
     let valid_repo = repo.split_once('/').is_some_and(|(o, r)| {
         !o.is_empty() && !r.is_empty() && !r.contains('/') && !repo.contains("..")
     });
@@ -194,7 +184,20 @@ pub fn parse_extra_skill_spec(raw: &str) -> Result<ResolvedSkillSpec, &'static s
         && skill_id
             .bytes()
             .all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_');
-    if !valid_repo || !valid_id {
+    valid_repo && valid_id
+}
+
+/// Parses `"owner/repo@skill"` or `"owner/repo@skill#commit_sha"` from `[agents] extra_skills`.
+///
+/// # Errors
+///
+/// Returns an error string if the slug or optional hex commit SHA is malformed.
+pub fn parse_extra_skill_spec(raw: &str) -> Result<ResolvedSkillSpec, &'static str> {
+    let Some((repo, tail)) = raw.trim().split_once('@') else {
+        return Err("expected `owner/repo@skill[#sha]` format in `agents.extra_skills`");
+    };
+    let (skill_id, pinned_rev) = split_pinned_rev(tail)?;
+    if !is_valid_repo_and_skill(repo, skill_id) {
         return Err("invalid repository or skill slug in `agents.extra_skills`");
     }
     Ok(ResolvedSkillSpec {
@@ -203,6 +206,7 @@ pub fn parse_extra_skill_spec(raw: &str) -> Result<ResolvedSkillSpec, &'static s
         skill_path: format!("skills/{skill_id}"),
         skills_sh_url: format!("https://skills.sh/{repo}/{skill_id}"),
         summary: format!("Custom skill `{skill_id}` from `{repo}`."),
+        pinned_rev,
     })
 }
 

@@ -91,7 +91,7 @@ fn detects_disguised_type2_clone_across_files_and_via_v2_cache()
     let cached = run_check_with_options(&dir, &CheckOptions::new(ScanScope::All, false))?;
     assert_eq!((cached.cache_hits, cached.cache_misses), (3, 0));
     assert_eq!(fresh.diagnostics, cached.diagnostics);
-    let _ = fs::remove_dir_all(&dir);
+    fs::remove_dir_all(&dir)?;
     Ok(())
 }
 
@@ -130,7 +130,7 @@ fn astro_framework_exempts_pages_entrypoints_while_flagging_dead_exports()
         .collect();
     assert_eq!(dead.len(), 1);
     assert_eq!(dead[0].path.as_str(), "src/lib/dead.ts");
-    let _ = fs::remove_dir_all(&dir);
+    fs::remove_dir_all(&dir)?;
     Ok(())
 }
 
@@ -162,6 +162,6 @@ fn rust_plus_docker_feature_triggers_gf030_through_gf034_and_passes_when_hardene
     fs::write(dir.join("Dockerfile"), HARDENED_DOCKERFILE)?;
     let clean = run_check_with_options(&dir, &CheckOptions::new(ScanScope::All, true))?;
     assert_eq!(clean.diagnostics, Vec::new());
-    let _ = fs::remove_dir_all(&dir);
+    fs::remove_dir_all(&dir)?;
     Ok(())
 }

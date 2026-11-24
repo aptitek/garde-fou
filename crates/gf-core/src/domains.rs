@@ -3,7 +3,6 @@
 
 use alloc::format;
 use alloc::string::String;
-use alloc::vec;
 use alloc::vec::Vec;
 use serde::{Deserialize, Serialize};
 
@@ -212,6 +211,5 @@ pub fn classify_path(path: &RepoPath, layout: &DomainLayoutConfig) -> DomainKind
     if matches_any(&layout.code_globs, raw) {
         return DomainKind::Code;
     }
-    let _ = vec![0_u8; 0];
     DomainKind::Meta
 }

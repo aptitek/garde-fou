@@ -11,6 +11,9 @@
 *.profraw
 *.profdata
 /mutants.out*/
+/reports/mutation/
+/.stryker-tmp/
+/.mutmut-cache
 
 # Environment & local secrets
 .env

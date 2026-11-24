@@ -104,25 +104,17 @@ fn dirty_workspace_triggers_gf060_through_gf066_simultaneously()
 -> Result<(), Box<dyn std::error::Error>> {
     let dir = fresh_dom_dir("dirty-all")?;
     populate_dirty_six_domain_workspace(&dir)?;
-
     let report = run_check_with_options(&dir, &CheckOptions::new(ScanScope::All, true))?;
-    let emitted_rules: BTreeSet<&str> = report
+    let emitted: BTreeSet<&str> = report
         .diagnostics
         .iter()
         .map(|d| d.rule_id.as_str())
         .collect();
-
-    for expected in [
+    let expected = BTreeSet::from([
         "GF060", "GF061", "GF062", "GF063", "GF064", "GF065", "GF066",
-    ] {
-        assert!(
-            emitted_rules.contains(expected),
-            "expected rule `{expected}` in {emitted_rules:?}\ndiagnostics: {:#?}",
-            report.diagnostics
-        );
-    }
-
-    let _ = fs::remove_dir_all(&dir);
+    ]);
+    assert!(expected.is_subset(&emitted), "got {emitted:?}");
+    fs::remove_dir_all(&dir)?;
     Ok(())
 }
 
@@ -170,7 +162,7 @@ fn golden_invariant_react_and_astro_six_domains_pass_with_zero_violations()
             "configured check failed for {tag}"
         );
 
-        let _ = fs::remove_dir_all(&dir);
+        fs::remove_dir_all(&dir)?;
     }
     Ok(())
 }

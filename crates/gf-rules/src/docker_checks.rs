@@ -11,7 +11,7 @@ use gf_core::{
     UastDocument, Validation,
 };
 
-use crate::checks::rule_error as docker_error;
+use crate::checks::{SourceLoc, rule_error as docker_error};
 use crate::docker_instr_checks::check_instruction;
 
 /// Evaluates `GF030`–`GF034` whenever `ctx.features` contains [`FeatureId::Docker`].
@@ -76,7 +76,7 @@ fn check_stages(path: &RepoPath, docker: &DockerDocument, out: &mut Vec<Diagnost
                 final_stage.image
             ),
             "Create a dedicated unprivileged user/UID and switch to it with `USER <non-root>` in the final runtime stage.",
-            (path, final_stage.span),
+            SourceLoc::new(path, final_stage.span),
         ));
     }
 }
@@ -105,7 +105,7 @@ fn check_single_stage_pinning(
                 stage.image
             ),
             "Pin base images to an explicit version tag (e.g. `rust:1.88-slim`) or an immutable `@sha256:...` digest.",
-            (path, stage.span),
+            SourceLoc::new(path, stage.span),
         ));
     }
 }
@@ -130,12 +130,13 @@ fn check_dockerignore_coherence(
     ctx: &ProjectContext,
     out: &mut Vec<Diagnostic>,
 ) {
+    let loc = SourceLoc::new(dockerfile_path, Span::FIRST);
     let Some(entries) = &ctx.dockerignore_entries else {
         out.push(docker_error(
             "GF034",
             String::from("missing `.dockerignore` at repository root alongside `Dockerfile`"),
             "Create a `.dockerignore` excluding `.git` and language build/dependency directories to prevent context bloat and secret leakage.",
-            (dockerfile_path, Span::FIRST),
+            loc,
         ));
         return;
     };
@@ -152,7 +153,7 @@ fn check_dockerignore_coherence(
                 missing.join(", ")
             ),
             "Add the missing `.git` and language build directories (`target`, `node_modules`, `.venv`, `__pycache__`) to `.dockerignore`.",
-            (dockerfile_path, Span::FIRST),
+            loc,
         ));
     }
 }

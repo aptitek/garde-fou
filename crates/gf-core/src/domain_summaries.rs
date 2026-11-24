@@ -1,4 +1,4 @@
-//! Serializable `#![no_std]` domain findings attached to [`crate::UastDocument`] in cache `v3`.
+//! Serializable `#![no_std]` domain findings attached to [`crate::UastDocument`] in cache `v6`.
 
 use alloc::collections::BTreeSet;
 use alloc::string::String;

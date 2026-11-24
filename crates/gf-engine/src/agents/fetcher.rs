@@ -1,5 +1,5 @@
-//! Resilient 2-tier `skills.sh` fetcher (`npx skills add` in isolated staging + `git clone`
-//! fallback without Node.js) plus `--skills-from-dir` offline mirror support.
+//! Hardened `skills.sh` Git shallow/pinned fetcher (`core.hooksPath=/dev/null`,
+//! `protocol.file.allow=never`, zero `npx` pre-audit execution) plus `--skills-from-dir` mirror.
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -16,7 +16,7 @@ static STAGE_SEQ: AtomicU64 = AtomicU64::new(0);
 /// Source strategy for installing contextual `skills.sh` skills.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub enum SkillsFetchMode {
-    /// Fetch live from `skills.sh` (`npx` staging or `git` shallow clone fallback).
+    /// Fetch live via hardened `git` shallow clone / commit pin into isolated staging.
     #[default]
     Online,
     /// Zero network calls; write only embedded `garde-fou` skill and preserve existing skills.
@@ -112,36 +112,63 @@ fn copy_dir_filtered(src: &Path, dst: &Path) -> Result<(), std::io::Error> {
     Ok(())
 }
 
-fn try_npx_skills_stage(stage: &Path, spec: &ResolvedSkillSpec) -> Option<PathBuf> {
-    let out = Command::new("npx")
+fn run_hardened_git(cwd: &Path, args: &[&str], id: &str) -> Result<(), String> {
+    let out = Command::new("git")
         .args([
-            "--yes", "skills", "add", &spec.repo, "--skill", &spec.id, "--yes",
+            "-c",
+            "core.hooksPath=/dev/null",
+            "-c",
+            "protocol.file.allow=never",
         ])
-        .current_dir(stage)
-        .env("CI", "1")
+        .args(args)
+        .current_dir(cwd)
         .env("GIT_TERMINAL_PROMPT", "0")
-        .env("NPM_CONFIG_UPDATE_NOTIFIER", "false")
         .output()
-        .ok()?;
+        .map_err(|e| format!("git unavailable for `{id}`: {e}"))?;
     if !out.status.success() {
-        return None;
+        let stderr = String::from_utf8_lossy(&out.stderr);
+        let first_line = stderr.lines().next().unwrap_or("git command failed").trim();
+        return Err(first_line.to_string());
     }
-    locate_candidate_in_tree(stage, spec)
+    Ok(())
 }
 
 fn try_git_shallow_stage(stage: &Path, spec: &ResolvedSkillSpec) -> Result<PathBuf, String> {
     let repo_url = format!("https://github.com/{}.git", spec.repo);
     let clone_dir = stage.join("repo");
-    let out = Command::new("git")
-        .args(["clone", "--depth", "1", "--filter=blob:none", &repo_url])
-        .arg(&clone_dir)
-        .env("GIT_TERMINAL_PROMPT", "0")
-        .output()
-        .map_err(|e| format!("git unavailable for `{}`: {e}", spec.id))?;
-    if !out.status.success() {
-        let stderr = String::from_utf8_lossy(&out.stderr);
-        let first_line = stderr.lines().next().unwrap_or("clone failed").trim();
-        return Err(format!("could not fetch `{}` ({first_line})", spec.repo));
+    if let Some(rev) = &spec.pinned_rev {
+        fs::create_dir_all(&clone_dir)
+            .map_err(|e| format!("failed to prepare `{}` stage: {e}", spec.id))?;
+        run_hardened_git(&clone_dir, &["init", "-q"], &spec.id)?;
+        run_hardened_git(
+            &clone_dir,
+            &[
+                "fetch",
+                "--depth",
+                "1",
+                "--filter=blob:none",
+                &repo_url,
+                rev,
+            ],
+            &spec.id,
+        )
+        .map_err(|msg| format!("could not fetch `{}`#{rev} ({msg})", spec.repo))?;
+        run_hardened_git(&clone_dir, &["checkout", "-q", "FETCH_HEAD"], &spec.id)?;
+    } else {
+        let clone_str = clone_dir.to_string_lossy().into_owned();
+        run_hardened_git(
+            stage,
+            &[
+                "clone",
+                "--depth",
+                "1",
+                "--filter=blob:none",
+                &repo_url,
+                &clone_str,
+            ],
+            &spec.id,
+        )
+        .map_err(|msg| format!("could not fetch `{}` ({msg})", spec.repo))?;
     }
     locate_candidate_in_tree(&clone_dir, spec)
         .ok_or_else(|| format!("skill `{}` not found inside `{}`", spec.id, spec.repo))
@@ -151,8 +178,10 @@ fn audit_and_install_candidate(src_dir: &Path, dest_dir: &Path, id: &str) -> Ski
     match audit_skill_directory(src_dir, id) {
         Err(reason) => SkillFetchOutcome::Rejected(reason),
         Ok(audited) => {
-            if dest_dir.exists() {
-                let _ = fs::remove_dir_all(dest_dir);
+            if dest_dir.exists()
+                && let Err(e) = fs::remove_dir_all(dest_dir)
+            {
+                return SkillFetchOutcome::Unavailable(format!("cleanup error for `{id}`: {e}"));
             }
             match copy_dir_filtered(src_dir, dest_dir) {
                 Ok(()) => SkillFetchOutcome::Installed(audited),
@@ -163,6 +192,7 @@ fn audit_and_install_candidate(src_dir: &Path, dest_dir: &Path, id: &str) -> Ski
 }
 
 /// Fetches, audits, and installs `spec` into `dest_skills_root/<spec.id>/`.
+#[must_use]
 pub fn fetch_and_install_skill(
     spec: &ResolvedSkillSpec,
     dest_skills_root: &Path,
@@ -196,13 +226,16 @@ pub fn fetch_and_install_skill(
             let Ok(stage) = fresh_staging_dir(&spec.id) else {
                 return SkillFetchOutcome::Unavailable(String::from("failed to create temp stage"));
             };
-            let staged_res = try_npx_skills_stage(&stage, spec)
-                .map_or_else(|| try_git_shallow_stage(&stage, spec), Ok);
-            let outcome = match staged_res {
+            let outcome = match try_git_shallow_stage(&stage, spec) {
                 Ok(src) => audit_and_install_candidate(&src, &dest_dir, &spec.id),
                 Err(msg) => SkillFetchOutcome::Unavailable(msg),
             };
-            let _ = fs::remove_dir_all(&stage);
+            if let Err(err) = fs::remove_dir_all(&stage) {
+                return SkillFetchOutcome::Unavailable(format!(
+                    "failed to remove temp stage for `{}`: {err}",
+                    spec.id
+                ));
+            }
             outcome
         }
     }

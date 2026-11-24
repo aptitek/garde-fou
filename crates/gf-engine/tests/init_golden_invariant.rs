@@ -9,7 +9,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use gf_core::{Config, FeatureId, FrameworkId, LanguageId, MANAGED_START};
 use gf_engine::{
-    CheckOptions, InitRequest, ScanScope, run_check, run_check_with_options, run_init,
+    CheckOptions, CheckReport, InitRequest, ScanScope, run_check, run_check_with_options, run_init,
 };
 
 static INIT_SEQ: AtomicU64 = AtomicU64::new(0);
@@ -22,108 +22,99 @@ fn fresh_temp_dir(tag: &str) -> Result<PathBuf, Box<dyn std::error::Error>> {
     Ok(dir)
 }
 
-#[test]
-fn golden_invariant_rust_docker_hooks_and_task_runner() -> Result<(), Box<dyn std::error::Error>> {
-    let dir = fresh_temp_dir("rust-docker")?;
-    let req = InitRequest {
-        root: dir.clone(),
-        project_name: Some(String::from("billing-core")),
-        languages: BTreeSet::from([LanguageId::Rust]),
-        features: BTreeSet::from([
-            FeatureId::Docker,
-            FeatureId::GitHooks,
-            FeatureId::TaskRunner,
-        ]),
-        frameworks: BTreeSet::new(),
-        run_git_init: true,
-    };
-
-    let init_report = run_init(&req)?;
+fn verify_golden_init_workspace(
+    req: &InitRequest,
+    expected_files: &[&str],
+    expected_ignores: &[&str],
+) -> Result<CheckReport, Box<dyn std::error::Error>> {
+    let init_report = run_init(req)?;
     assert!(init_report.git_initialized);
-    assert!(dir.join(".git").is_dir());
-    for expected in [
-        ".gitignore",
-        ".dockerignore",
-        "Dockerfile",
-        "lefthook.yml",
-        "Taskfile.yml",
-        "Cargo.toml",
-        "src/lib.rs",
-        "garde-fou.toml",
-        "AGENTS.md",
-    ] {
-        assert!(dir.join(expected).is_file(), "missing {expected}");
+    assert!(req.root.join(".git").is_dir());
+
+    for rel in expected_files {
+        assert!(req.root.join(rel).is_file(), "missing {rel}");
+    }
+    let gitignore = fs::read_to_string(req.root.join(".gitignore"))?;
+    for ig in expected_ignores {
+        assert!(gitignore.contains(ig), "missing ignore `{ig}`");
     }
 
-    let direct = run_check(&dir, ScanScope::All, &Config::strict_defaults())?;
+    let direct = run_check(&req.root, ScanScope::All, &Config::strict_defaults())?;
     assert_eq!(direct.diagnostics, Vec::new());
 
-    let configured = run_check_with_options(&dir, &CheckOptions::new(ScanScope::All, true))?;
-    assert_eq!(configured.diagnostics, Vec::new());
+    let configured = run_check_with_options(&req.root, &CheckOptions::new(ScanScope::All, true))?;
+    fs::remove_dir_all(&req.root)?;
+    Ok(configured)
+}
 
-    let _ = fs::remove_dir_all(&dir);
+#[test]
+fn golden_invariant_rust_stack() -> Result<(), Box<dyn std::error::Error>> {
+    let rust_dir = fresh_temp_dir("rust-docker")?;
+    let report = verify_golden_init_workspace(
+        &InitRequest {
+            root: rust_dir,
+            project_name: Some(String::from("billing-core")),
+            languages: BTreeSet::from([LanguageId::Rust]),
+            features: BTreeSet::from([
+                FeatureId::Docker,
+                FeatureId::GitHooks,
+                FeatureId::TaskRunner,
+            ]),
+            frameworks: BTreeSet::new(),
+            run_git_init: true,
+        },
+        &[
+            ".gitignore",
+            ".dockerignore",
+            "Dockerfile",
+            "lefthook.yml",
+            "Taskfile.yml",
+            "Cargo.toml",
+            "src/lib.rs",
+            "garde-fou.toml",
+            "AGENTS.md",
+        ],
+        &["/target/"],
+    )?;
+    assert_eq!(report.diagnostics, Vec::new());
     Ok(())
 }
 
 #[test]
-fn golden_invariant_typescript_astro_and_docker() -> Result<(), Box<dyn std::error::Error>> {
-    let dir = fresh_temp_dir("ts-astro")?;
-    let req = InitRequest {
-        root: dir.clone(),
-        project_name: Some(String::from("astro-portal")),
-        languages: BTreeSet::from([LanguageId::TypeScript]),
-        features: BTreeSet::from([FeatureId::Docker]),
-        frameworks: BTreeSet::from([FrameworkId::Astro]),
-        run_git_init: true,
-    };
+fn golden_invariant_astro_and_python_stacks() -> Result<(), Box<dyn std::error::Error>> {
+    let ts_dir = fresh_temp_dir("ts-astro")?;
+    let ts_rep = verify_golden_init_workspace(
+        &InitRequest {
+            root: ts_dir,
+            project_name: Some(String::from("astro-portal")),
+            languages: BTreeSet::from([LanguageId::TypeScript]),
+            features: BTreeSet::from([FeatureId::Docker]),
+            frameworks: BTreeSet::from([FrameworkId::Astro]),
+            run_git_init: true,
+        },
+        &["package.json", "tests/index.test.ts", "src/pages/index.tsx"],
+        &["node_modules/", ".astro/"],
+    )?;
+    assert_eq!(ts_rep.diagnostics, Vec::new());
 
-    let init_report = run_init(&req)?;
-    assert!(init_report.git_initialized);
-    assert!(dir.join(".git").is_dir());
-    let gitignore = fs::read_to_string(dir.join(".gitignore"))?;
-    assert!(gitignore.contains("node_modules/"));
-    assert!(gitignore.contains(".astro/"));
-    assert!(dir.join("src/pages/index.tsx").is_file());
-
-    let direct = run_check(&dir, ScanScope::All, &Config::strict_defaults())?;
-    assert_eq!(direct.diagnostics, Vec::new());
-
-    let configured = run_check_with_options(&dir, &CheckOptions::new(ScanScope::All, true))?;
-    assert_eq!(configured.diagnostics, Vec::new());
-
-    let _ = fs::remove_dir_all(&dir);
-    Ok(())
-}
-
-#[test]
-fn golden_invariant_python_fastapi_docker_and_ci() -> Result<(), Box<dyn std::error::Error>> {
-    let dir = fresh_temp_dir("py-fastapi")?;
-    let req = InitRequest {
-        root: dir.clone(),
-        project_name: Some(String::from("orders-api")),
-        languages: BTreeSet::from([LanguageId::Python]),
-        features: BTreeSet::from([FeatureId::Docker, FeatureId::CiGithub]),
-        frameworks: BTreeSet::from([FrameworkId::FastApi]),
-        run_git_init: true,
-    };
-
-    let init_report = run_init(&req)?;
-    assert!(init_report.git_initialized);
-    assert!(dir.join(".git").is_dir());
-    let gitignore = fs::read_to_string(dir.join(".gitignore"))?;
-    assert!(gitignore.contains(".venv/"));
-    assert!(gitignore.contains("__pycache__/"));
-    assert!(dir.join("src/orders_api/core.py").is_file());
-    assert!(dir.join("app/main.py").is_file());
-    assert!(dir.join(".github/workflows/garde-fou.yml").is_file());
-
-    let direct = run_check(&dir, ScanScope::All, &Config::strict_defaults())?;
-    assert_eq!(direct.diagnostics, Vec::new());
-
-    let configured = run_check_with_options(&dir, &CheckOptions::new(ScanScope::All, true))?;
-    assert_eq!(configured.diagnostics, Vec::new());
-
-    let _ = fs::remove_dir_all(&dir);
+    let py_dir = fresh_temp_dir("py-fastapi")?;
+    let py_rep = verify_golden_init_workspace(
+        &InitRequest {
+            root: py_dir,
+            project_name: Some(String::from("orders-api")),
+            languages: BTreeSet::from([LanguageId::Python]),
+            features: BTreeSet::from([FeatureId::Docker, FeatureId::CiGithub]),
+            frameworks: BTreeSet::from([FrameworkId::FastApi]),
+            run_git_init: true,
+        },
+        &[
+            "src/orders_api/core.py",
+            "app/main.py",
+            ".github/workflows/garde-fou.yml",
+        ],
+        &[".venv/", "__pycache__/"],
+    )?;
+    assert_eq!(py_rep.diagnostics, Vec::new());
     Ok(())
 }
 
@@ -163,6 +154,6 @@ fn init_is_idempotent_and_preserves_custom_gitignore_and_sources()
     let check = run_check(&dir, ScanScope::All, &Config::strict_defaults())?;
     assert_eq!(check.diagnostics, Vec::new());
 
-    let _ = fs::remove_dir_all(&dir);
+    fs::remove_dir_all(&dir)?;
     Ok(())
 }

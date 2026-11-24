@@ -1,9 +1,11 @@
-//! Strict `serde` TOML sections and merge helpers for Step 7 fortress rules:
-//! `[integrity]`, `[[boundaries]]`, `[clean_code]`, `[tdd]`, and `[commit]`.
+//! Strict `serde` TOML sections and merge helpers for fortress rules:
+//! `[integrity]`, `[[boundaries]]`, `[clean_code]`, `[tdd]`, `[commit]`, `[agents]`, and `[tools]`.
+
+use std::collections::BTreeSet;
 
 use gf_core::{
     AgentsConfig, BoundaryRule, CleanCodeConfig, CommitConfig, IntegrityConfig, PythonToolsConfig,
-    ScannerPolicy, TddConfig, TddParityGates, ToolsConfig, YagniGates, parse_extra_skill_spec,
+    ScannerPolicy, TddConfig, TddParityGate, ToolsConfig, YagniRule, parse_extra_skill_spec,
 };
 use serde::Deserialize;
 
@@ -72,8 +74,44 @@ struct PythonToolsSection {
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
+pub struct CoverageSection {
+    #[serde(default)]
+    pub min_line_coverage: Option<u32>,
+    #[serde(default)]
+    pub min_branch_coverage: Option<u32>,
+    #[serde(default)]
+    pub max_crap_score: Option<u32>,
+    #[serde(default)]
+    pub lcov_path: Option<String>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct MutationSection {
+    #[serde(default)]
+    pub min_mutation_score: Option<u32>,
+    #[serde(default)]
+    pub zero_survivor_globs: Vec<String>,
+    #[serde(default)]
+    pub report_path: Option<String>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ToolsSection {
     python: Option<PythonToolsSection>,
+}
+
+fn toggle_set_flag<T: Ord>(set: &mut BTreeSet<T>, flag: T, opt: Option<bool>) {
+    match opt {
+        Some(true) => {
+            set.insert(flag);
+        }
+        Some(false) => {
+            set.remove(&flag);
+        }
+        None => {}
+    }
 }
 
 pub fn merge_integrity(raw: Option<IntegritySection>) -> IntegrityConfig {
@@ -95,40 +133,46 @@ pub fn merge_boundaries(raw: Vec<BoundarySection>) -> Vec<BoundaryRule> {
 }
 
 pub fn merge_clean_code(raw: Option<CleanCodeSection>) -> CleanCodeConfig {
-    let base = CleanCodeConfig::strict_defaults();
+    let mut cfg = CleanCodeConfig::strict_defaults();
     let Some(s) = raw else {
-        return base;
+        return cfg;
     };
-    CleanCodeConfig {
-        max_nested_ternaries: s.max_nested_ternaries.unwrap_or(base.max_nested_ternaries),
-        max_property_chain: s.max_property_chain.unwrap_or(base.max_property_chain),
-        max_bool_parameters: s.max_bool_parameters.unwrap_or(base.max_bool_parameters),
-        forbid_todos: s.forbid_todos.unwrap_or(base.forbid_todos),
-        yagni: YagniGates {
-            forbid_wildcard_exports: s
-                .forbid_wildcard_exports
-                .unwrap_or(base.yagni.forbid_wildcard_exports),
-            forbid_single_impl_traits: s
-                .forbid_single_impl_traits
-                .unwrap_or(base.yagni.forbid_single_impl_traits),
-        },
-    }
+    cfg.max_nested_ternaries = s.max_nested_ternaries.unwrap_or(cfg.max_nested_ternaries);
+    cfg.max_property_chain = s.max_property_chain.unwrap_or(cfg.max_property_chain);
+    cfg.max_bool_parameters = s.max_bool_parameters.unwrap_or(cfg.max_bool_parameters);
+    cfg.forbid_todos = s.forbid_todos.unwrap_or(cfg.forbid_todos);
+    toggle_set_flag(
+        &mut cfg.yagni_rules,
+        YagniRule::WildcardExports,
+        s.forbid_wildcard_exports,
+    );
+    toggle_set_flag(
+        &mut cfg.yagni_rules,
+        YagniRule::SingleImplTraits,
+        s.forbid_single_impl_traits,
+    );
+    cfg
 }
 
 pub fn merge_tdd(raw: Option<TddSection>) -> TddConfig {
-    let base = TddConfig::strict_defaults();
+    let mut cfg = TddConfig::strict_defaults();
     let Some(s) = raw else {
-        return base;
+        return cfg;
     };
-    TddConfig {
-        forbid_assertion_free_tests: s
-            .forbid_assertion_free_tests
-            .unwrap_or(base.forbid_assertion_free_tests),
-        parity: TddParityGates {
-            require_companion: s.require_companion.unwrap_or(base.parity.require_companion),
-            require_stories: s.require_stories.unwrap_or(base.parity.require_stories),
-        },
-    }
+    cfg.forbid_assertion_free_tests = s
+        .forbid_assertion_free_tests
+        .unwrap_or(cfg.forbid_assertion_free_tests);
+    toggle_set_flag(
+        &mut cfg.parity_gates,
+        TddParityGate::CompanionTest,
+        s.require_companion,
+    );
+    toggle_set_flag(
+        &mut cfg.parity_gates,
+        TddParityGate::ComponentStories,
+        s.require_stories,
+    );
+    cfg
 }
 
 pub fn merge_commit(raw: Option<CommitSection>) -> CommitConfig {

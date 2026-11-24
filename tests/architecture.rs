@@ -1,9 +1,16 @@
-//! Architectural guardrails enforcing SRP file limits and Functional Core purity.
+//! AST-driven architectural guardrails enforcing SRP file limits, `#![no_std]` Functional Core
+//! purity (`GF078`), single console-output boundary (`output.rs`), and zero lint-bypass attributes.
 
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use gf_core::{EffectSightingKind, RepoPath, UastDocument, Validation};
+use gf_engine::load_workspace_config;
+use gf_parsers::parse_source;
+use gf_rules::check_architecture_purity;
+
 const MAX_FILE_LINES: usize = 250;
+const CLI_OUTPUT_BOUNDARY: &str = "crates/gf-cli/src/output.rs";
 
 fn workspace_root() -> Result<PathBuf, String> {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
@@ -35,10 +42,24 @@ fn collect_rust_files(dir: &Path, acc: &mut Vec<PathBuf>) -> Result<(), std::io:
     Ok(())
 }
 
-fn production_prefix(source: &str) -> &str {
-    source
-        .split_once("#[cfg(test)]")
-        .map_or(source, |(prod, _)| prod)
+fn parse_all_workspace_rust_docs(
+    root: &Path,
+) -> Result<Vec<UastDocument>, Box<dyn std::error::Error>> {
+    let mut files = Vec::new();
+    collect_rust_files(&root.join("crates"), &mut files)?;
+    collect_rust_files(&root.join("tests"), &mut files)?;
+
+    let mut docs = Vec::with_capacity(files.len());
+    for file in files {
+        let rel_str = file
+            .strip_prefix(root)?
+            .to_string_lossy()
+            .replace('\\', "/");
+        let repo_path = RepoPath::new(&rel_str)?;
+        let content = fs::read_to_string(&file)?;
+        docs.push(parse_source(&repo_path, &content)?);
+    }
+    Ok(docs)
 }
 
 #[test]
@@ -48,8 +69,8 @@ fn enforces_max_250_lines_per_rust_file() -> Result<(), Box<dyn std::error::Erro
     collect_rust_files(&root.join("crates"), &mut files)?;
     collect_rust_files(&root.join("tests"), &mut files)?;
     assert!(
-        files.len() >= 5,
-        "expected at least 5 Rust files in workspace, found {}",
+        files.len() >= 20,
+        "expected at least 20 Rust files in workspace, found {}",
         files.len()
     );
 
@@ -65,95 +86,88 @@ fn enforces_max_250_lines_per_rust_file() -> Result<(), Box<dyn std::error::Erro
             ));
         }
     }
+    assert_eq!(violations, Vec::<String>::new());
+    Ok(())
+}
+
+#[test]
+fn enforces_no_std_and_imperative_shell_boundaries_via_ast()
+-> Result<(), Box<dyn std::error::Error>> {
+    let root = workspace_root()?;
+    let loaded = load_workspace_config(&root)?;
+    let docs = parse_all_workspace_rust_docs(&root)?;
+
     assert!(
-        violations.is_empty(),
-        "SRP file length violations:\n{}",
-        violations.join("\n")
+        loaded
+            .analyzer
+            .architecture
+            .no_std_crates
+            .contains("gf-core")
+            && loaded
+                .analyzer
+                .architecture
+                .no_std_crates
+                .contains("gf-rules"),
+        "expected `gf-core` and `gf-rules` in `[architecture].no_std_crates`"
     );
+
+    if let Validation::Invalid(diags) = check_architecture_purity(&docs, &loaded.analyzer) {
+        let rendered: Vec<String> = diags
+            .iter()
+            .map(|d| {
+                format!(
+                    "[{}] {}:{} {}",
+                    d.rule_id,
+                    d.path,
+                    d.span.start_line(),
+                    d.message
+                )
+            })
+            .collect();
+        assert_eq!(rendered, Vec::<String>::new());
+    }
+
+    let parser_io_leaks: Vec<String> = docs
+        .iter()
+        .filter(|d| d.path.as_str().starts_with("crates/gf-parsers/src/"))
+        .flat_map(|d| {
+            d.effect_sightings
+                .iter()
+                .filter(|e| e.kind == EffectSightingKind::IoImportOrCall)
+                .map(move |e| format!("{}:{} ({})", d.path, e.span.start_line(), e.detail))
+        })
+        .collect();
+    assert_eq!(parser_io_leaks, Vec::<String>::new());
     Ok(())
 }
 
 #[test]
-fn enforces_no_std_and_imperative_shell_boundaries() -> Result<(), Box<dyn std::error::Error>> {
+fn enforces_console_output_and_no_allow_cheating_via_ast() -> Result<(), Box<dyn std::error::Error>>
+{
     let root = workspace_root()?;
-    for pure_crate in ["gf-core", "gf-rules"] {
-        let lib_path = root
-            .join("crates")
-            .join(pure_crate)
-            .join("src")
-            .join("lib.rs");
-        let lib_src = fs::read_to_string(&lib_path)?;
-        assert!(
-            lib_src.contains("#![no_std]"),
-            "{} must declare #![no_std]",
-            lib_path.display()
-        );
-        assert!(
-            lib_src.contains("extern crate alloc;"),
-            "{} must declare `extern crate alloc;`",
-            lib_path.display()
-        );
-    }
+    let docs = parse_all_workspace_rust_docs(&root)?;
 
-    let forbidden_io = ["std::fs", "std::process", "std::env"];
-    for io_free_crate in ["gf-core", "gf-rules", "gf-parsers"] {
-        let mut src_files = Vec::new();
-        collect_rust_files(
-            &root.join("crates").join(io_free_crate).join("src"),
-            &mut src_files,
-        )?;
-        for file in src_files {
-            let content = fs::read_to_string(&file)?;
-            for token in forbidden_io {
-                assert!(
-                    !content.contains(token),
-                    "forbidden I/O import `{token}` found in {}",
-                    file.display()
-                );
-            }
-            if io_free_crate != "gf-parsers" {
-                let prod = production_prefix(&content);
-                assert!(
-                    !prod.contains("extern crate std") && !prod.contains("use std::"),
-                    "`std` usage outside #[cfg(test)] in {}",
-                    file.display()
-                );
-            }
-        }
-    }
-    Ok(())
-}
+    let bypass_violations: Vec<String> = docs
+        .iter()
+        .flat_map(|doc| {
+            doc.bypass_findings
+                .iter()
+                .map(move |bp| format!("{}:{} -> {}", doc.path, bp.span.start_line(), bp.directive))
+        })
+        .collect();
 
-#[test]
-fn enforces_console_output_and_no_allow_cheating() -> Result<(), Box<dyn std::error::Error>> {
-    let root = workspace_root()?;
-    let allowed_output = root
-        .join("crates")
-        .join("gf-cli")
-        .join("src")
-        .join("output.rs");
-    let print_macro = concat!("print", "ln!(");
-    let eprint_macro = concat!("eprint", "ln!(");
-    let allow_attr = concat!("#[", "allow(");
+    let console_violations: Vec<String> = docs
+        .iter()
+        .filter(|doc| doc.path.as_str() != CLI_OUTPUT_BOUNDARY)
+        .flat_map(|doc| {
+            doc.effect_sightings
+                .iter()
+                .filter(|eff| eff.kind == EffectSightingKind::ConsoleOutput)
+                .map(move |eff| format!("{}:{} -> {}", doc.path, eff.span.start_line(), eff.detail))
+        })
+        .collect();
 
-    let mut files = Vec::new();
-    collect_rust_files(&root.join("crates"), &mut files)?;
-    collect_rust_files(&root.join("tests"), &mut files)?;
-
-    for file in files {
-        let content = fs::read_to_string(&file)?;
-        assert!(
-            !content.contains(allow_attr),
-            "forbidden attribute found in {} (use #[expect(..., reason = ...)] only when architecturally justified)",
-            file.display()
-        );
-        if file != allowed_output {
-            assert!(
-                !content.contains(print_macro) && !content.contains(eprint_macro),
-                "console macro found outside output boundary in {}",
-                file.display()
-            );
-        }
-    }
+    assert_eq!(bypass_violations, Vec::<String>::new());
+    assert_eq!(console_violations, Vec::<String>::new());
     Ok(())
 }

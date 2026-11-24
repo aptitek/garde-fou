@@ -6,7 +6,7 @@ use gf_core::{
 };
 
 use super::markdown_scan::{
-    check_mdx_logic, detect_raw_html_tag, extract_md_images, strip_inline_code_spans,
+    MdBlockMode, MdScanSession, detect_raw_html_tag, strip_inline_code_spans,
 };
 use crate::cst::line_metrics;
 use crate::types::{LanguageExtractor, ParseError};
@@ -14,14 +14,6 @@ use crate::types::{LanguageExtractor, ParseError};
 /// Safe-Rust Markdown (`.md`) and MDX (`.mdx`) extractor.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct MarkdownExtractor;
-
-struct MdState {
-    is_mdx: bool,
-    in_frontmatter: bool,
-    fence: Option<(char, usize)>,
-    prev_heading: u8,
-    h1_count: u32,
-}
 
 impl LanguageExtractor for MarkdownExtractor {
     fn extract(&self, path: &RepoPath, source: &str) -> Result<UastDocument, ParseError> {
@@ -35,116 +27,124 @@ impl LanguageExtractor for MarkdownExtractor {
         let is_mdx = path
             .extension()
             .is_some_and(|ext| ext.eq_ignore_ascii_case("mdx"));
-        let mut state = MdState {
-            is_mdx,
-            in_frontmatter: false,
-            fence: None,
-            prev_heading: 0,
-            h1_count: 0,
+        let issues = {
+            let mut session = MdScanSession {
+                is_mdx,
+                mode: MdBlockMode::Prose,
+                prev_heading: 0,
+                h1_count: 0,
+                issues: Vec::new(),
+                doc: &mut doc,
+            };
+            for (idx, raw_line) in source.lines().enumerate() {
+                let line_no = u32::try_from(idx).unwrap_or(u32::MAX).saturating_add(1);
+                let span = Span::new(line_no, line_no).unwrap_or(Span::FIRST);
+                session.process_line(idx, raw_line, span);
+            }
+            session.issues
         };
-        let mut issues = Vec::new();
-
-        for (idx, raw_line) in source.lines().enumerate() {
-            let line_no = u32::try_from(idx).unwrap_or(u32::MAX).saturating_add(1);
-            let span = Span::new(line_no, line_no).unwrap_or(Span::FIRST);
-            process_md_line(idx, raw_line, span, (&mut state, &mut issues, &mut doc));
-        }
 
         doc.contenus = Some(ContenusDocument { issues });
         Ok(doc)
     }
 }
 
-fn parse_fence_marker(trimmed: &str) -> Option<(char, usize)> {
+#[derive(Clone, Copy)]
+struct FenceSpec {
+    marker: char,
+    len: usize,
+}
+
+fn parse_fence_marker(trimmed: &str) -> Option<FenceSpec> {
     let first = trimmed.chars().next()?;
     if first != '`' && first != '~' {
         return None;
     }
     let run_len = trimmed.chars().take_while(|&c| c == first).count();
-    (run_len >= 3).then_some((first, run_len))
+    (run_len >= 3).then_some(FenceSpec {
+        marker: first,
+        len: run_len,
+    })
 }
 
-fn check_atx_heading(
-    trimmed: &str,
-    span: Span,
-    state: &mut MdState,
-    issues: &mut Vec<ContenusIssue>,
-) {
-    let hashes = trimmed.bytes().take_while(|&b| b == b'#').count();
-    if !(1..=6).contains(&hashes) || !trimmed[hashes..].starts_with(' ') {
-        return;
-    }
-    let level = u8::try_from(hashes).unwrap_or(6);
-    if level == 1 {
-        state.h1_count = state.h1_count.saturating_add(1);
-        if state.h1_count > 1 {
-            issues.push(ContenusIssue {
-                kind: ContenusIssueKind::MultipleH1,
-                detail: String::from("multiple top-level `# H1` headings in document"),
+impl MdScanSession<'_> {
+    fn check_atx_heading(&mut self, trimmed: &str, span: Span) {
+        let hashes = trimmed.bytes().take_while(|&b| b == b'#').count();
+        if !(1..=6).contains(&hashes) || !trimmed[hashes..].starts_with(' ') {
+            return;
+        }
+        let level = u8::try_from(hashes).unwrap_or(6);
+        if level == 1 {
+            self.h1_count = self.h1_count.saturating_add(1);
+            if self.h1_count > 1 {
+                self.issues.push(ContenusIssue {
+                    kind: ContenusIssueKind::MultipleH1,
+                    detail: String::from("multiple top-level `# H1` headings in document"),
+                    span,
+                });
+            }
+        }
+        if self.prev_heading > 0 && level > self.prev_heading.saturating_add(1) {
+            self.issues.push(ContenusIssue {
+                kind: ContenusIssueKind::HeadingLevelJump,
+                detail: format!("heading level jump `H{}` -> `H{level}`", self.prev_heading),
                 span,
             });
         }
+        self.prev_heading = level;
     }
-    if state.prev_heading > 0 && level > state.prev_heading.saturating_add(1) {
-        issues.push(ContenusIssue {
-            kind: ContenusIssueKind::HeadingLevelJump,
-            detail: format!("heading level jump `H{}` -> `H{level}`", state.prev_heading),
-            span,
-        });
-    }
-    state.prev_heading = level;
-}
 
-fn advance_fence_or_frontmatter(idx: usize, trimmed: &str, state: &mut MdState) -> bool {
-    if idx == 0 && trimmed == "---" {
-        state.in_frontmatter = true;
-        return true;
-    }
-    if state.in_frontmatter {
-        if trimmed == "---" || trimmed == "..." {
-            state.in_frontmatter = false;
+    fn advance_fence_or_frontmatter(&mut self, idx: usize, trimmed: &str) -> bool {
+        match self.mode {
+            MdBlockMode::Prose if idx == 0 && trimmed == "---" => {
+                self.mode = MdBlockMode::Frontmatter;
+                true
+            }
+            MdBlockMode::Frontmatter => {
+                if trimmed == "---" || trimmed == "..." {
+                    self.mode = MdBlockMode::Prose;
+                }
+                true
+            }
+            MdBlockMode::CodeFence { marker, len } => {
+                if let Some(close) = parse_fence_marker(trimmed)
+                    && close.marker == marker
+                    && close.len >= len
+                    && trimmed[close.len..].trim().is_empty()
+                {
+                    self.mode = MdBlockMode::Prose;
+                }
+                true
+            }
+            MdBlockMode::Prose => {
+                if let Some(open) = parse_fence_marker(trimmed) {
+                    self.mode = MdBlockMode::CodeFence {
+                        marker: open.marker,
+                        len: open.len,
+                    };
+                    return true;
+                }
+                false
+            }
         }
-        return true;
     }
-    if let Some((open_ch, open_len)) = state.fence {
-        if let Some((ch, len)) = parse_fence_marker(trimmed)
-            && ch == open_ch
-            && len >= open_len
-            && trimmed[len..].trim().is_empty()
-        {
-            state.fence = None;
+
+    fn process_line(&mut self, idx: usize, raw_line: &str, span: Span) {
+        if self.advance_fence_or_frontmatter(idx, raw_line.trim()) {
+            return;
         }
-        return true;
-    }
-    if let Some(marker) = parse_fence_marker(trimmed) {
-        state.fence = Some(marker);
-        return true;
-    }
-    false
-}
-
-fn process_md_line(
-    idx: usize,
-    raw_line: &str,
-    span: Span,
-    ctx: (&mut MdState, &mut Vec<ContenusIssue>, &mut UastDocument),
-) {
-    let (state, issues, doc) = ctx;
-    if advance_fence_or_frontmatter(idx, raw_line.trim(), state) {
-        return;
-    }
-
-    let prose = strip_inline_code_spans(raw_line);
-    check_atx_heading(prose.trim_start(), span, state, issues);
-    extract_md_images(&prose, span, issues, doc);
-    if let Some(tag) = detect_raw_html_tag(&prose, state.is_mdx) {
-        issues.push(ContenusIssue {
-            kind: ContenusIssueKind::RawHtml,
-            detail: format!("raw HTML tag `<{tag}>` outside fenced/inline code"),
-            span,
-        });
-    }
-    if state.is_mdx {
-        check_mdx_logic(prose.trim(), span, issues);
+        let prose = strip_inline_code_spans(raw_line);
+        self.check_atx_heading(prose.trim_start(), span);
+        self.extract_md_images(&prose, span);
+        if let Some(tag) = detect_raw_html_tag(&prose, self.is_mdx) {
+            self.issues.push(ContenusIssue {
+                kind: ContenusIssueKind::RawHtml,
+                detail: format!("raw HTML tag `<{tag}>` outside fenced/inline code"),
+                span,
+            });
+        }
+        if self.is_mdx {
+            self.check_mdx_logic(prose.trim(), span);
+        }
     }
 }

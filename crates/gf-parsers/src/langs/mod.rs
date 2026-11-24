@@ -12,6 +12,8 @@ pub mod python;
 mod python_calls;
 mod python_guardrails;
 pub mod rust;
+mod rust_effects;
+mod rust_guardrails;
 pub mod tool_config;
 pub mod typescript;
 mod typescript_jsx;

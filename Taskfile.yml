@@ -70,6 +70,17 @@ tasks:
     cmds:
       - bash -euo pipefail -c 'cargo mutants --in-diff <(git diff main)'
 
+  mutants:diff:
+    desc: Run cargo-mutants on PR diff and enforce GF052 mutation gate
+    cmds:
+      - bash -euo pipefail -c 'cargo mutants --in-diff <(git diff origin/main...) && cargo run -p gf-cli --bin garde -- check --mutants mutants.out/outcomes.json'
+
+  mutants:core:
+    desc: Run full cargo-mutants campaign on #![no_std] core/rules and enforce GF052
+    cmds:
+      - cargo mutants -p gf-core -p gf-rules -j 8
+      - cargo run -p gf-cli --bin garde -- check --mutants mutants.out/outcomes.json
+
   check:fast:
     desc: Run fast verification suite in parallel (fmt, lint, secrets, test, dogfood)
     deps:

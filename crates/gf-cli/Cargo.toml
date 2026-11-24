@@ -42,5 +42,9 @@ gf-core = { workspace = true }
 gf-engine = { workspace = true }
 serde_json = { workspace = true }
 
+[dev-dependencies]
+gf-parsers = { workspace = true }
+gf-rules = { workspace = true }
+
 [lints]
 workspace = true

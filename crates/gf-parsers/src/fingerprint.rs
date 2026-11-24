@@ -1,10 +1,12 @@
-//! Type-2 AST structural fingerprinting (`$ID` / `$LIT`) and symbol reference extraction.
+//! Type-2 (`BLAKE3`) and Type-3 (5-gram AST `MinHash`) clone fingerprinting (`GF020`)
+//! plus homonymy-safe symbol reference extraction (`GF021`).
 
-use std::collections::BTreeSet;
+mod symbol_refs;
 
 use tree_sitter::Node;
 
 use crate::types::node_text;
+pub use symbol_refs::collect_referenced_symbols;
 
 const COMMENT_KINDS: &[&str] = &["comment", "line_comment", "block_comment"];
 
@@ -34,110 +36,137 @@ const LITERAL_KINDS: &[&str] = &[
     "null",
 ];
 
-const DECL_NAME_PARENTS: &[&str] = &[
-    "function_item",
-    "struct_item",
-    "enum_item",
-    "trait_item",
-    "type_item",
-    "const_item",
-    "static_item",
-    "function_declaration",
-    "class_declaration",
-    "interface_declaration",
-    "type_alias_declaration",
-    "enum_declaration",
-    "variable_declarator",
-    "function_definition",
-    "class_definition",
-];
+const NOISE_PUNCTUATION: &[&str] = &["{", "}", "(", ")", "[", "]", ";", ",", ":", "."];
 
-/// Computes `(Some(u128_blake3_hash), ast_node_count)` over a callable body normalized
-/// for Type-2 clone detection (identifiers -> `$ID`, literals -> `$LIT`, comments stripped).
-pub fn fingerprint_body(body: Node<'_>, source: &str) -> (Option<u128>, u32) {
+const MIN_SHINGLE_AST_NODES: u32 = 20;
+const SHINGLE_WINDOW_SIZE: usize = 5;
+
+/// Normalized Type-2 and Type-3 AST fingerprint of a callable body.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct BodyFingerprint {
+    /// Exact `BLAKE3` 128-bit digest of depth-tagged normalized AST tokens.
+    pub structural_hash: Option<u128>,
+    /// Deterministic 8-register `MinHash` over 5-gram AST shingles (`ast_node_count >= 20`).
+    pub shingle_sketch: Option<[u64; 8]>,
+    /// Total named non-comment AST nodes inside the body.
+    pub ast_node_count: u32,
+}
+
+struct BodyFingerprinter<'a> {
+    source: &'a str,
+    exact_hasher: blake3::Hasher,
+    shingle_tokens: Vec<&'a str>,
+    ast_node_count: u32,
+}
+
+impl<'a> BodyFingerprinter<'a> {
+    fn new(source: &'a str) -> Self {
+        Self {
+            source,
+            exact_hasher: blake3::Hasher::new(),
+            shingle_tokens: Vec::new(),
+            ast_node_count: 0,
+        }
+    }
+
+    fn feed_exact(&mut self, depth: u16, token: &str) {
+        self.exact_hasher.update(&depth.to_le_bytes());
+        self.exact_hasher.update(token.as_bytes());
+        self.exact_hasher.update(&[0xFF]);
+    }
+
+    fn visit(&mut self, node: Node<'a>, depth: u16) {
+        let kind = node.kind();
+        if COMMENT_KINDS.contains(&kind) {
+            return;
+        }
+        if !node.is_named() {
+            let tok = node_text(node, self.source).trim();
+            if !tok.is_empty() {
+                self.feed_exact(depth, tok);
+                if !NOISE_PUNCTUATION.contains(&tok) {
+                    self.shingle_tokens.push(tok);
+                }
+            }
+            return;
+        }
+
+        self.ast_node_count = self.ast_node_count.saturating_add(1);
+        if IDENT_KINDS.contains(&kind) {
+            self.feed_exact(depth, "$ID");
+            self.shingle_tokens.push("$ID");
+            return;
+        }
+        if LITERAL_KINDS.contains(&kind) {
+            self.feed_exact(depth, "$LIT");
+            self.shingle_tokens.push("$LIT");
+            return;
+        }
+
+        self.feed_exact(depth, kind);
+        self.shingle_tokens.push(kind);
+        let next_depth = depth.saturating_add(1);
+        let mut cursor = node.walk();
+        for child in node.children(&mut cursor) {
+            self.visit(child, next_depth);
+        }
+    }
+
+    fn finalize(self) -> BodyFingerprint {
+        if self.ast_node_count == 0 {
+            return BodyFingerprint {
+                structural_hash: None,
+                shingle_sketch: None,
+                ast_node_count: 0,
+            };
+        }
+        let digest = self.exact_hasher.finalize();
+        let mut first_16 = [0_u8; 16];
+        first_16.copy_from_slice(&digest.as_bytes()[..16]);
+        let shingle_sketch = (self.ast_node_count >= MIN_SHINGLE_AST_NODES)
+            .then(|| compute_shingle_sketch(&self.shingle_tokens))
+            .flatten();
+        BodyFingerprint {
+            structural_hash: Some(u128::from_le_bytes(first_16)),
+            shingle_sketch,
+            ast_node_count: self.ast_node_count,
+        }
+    }
+}
+
+fn hash_shingle_window(window: &[&str]) -> [u64; 8] {
     let mut hasher = blake3::Hasher::new();
-    let mut node_count = 0_u32;
-    hash_subtree(body, source, 0, (&mut hasher, &mut node_count));
-    if node_count == 0 {
-        return (None, 0);
+    for tok in window {
+        hasher.update(tok.as_bytes());
+        hasher.update(&[0xFF]);
     }
-    let digest = hasher.finalize();
-    let mut first_16 = [0_u8; 16];
-    first_16.copy_from_slice(&digest.as_bytes()[..16]);
-    (Some(u128::from_le_bytes(first_16)), node_count)
+    let mut xof_bytes = [0_u8; 64];
+    hasher.finalize_xof().fill(&mut xof_bytes);
+    let mut words = [0_u64; 8];
+    let (chunks, _) = xof_bytes.as_chunks::<8>();
+    for (slot, chunk) in words.iter_mut().zip(chunks) {
+        *slot = u64::from_le_bytes(*chunk);
+    }
+    words
 }
 
-fn feed_token(hasher: &mut blake3::Hasher, depth: u16, token: &str) {
-    hasher.update(&depth.to_le_bytes());
-    hasher.update(token.as_bytes());
-    hasher.update(&[0xFF]);
-}
-
-fn hash_subtree(node: Node<'_>, source: &str, depth: u16, state: (&mut blake3::Hasher, &mut u32)) {
-    let (hasher, count) = state;
-    let kind = node.kind();
-    if COMMENT_KINDS.contains(&kind) {
-        return;
+fn compute_shingle_sketch(tokens: &[&str]) -> Option<[u64; 8]> {
+    if tokens.len() < SHINGLE_WINDOW_SIZE {
+        return None;
     }
-
-    if !node.is_named() {
-        let tok = node_text(node, source).trim();
-        if !tok.is_empty() {
-            feed_token(hasher, depth, tok);
-        }
-        return;
-    }
-
-    *count = count.saturating_add(1);
-    if IDENT_KINDS.contains(&kind) {
-        feed_token(hasher, depth, "$ID");
-        return;
-    }
-    if LITERAL_KINDS.contains(&kind) {
-        feed_token(hasher, depth, "$LIT");
-        return;
-    }
-
-    feed_token(hasher, depth, kind);
-    let next_depth = depth.saturating_add(1);
-    let mut cursor = node.walk();
-    for child in node.children(&mut cursor) {
-        hash_subtree(child, source, next_depth, (hasher, count));
-    }
-}
-
-fn is_own_declaration_name(node: Node<'_>) -> bool {
-    let Some(parent) = node.parent() else {
-        return false;
-    };
-    if !DECL_NAME_PARENTS.contains(&parent.kind()) {
-        return false;
-    }
-    parent
-        .child_by_field_name("name")
-        .is_some_and(|name_node| name_node.id() == node.id())
-}
-
-/// Collects all identifier names referenced in `root` outside their own declaration site.
-pub fn collect_referenced_symbols(root: Node<'_>, source: &str) -> BTreeSet<String> {
-    let mut refs = BTreeSet::new();
-    walk_references(root, source, &mut refs);
-    refs
-}
-
-fn walk_references(node: Node<'_>, source: &str, refs: &mut BTreeSet<String>) {
-    let kind = node.kind();
-    if COMMENT_KINDS.contains(&kind) {
-        return;
-    }
-    if IDENT_KINDS.contains(&kind) && !is_own_declaration_name(node) {
-        let text = node_text(node, source).trim();
-        if !text.is_empty() {
-            refs.insert(String::from(text));
+    let mut min_hashes = [u64::MAX; 8];
+    for window in tokens.windows(SHINGLE_WINDOW_SIZE) {
+        let hashes = hash_shingle_window(window);
+        for (min_slot, h) in min_hashes.iter_mut().zip(hashes) {
+            *min_slot = (*min_slot).min(h);
         }
     }
-    let mut cursor = node.walk();
-    for child in node.children(&mut cursor) {
-        walk_references(child, source, refs);
-    }
+    Some(min_hashes)
+}
+
+/// Traverses `body` once to compute its Type-2 `BLAKE3` hash, Type-3 `MinHash` sketch, and node count.
+pub fn fingerprint_body(body: Node<'_>, source: &str) -> BodyFingerprint {
+    let mut fp = BodyFingerprinter::new(source);
+    fp.visit(body, 0);
+    fp.finalize()
 }

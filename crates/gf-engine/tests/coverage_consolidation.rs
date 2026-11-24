@@ -99,7 +99,7 @@ fn loads_full_garde_fou_manifest_sections_and_rejects_bad_policies()
 
     assert!(parse_extra_skill_spec("bad").is_err());
     assert!(parse_extra_skill_spec("a/../b@skill").is_err());
-    let _ = fs::remove_dir_all(&dir);
+    fs::remove_dir_all(&dir)?;
     Ok(())
 }
 
@@ -142,7 +142,7 @@ fn exercises_fetcher_recursive_lookup_and_multiline_frontmatter()
         extract_skill_summary("# Heading Only\n\nFirst prose sentence here.\n", "x"),
         "First prose sentence here."
     );
-    let _ = fs::remove_dir_all(&dir);
+    fs::remove_dir_all(&dir)?;
     Ok(())
 }
 
@@ -165,7 +165,7 @@ fn verifier_flags_missing_agents_md_and_missing_core_skill()
         verify_agentic_state(&proj, &ProjectContext::default(), &cfg)?,
         AgenticSyncStatus::MissingOrOutdatedCoreSkill
     );
-    let _ = fs::remove_dir_all(&proj);
+    fs::remove_dir_all(&proj)?;
     Ok(())
 }
 
@@ -211,6 +211,6 @@ fn detects_python_relative_import_cycles_single_impl_protocols_and_bypass_commen
             "missing {rule}"
         );
     }
-    let _ = fs::remove_dir_all(&dir);
+    fs::remove_dir_all(&dir)?;
     Ok(())
 }

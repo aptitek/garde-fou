@@ -1,6 +1,7 @@
-//! Integrity lock policies (`garde.lock`, `GF070`) and declarative `[[boundaries]]` (`GF072`),
-//! including the default Atomic Design hierarchy (`atoms -> molecules -> organisms -> templates -> pages`).
+//! Integrity lock policies (`garde.lock`, `GF070`), declarative `[[boundaries]]` (`GF072`),
+//! and crate effect-isolation `[architecture]` (`GF078`).
 
+use alloc::collections::BTreeSet;
 use alloc::format;
 use alloc::string::String;
 use alloc::vec;
@@ -118,4 +119,46 @@ pub fn default_atomic_design_boundaries() -> Vec<BoundaryRule> {
             ),
         },
     ]
+}
+
+/// Crate/folder effect-isolation and `#![no_std]` policy (`[architecture]`, `GF078`).
+#[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ArchitectureConfig {
+    /// Crate names required to declare `#![no_std]` and ban `std::` outside `#[cfg(test)]`.
+    pub no_std_crates: BTreeSet<String>,
+    /// Crates permitted to import/call I/O primitives (`fs`, `net`, `process`, `env`).
+    pub io_allowed_crates: BTreeSet<String>,
+    /// Crates permitted to write to `stdout`/`stderr` (`println!`, `eprintln!`, `console.log`, `print`).
+    pub console_allowed_crates: BTreeSet<String>,
+}
+
+impl ArchitectureConfig {
+    /// Empty `[architecture]` policy (unrestricted unless crates are listed).
+    #[must_use]
+    pub const fn empty() -> Self {
+        Self {
+            no_std_crates: BTreeSet::new(),
+            io_allowed_crates: BTreeSet::new(),
+            console_allowed_crates: BTreeSet::new(),
+        }
+    }
+
+    /// Deterministic fragment for `BLAKE3` cache keys.
+    #[must_use]
+    pub fn canonical_fragment(&self) -> String {
+        let ns: Vec<&str> = self.no_std_crates.iter().map(String::as_str).collect();
+        let io: Vec<&str> = self.io_allowed_crates.iter().map(String::as_str).collect();
+        let con: Vec<&str> = self
+            .console_allowed_crates
+            .iter()
+            .map(String::as_str)
+            .collect();
+        format!(
+            "arch(ns={},io={},con={})",
+            ns.join(","),
+            io.join(","),
+            con.join(",")
+        )
+    }
 }

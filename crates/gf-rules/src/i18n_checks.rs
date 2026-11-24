@@ -10,15 +10,28 @@ use gf_core::{
     UiCheckKind, Validation, classify_path,
 };
 
-use crate::checks::rule_error as domain_diag;
+use crate::checks::{SourceLoc, rule_error as domain_diag};
 
-fn collect_locale_docs<'a>(
-    docs: &'a [UastDocument],
-    config: &Config,
-) -> Vec<(&'a UastDocument, &'a TexteDocument)> {
+#[derive(Clone, Copy)]
+struct LocaleEntry<'a> {
+    doc: &'a UastDocument,
+    texte: &'a TexteDocument,
+}
+
+struct I18nSink<'a> {
+    config: &'a Config,
+    diags: &'a mut Vec<Diagnostic>,
+}
+
+struct UsedKeysReport<'a> {
+    used_keys: BTreeSet<&'a str>,
+    has_code_files: bool,
+}
+
+fn collect_locale_docs<'a>(docs: &'a [UastDocument], config: &Config) -> Vec<LocaleEntry<'a>> {
     docs.iter()
         .filter(|d| classify_path(&d.path, &config.domains) == DomainKind::Texte)
-        .filter_map(|d| d.texte.as_ref().map(|t| (d, t)))
+        .filter_map(|doc| doc.texte.as_ref().map(|texte| LocaleEntry { doc, texte }))
         .collect()
 }
 
@@ -37,7 +50,7 @@ fn check_untranslated_jsx_strings(
                     "GF062",
                     format!("untranslated UI string in `Code`: {}", ui.detail),
                     "Extract user-facing strings into `locales/*.json` (`Texte` domain) and render them via `t(\"...\")`.",
-                    (&doc.path, ui.span),
+                    SourceLoc::new(&doc.path, ui.span),
                 ));
             }
         }
@@ -45,24 +58,24 @@ fn check_untranslated_jsx_strings(
 }
 
 fn check_locale_symmetry(
-    locale_docs: &[(&UastDocument, &TexteDocument)],
+    locale_docs: &[LocaleEntry<'_>],
     all_keys: &BTreeSet<&str>,
     out: &mut Vec<Diagnostic>,
 ) {
     if locale_docs.len() < 2 {
         return;
     }
-    for &(doc, texte) in locale_docs {
+    for entry in locale_docs {
         for &key in all_keys {
-            if !texte.keys.contains(key) {
+            if !entry.texte.keys.contains(key) {
                 out.push(domain_diag(
                     "GF062",
                     format!(
                         "locale `{}` (`{}`) is missing translation key `{key}`",
-                        texte.locale, doc.path
+                        entry.texte.locale, entry.doc.path
                     ),
                     "Keep translation key sets 100% symmetric across every locale dictionary in `Texte`.",
-                    (&doc.path, Span::FIRST),
+                    SourceLoc::new(&entry.doc.path, Span::FIRST),
                 ));
             }
         }
@@ -72,56 +85,57 @@ fn check_locale_symmetry(
 fn collect_and_verify_used_keys<'a>(
     docs: &'a [UastDocument],
     all_keys: &BTreeSet<&str>,
-    config: &Config,
-    out: &mut Vec<Diagnostic>,
-) -> (BTreeSet<&'a str>, bool) {
+    sink: &mut I18nSink<'_>,
+) -> UsedKeysReport<'a> {
     let mut used_keys = BTreeSet::new();
     let mut has_code_files = false;
 
     for doc in docs {
-        let is_code = classify_path(&doc.path, &config.domains) == DomainKind::Code;
+        let is_code = classify_path(&doc.path, &sink.config.domains) == DomainKind::Code;
         has_code_files |= is_code;
         for key in &doc.translation_keys_used {
             used_keys.insert(key.as_str());
             if is_code && !all_keys.contains(key.as_str()) {
-                out.push(domain_diag(
+                sink.diags.push(domain_diag(
                     "GF062",
                     format!(
                         "`t(\"{key}\")` in `{}` is missing from `Texte` dictionaries",
                         doc.path
                     ),
                     "Define every referenced translation key in all `locales/` dictionaries.",
-                    (&doc.path, Span::FIRST),
+                    SourceLoc::new(&doc.path, Span::FIRST),
                 ));
             }
         }
     }
-    (used_keys, has_code_files)
+    UsedKeysReport {
+        used_keys,
+        has_code_files,
+    }
 }
 
 fn check_code_and_dead_keys(
     docs: &[UastDocument],
-    locale_docs: &[(&UastDocument, &TexteDocument)],
+    locale_docs: &[LocaleEntry<'_>],
     all_keys: &BTreeSet<&str>,
-    sink: (&Config, &mut Vec<Diagnostic>),
+    sink: &mut I18nSink<'_>,
 ) {
-    let (config, out) = sink;
-    let (used_keys, has_code_files) = collect_and_verify_used_keys(docs, all_keys, config, out);
-    if !has_code_files {
+    let report = collect_and_verify_used_keys(docs, all_keys, sink);
+    if !report.has_code_files {
         return;
     }
     for &key in all_keys {
-        if !used_keys.contains(key)
-            && let Some((owner_doc, _)) = locale_docs.iter().find(|(_, t)| t.keys.contains(key))
+        if !report.used_keys.contains(key)
+            && let Some(owner) = locale_docs.iter().find(|e| e.texte.keys.contains(key))
         {
-            out.push(domain_diag(
+            sink.diags.push(domain_diag(
                 "GF062",
                 format!(
                     "dead translation key `{key}` in `{}` is never used in `Code`",
-                    owner_doc.path
+                    owner.doc.path
                 ),
                 "Remove unused translation keys or wire them into UI components via `t(\"...\")`.",
-                (&owner_doc.path, Span::FIRST),
+                SourceLoc::new(&owner.doc.path, Span::FIRST),
             ));
         }
     }
@@ -141,12 +155,16 @@ pub fn check_workspace_i18n(
 
     let all_keys: BTreeSet<&str> = locale_docs
         .iter()
-        .flat_map(|(_, t)| t.keys.iter().map(String::as_str))
+        .flat_map(|e| e.texte.keys.iter().map(String::as_str))
         .collect();
 
     let mut diags = Vec::new();
     check_untranslated_jsx_strings(docs, config, &mut diags);
     check_locale_symmetry(&locale_docs, &all_keys, &mut diags);
-    check_code_and_dead_keys(docs, &locale_docs, &all_keys, (config, &mut diags));
+    let mut sink = I18nSink {
+        config,
+        diags: &mut diags,
+    };
+    check_code_and_dead_keys(docs, &locale_docs, &all_keys, &mut sink);
     Validation::<(), Diagnostic>::from_errors(diags)
 }

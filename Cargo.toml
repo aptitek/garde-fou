@@ -59,3 +59,7 @@ allow_attributes_without_reason = "deny"
 lto = "thin"
 codegen-units = 1
 strip = "symbols"
+
+[profile.mutants]
+inherits = "test"
+debug = "none"

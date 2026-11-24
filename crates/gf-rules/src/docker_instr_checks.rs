@@ -6,7 +6,7 @@ use alloc::vec::Vec;
 
 use gf_core::{Diagnostic, DockerInstruction, DockerInstructionKind, RepoPath, Span};
 
-use crate::checks::rule_error as docker_error;
+use crate::checks::{SourceLoc, rule_error as docker_error};
 
 const SECRET_SUBSTRINGS: &[&str] = &["SECRET", "PASSWORD", "TOKEN", "PRIVATE_KEY", "API_KEY"];
 const ARCHIVE_SUFFIXES: &[&str] = &[".tar", ".tar.gz", ".tgz", ".tar.bz2", ".tar.xz", ".tar.zst"];
@@ -28,7 +28,7 @@ fn is_justified_add_source(src: &str) -> bool {
 }
 
 fn check_run_command(path: &RepoPath, command: &str, span: Span, out: &mut Vec<Diagnostic>) {
-    let loc = (path, span);
+    let loc = SourceLoc::new(path, span);
     let uses_sudo = command
         .split(|c: char| !c.is_ascii_alphanumeric() && c != '_' && c != '-')
         .any(|tok| tok == "sudo");
@@ -64,11 +64,7 @@ fn check_run_command(path: &RepoPath, command: &str, span: Span, out: &mut Vec<D
     }
 }
 
-fn check_env_secrets(
-    bindings: &[(String, String)],
-    loc: (&RepoPath, Span),
-    out: &mut Vec<Diagnostic>,
-) {
+fn check_env_secrets(bindings: &[(String, String)], loc: SourceLoc<'_>, out: &mut Vec<Diagnostic>) {
     for (k, v) in bindings {
         if is_hardcoded_secret(k, v) {
             out.push(docker_error(
@@ -83,7 +79,7 @@ fn check_env_secrets(
 
 /// Evaluates `GF032` and `GF033` on a single parsed [`DockerInstruction`].
 pub fn check_instruction(path: &RepoPath, instr: &DockerInstruction, out: &mut Vec<Diagnostic>) {
-    let loc = (path, instr.span);
+    let loc = SourceLoc::new(path, instr.span);
     match &instr.kind {
         DockerInstructionKind::Add { operands } => {
             let sources = &operands[..operands.len().saturating_sub(1)];

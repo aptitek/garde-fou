@@ -129,7 +129,7 @@ fn tier1_python_ast_guardrails_trigger_gf080_and_exempt_declared_cli_entrypoints
             .iter()
             .any(|d| d.path.as_str() == "src/cli.py" && d.rule_id == "GF080")
     );
-    let _ = fs::remove_dir_all(&dir);
+    fs::remove_dir_all(&dir)?;
     Ok(())
 }
 
@@ -168,7 +168,7 @@ fn tier2_audits_pyproject_ruff_and_jsonc_tsconfig_under_gf081()
     ] {
         assert!(gf081.iter().any(|m| m.contains(expected)));
     }
-    let _ = fs::remove_dir_all(&dir);
+    fs::remove_dir_all(&dir)?;
     Ok(())
 }
 
@@ -218,7 +218,7 @@ fn tier3_venv_mock_binaries_emit_gf082_and_missing_required_emits_gf043()
     let staged_md = run_check_with_options(&dir, &CheckOptions::new(ScanScope::StagedOnly, true))?;
     assert!(!staged_md.diagnostics.iter().any(|d| d.rule_id == "GF082"));
 
-    let _ = fs::remove_dir_all(&dir);
+    fs::remove_dir_all(&dir)?;
     Ok(())
 }
 
@@ -240,6 +240,6 @@ fn golden_invariant_python_fastapi_docker_passes_all_three_tiers()
         "expected 0 violations, got {:#?}",
         report.diagnostics
     );
-    let _ = fs::remove_dir_all(&dir);
+    fs::remove_dir_all(&dir)?;
     Ok(())
 }

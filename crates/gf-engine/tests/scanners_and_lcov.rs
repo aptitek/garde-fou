@@ -89,7 +89,7 @@ fn gf040_detects_secrets_and_redacts_raw_values_everywhere()
     }
     assert_dir_never_contains(&dir.join(".garde-fou-cache"), &[pat_tail, aws_tail, raw_pw])?;
 
-    let _ = fs::remove_dir_all(&dir);
+    fs::remove_dir_all(&dir)?;
     Ok(())
 }
 
@@ -213,6 +213,6 @@ fn gf050_blocks_72_percent_lcov_when_85_percent_is_required()
         Err(EngineError::InvalidConfig(_))
     ));
 
-    let _ = fs::remove_dir_all(&dir);
+    fs::remove_dir_all(&dir)?;
     Ok(())
 }

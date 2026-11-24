@@ -39,6 +39,9 @@ pub struct CheckArgs {
     /// Optional path to an `LCOV` coverage report (`lcov.info`) verified by `GF050`.
     #[arg(long, value_name = "PATH")]
     pub lcov: Option<String>,
+    /// Optional path to a `cargo-mutants` (`outcomes.json`) or `Stryker` (`mutation.json`) report (`GF052`).
+    #[arg(long, value_name = "PATH")]
+    pub mutants: Option<String>,
     /// Select diagnostic output format (`human`, `agent`, or `sarif`).
     #[arg(long, value_enum, default_value_t = OutputFormat::Human)]
     pub format: OutputFormat,

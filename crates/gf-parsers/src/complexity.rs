@@ -29,13 +29,17 @@ pub struct ComplexityRules {
 /// Aggregated complexity metrics for a single callable body.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct ComputedMetrics {
+    /// `McCabe` cyclomatic complexity (`>= 1`).
     pub cyclomatic: u32,
+    /// Cognitive complexity including nesting depth penalties.
     pub cognitive: u32,
+    /// Maximum control-flow nesting depth reached.
     pub max_nesting: u32,
 }
 
-#[derive(Default)]
-struct Accumulator {
+struct Accumulator<'a> {
+    source: &'a str,
+    rules: &'a ComplexityRules,
     extra_cyclomatic: u32,
     cognitive: u32,
     max_nesting: u32,
@@ -43,10 +47,16 @@ struct Accumulator {
 
 /// Computes cyclomatic complexity, cognitive complexity, and maximum nesting depth for `body`.
 pub fn compute_metrics(body: Node<'_>, source: &str, rules: &ComplexityRules) -> ComputedMetrics {
-    let mut acc = Accumulator::default();
+    let mut acc = Accumulator {
+        source,
+        rules,
+        extra_cyclomatic: 0,
+        cognitive: 0,
+        max_nesting: 0,
+    };
     let mut cursor = body.walk();
     for child in body.children(&mut cursor) {
-        visit_node(child, source, rules, (0, &mut acc));
+        acc.visit_node(child, 0);
     }
     ComputedMetrics {
         cyclomatic: acc.extra_cyclomatic.saturating_add(1),
@@ -99,58 +109,47 @@ fn has_short_circuit_op(node: Node<'_>, source: &str, rules: &ComplexityRules) -
         .any(|child| !child.is_named() && rules.bool_ops.contains(&node_text(child, source)))
 }
 
-fn visit_node(
-    node: Node<'_>,
-    source: &str,
-    rules: &ComplexityRules,
-    state: (u32, &mut Accumulator),
-) {
-    let (depth, acc) = state;
-    let kind = node.kind();
-    if rules.nested_fn_nodes.contains(&kind) {
-        return;
+impl Accumulator<'_> {
+    fn visit_node(&mut self, node: Node<'_>, depth: u32) {
+        if self.rules.nested_fn_nodes.contains(&node.kind()) {
+            return;
+        }
+        let next_depth = self.classify_and_score(node, depth);
+        let mut cursor = node.walk();
+        for child in node.children(&mut cursor) {
+            self.visit_node(child, next_depth);
+        }
     }
 
-    let next_depth = classify_and_score(node, source, rules, (depth, acc));
-    let mut cursor = node.walk();
-    for child in node.children(&mut cursor) {
-        visit_node(child, source, rules, (next_depth, acc));
+    fn classify_and_score(&mut self, node: Node<'_>, depth: u32) -> u32 {
+        let kind = node.kind();
+        if is_else_if(node, self.rules) || self.rules.flat_branches.contains(&kind) {
+            self.extra_cyclomatic = self.extra_cyclomatic.saturating_add(1);
+            self.cognitive = self.cognitive.saturating_add(1);
+            return depth;
+        }
+        if self.rules.nesting_branches.contains(&kind) {
+            let next = depth.saturating_add(1);
+            self.extra_cyclomatic = self.extra_cyclomatic.saturating_add(1);
+            self.cognitive = self.cognitive.saturating_add(1).saturating_add(depth);
+            self.max_nesting = self.max_nesting.max(next);
+            return next;
+        }
+        if self.rules.switch_nodes.contains(&kind) {
+            let next = depth.saturating_add(1);
+            self.extra_cyclomatic = self
+                .extra_cyclomatic
+                .saturating_add(count_switch_arms(node, self.rules));
+            self.cognitive = self.cognitive.saturating_add(1).saturating_add(depth);
+            self.max_nesting = self.max_nesting.max(next);
+            return next;
+        }
+        if self.rules.bool_expr_nodes.contains(&kind)
+            && has_short_circuit_op(node, self.source, self.rules)
+        {
+            self.extra_cyclomatic = self.extra_cyclomatic.saturating_add(1);
+            self.cognitive = self.cognitive.saturating_add(1);
+        }
+        depth
     }
-}
-
-fn classify_and_score(
-    node: Node<'_>,
-    source: &str,
-    rules: &ComplexityRules,
-    state: (u32, &mut Accumulator),
-) -> u32 {
-    let (depth, acc) = state;
-    let kind = node.kind();
-
-    if is_else_if(node, rules) || rules.flat_branches.contains(&kind) {
-        acc.extra_cyclomatic = acc.extra_cyclomatic.saturating_add(1);
-        acc.cognitive = acc.cognitive.saturating_add(1);
-        return depth;
-    }
-    if rules.nesting_branches.contains(&kind) {
-        let next = depth.saturating_add(1);
-        acc.extra_cyclomatic = acc.extra_cyclomatic.saturating_add(1);
-        acc.cognitive = acc.cognitive.saturating_add(1).saturating_add(depth);
-        acc.max_nesting = acc.max_nesting.max(next);
-        return next;
-    }
-    if rules.switch_nodes.contains(&kind) {
-        let next = depth.saturating_add(1);
-        acc.extra_cyclomatic = acc
-            .extra_cyclomatic
-            .saturating_add(count_switch_arms(node, rules));
-        acc.cognitive = acc.cognitive.saturating_add(1).saturating_add(depth);
-        acc.max_nesting = acc.max_nesting.max(next);
-        return next;
-    }
-    if rules.bool_expr_nodes.contains(&kind) && has_short_circuit_op(node, source, rules) {
-        acc.extra_cyclomatic = acc.extra_cyclomatic.saturating_add(1);
-        acc.cognitive = acc.cognitive.saturating_add(1);
-    }
-    depth
 }

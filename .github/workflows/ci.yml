@@ -37,6 +37,9 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
 
+      - name: Run formal mutation suite (`gf-core` & `gf-rules`)
+        run: cargo mutants -p gf-core -p gf-rules -j 4 || true
+
       - name: Run full verification suite (fmt, clippy, nextest, machete, deny, cov, scanners)
         run: task check:full
 
@@ -44,6 +47,40 @@ jobs:
         run: |
           cargo llvm-cov nextest --workspace --lcov --output-path lcov.info
           cargo run -p gf-cli --bin garde -- check --no-cache --strict-tools --lcov lcov.info
+
+  mutation-gate:
+    name: Formal Mutation Gate (`GF052` on `gf-core` & `gf-rules`)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Install `cargo-mutants` via `cargo-binstall`
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-mutants
+
+      - name: Run `cargo mutants` on modified `gf-core` / `gf-rules` files and enforce `GF052`
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE_REF="${GITHUB_BASE_REF:-main}"
+          CHANGED_CORE="$(git diff --name-only "origin/${BASE_REF}..." -- crates/gf-core/src crates/gf-rules/src || true)"
+          if [ -z "$CHANGED_CORE" ]; then
+            echo "No changes in crates/gf-core/src or crates/gf-rules/src; skipping PR diff mutation run."
+            exit 0
+          fi
+          git diff "origin/${BASE_REF}..." -- crates/gf-core/src crates/gf-rules/src > /tmp/pr-core.diff
+          cargo mutants --in-diff /tmp/pr-core.diff || true
+          if grep -q '"Mutant"' mutants.out/outcomes.json; then
+            cargo run -p gf-cli --bin garde -- check --mutants mutants.out/outcomes.json
+          fi
 
   portability:
     name: Portability & Installer Smoke (${{ matrix.os }})

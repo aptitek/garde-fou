@@ -1,10 +1,13 @@
 //! CST extractors for KISS (`GF073`: nested ternaries & Law of Demeter chains)
 //! and local YAGNI (`GF074`: wildcard re-exports & excessive boolean parameters).
 
+mod demeter;
+
 use gf_core::{KissYagniFinding, KissYagniKind, UastDocument};
 use tree_sitter::Node;
 
 use crate::cst::{field_name_string, node_span, node_text};
+use demeter::measure_outermost_property_chain;
 
 const FN_BOUNDARIES: &[&str] = &[
     "function_item",
@@ -31,30 +34,6 @@ fn nested_ternary_depth(node: Node<'_>, ternary_kind: &str) -> u32 {
     depth
 }
 
-fn chain_base_child(node: Node<'_>) -> Option<Node<'_>> {
-    node.child_by_field_name("value")
-        .or_else(|| node.child_by_field_name("object"))
-}
-
-fn measure_outermost_property_chain(node: Node<'_>, field_kind: &str) -> Option<u32> {
-    if let Some(parent) = node.parent()
-        && parent.kind() == field_kind
-        && chain_base_child(parent).is_some_and(|b| b.id() == node.id())
-    {
-        return None;
-    }
-    let mut segments = 1_u32;
-    let mut cur = Some(node);
-    while let Some(n) = cur {
-        if n.kind() != field_kind {
-            break;
-        }
-        segments = segments.saturating_add(1);
-        cur = chain_base_child(n);
-    }
-    (segments >= 3).then_some(segments)
-}
-
 fn has_descendant_kind(node: Node<'_>, target_kind: &str) -> bool {
     if node.kind() == target_kind {
         return true;
@@ -75,11 +54,10 @@ fn check_wildcard_export(node: Node<'_>, source: &str, doc: &mut UastDocument) {
         }
         "import_from_statement" => has_descendant_kind(node, "wildcard_import"),
         "use_declaration" => {
-            let is_pub = {
-                let mut c = node.walk();
-                node.children(&mut c)
-                    .any(|ch| ch.kind() == "visibility_modifier" && node_text(ch, source) == "pub")
-            };
+            let mut c = node.walk();
+            let is_pub = node
+                .children(&mut c)
+                .any(|ch| ch.kind() == "visibility_modifier" && node_text(ch, source) == "pub");
             is_pub
                 && has_descendant_kind(node, "use_wildcard")
                 && doc.path.file_name() != "prelude.rs"
@@ -100,14 +78,42 @@ fn check_wildcard_export(node: Node<'_>, source: &str, doc: &mut UastDocument) {
 }
 
 fn is_bool_type_text(raw_type: &str) -> bool {
-    let cleaned = raw_type
+    let compact: String = raw_type
         .trim()
         .trim_start_matches(':')
         .trim()
         .trim_start_matches('&')
         .trim_start_matches("mut ")
-        .trim();
-    cleaned == "bool" || cleaned == "boolean"
+        .chars()
+        .filter(|c| !c.is_whitespace())
+        .collect();
+    if matches!(
+        compact.as_str(),
+        "bool" | "boolean" | "Option<bool>" | "Optional[bool]"
+    ) {
+        return true;
+    }
+    compact.contains('|') && {
+        let arms: Vec<&str> = compact.split('|').collect();
+        arms.iter().any(|&a| a == "bool" || a == "boolean")
+            && arms
+                .iter()
+                .all(|&a| matches!(a, "bool" | "boolean" | "None" | "null" | "undefined"))
+    }
+}
+
+fn has_bool_default_literal(param: Node<'_>, source: &str) -> bool {
+    let val_opt = param.child_by_field_name("value").or_else(|| {
+        (param.kind() == "assignment_pattern")
+            .then(|| param.child_by_field_name("right"))
+            .flatten()
+    });
+    val_opt.is_some_and(|v| {
+        matches!(
+            node_text(v, source).trim(),
+            "True" | "False" | "true" | "false"
+        )
+    })
 }
 
 fn count_bool_params(params_node: Option<Node<'_>>, source: &str) -> u32 {
@@ -117,9 +123,10 @@ fn count_bool_params(params_node: Option<Node<'_>>, source: &str) -> u32 {
     let mut count = 0_u32;
     let mut cursor = params.walk();
     for param in params.named_children(&mut cursor) {
-        if let Some(ty_node) = param.child_by_field_name("type")
-            && is_bool_type_text(node_text(ty_node, source))
-        {
+        let typed_bool = param
+            .child_by_field_name("type")
+            .is_some_and(|ty| is_bool_type_text(node_text(ty, source)));
+        if typed_bool || has_bool_default_literal(param, source) {
             count = count.saturating_add(1);
         }
     }
@@ -131,7 +138,9 @@ fn check_callable_bool_params(node: Node<'_>, source: &str, doc: &mut UastDocume
         "function_item" | "function_declaration" | "method_definition" | "function_definition" => {
             field_name_string(node, "name", "<fn>", source)
         }
-        "arrow_function" | "function_expression" => String::from("<closure>"),
+        "closure_expression" | "arrow_function" | "function_expression" => {
+            String::from("<closure>")
+        }
         _ => return,
     };
     let bools = count_bool_params(node.child_by_field_name("parameters"), source);
@@ -163,9 +172,7 @@ fn walk_kiss(node: Node<'_>, source: &str, doc: &mut UastDocument) {
             });
         }
     }
-    if matches!(kind, "field_expression" | "member_expression" | "attribute")
-        && let Some(segments) = measure_outermost_property_chain(node, kind)
-    {
+    if let Some(segments) = measure_outermost_property_chain(node, source) {
         doc.kiss_yagni_findings.push(KissYagniFinding {
             kind: KissYagniKind::PropertyChain,
             measured: segments,

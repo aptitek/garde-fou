@@ -63,9 +63,11 @@ Les frontières entre crates sont vérifiées par le compilateur et par les test
 | `max_parameters` | `4` |
 | `max_cognitive_complexity` | `10` |
 | `max_cyclomatic_complexity` | `10` |
-| `min_clone_lines` / `min_clone_nodes` | `15` / `40` |
+| `max_struct_bools` | `2` |
+| `min_clone_lines` / `min_clone_nodes` / `min_clone_similarity_pct` | `15` / `40` / `85%` |
 | `max_property_chain` / `max_bool_parameters` | `4` / `1` |
 | `min_line_coverage` (`LCOV`) | `n/a` |
+| `min_mutation_score` (`GF052`) | `95%` |
 
 ## Active Six-Domain Globs
 

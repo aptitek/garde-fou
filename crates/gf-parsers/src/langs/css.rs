@@ -40,13 +40,13 @@ fn strip_block_comments_preserving_lines(source: &str) -> String {
     while let Some(ch) = chars.next() {
         if in_comment {
             if ch == '*' && chars.peek() == Some(&'/') {
-                let _ = chars.next();
+                chars.next();
                 in_comment = false;
             } else if ch == '\n' {
                 out.push('\n');
             }
         } else if ch == '/' && chars.peek() == Some(&'*') {
-            let _ = chars.next();
+            chars.next();
             in_comment = true;
         } else {
             out.push(ch);

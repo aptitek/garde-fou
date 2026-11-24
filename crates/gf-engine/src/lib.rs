@@ -1,5 +1,5 @@
 //! Imperative shell orchestrating strict `TOML` config, `garde lock`, `uv`-style `init`,
-//! parallel `rayon` analysis, `.garde-fou-cache/v5/` caching, and `SARIF` / `LCOV` gates.
+//! parallel `rayon` analysis, `.garde-fou-cache/v6/` caching, and `SARIF` / `LCOV` gates.
 
 pub mod adapters;
 pub mod agents;
@@ -9,6 +9,7 @@ pub mod config_loader;
 mod config_schema;
 pub mod context_detector;
 pub mod discovery;
+mod file_loader;
 pub mod init;
 pub mod lockfile;
 mod runner;
@@ -21,7 +22,7 @@ use std::path::Path;
 use gf_core::{Config, LockStatus, ScannerPolicy};
 
 pub use adapters::{
-    LanguageToolAdapter, MypyAdapter, PyrightAdapter, ResolvedPythonTool, RuffAdapter,
+    AdapterCtx, LanguageToolAdapter, MypyAdapter, PyrightAdapter, ResolvedPythonTool, RuffAdapter,
     parse_mypy_ndjson, parse_pyright_json, parse_ruff_json, resolve_python_tool,
 };
 pub use agents::{
@@ -33,9 +34,13 @@ pub use config_loader::{LoadedWorkspaceConfig, load_workspace_config};
 pub use context_detector::detect_project_context;
 pub use discovery::discover_files;
 pub use init::{InitReport, InitRequest, run_init, run_init_with_sync_mode};
-pub use lockfile::{compute_manifest_blake3_hex, verify_garde_lock, write_garde_lock};
-use runner::execute_pipeline;
+pub use lockfile::{
+    compute_manifest_blake3_hex, compute_skills_merkle_blake3_hex, verify_garde_lock,
+    write_garde_lock,
+};
+use runner::{PipelineEnv, execute_pipeline};
 pub use scaffold::{InitOutcome, scaffold_config};
+pub use scanners::mutation_ingest::ingest_mutation_json;
 pub use scanners::sarif_ingest::{SarifMapping, ingest_sarif_json};
 pub use types::{
     CheckOptions, CheckReport, DEFAULT_CONFIG_FILENAME, EngineError, LOCK_FILENAME, ScanScope,
@@ -47,7 +52,7 @@ pub use types::{
 ///
 /// Returns [`EngineError`] if `garde-fou.toml` is missing, malformed, or `garde.lock` cannot be written.
 pub fn run_lock(root: &Path) -> Result<String, EngineError> {
-    let _ = load_workspace_config(root)?;
+    load_workspace_config(root)?;
     write_garde_lock(root)
 }
 
@@ -65,12 +70,15 @@ pub fn run_check_with_options(
     let cache = loaded
         .cache_enabled
         .then(|| DiskCache::new(root, &loaded.cache_dir));
-    execute_pipeline(
+    let env = PipelineEnv {
         root,
         options,
-        &loaded.analyzer,
-        (cache.as_ref(), &lock_status, true),
-    )
+        config: &loaded.analyzer,
+        disk_cache: cache.as_ref(),
+        lock_status: &lock_status,
+        enforce_agentic: true,
+    };
+    execute_pipeline(&env)
 }
 
 /// Runs analysis on `root` using an explicit in-memory [`Config`] without disk caching.
@@ -88,11 +96,14 @@ pub fn run_check(
     } else {
         LockStatus::NotRequired
     };
-    let enforce_agentic = config.agents.sync_policy == ScannerPolicy::Required;
-    execute_pipeline(
+    let options = CheckOptions::new(scope, true);
+    let env = PipelineEnv {
         root,
-        &CheckOptions::new(scope, true),
+        options: &options,
         config,
-        (None, &lock_status, enforce_agentic),
-    )
+        disk_cache: None,
+        lock_status: &lock_status,
+        enforce_agentic: config.agents.sync_policy == ScannerPolicy::Required,
+    };
+    execute_pipeline(&env)
 }
