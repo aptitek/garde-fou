@@ -1,136 +1,111 @@
-//! `uv`-aware Python ecosystem tool runners (`RuffAdapter`, `MypyAdapter`, `PyrightAdapter`).
+//! Declarative `ExternalAdapter` sum type and `uv` / `.venv` Python tool resolver (`GF082`).
 
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 
-use gf_core::{Config, ExternalToolFinding, ExternalToolId, ScannerPolicy};
+use gf_core::{Config, ExternalToolFinding, ExternalToolKind, ScannerPolicy};
+use gf_parsers::{ToolParseError, parse_mypy_ndjson, parse_pyright_json, parse_ruff_json};
 
-use super::parsers::{parse_mypy_ndjson, parse_pyright_json, parse_ruff_json};
 use crate::types::EngineError;
 
-/// Pluggable contract for external ecosystem tool verifiers (`GF082`).
-pub trait LanguageToolAdapter: Sync {
-    /// Canonical tool identifier.
-    fn tool_id(&self) -> ExternalToolId;
+/// Closed sum type of external ecosystem verifiers orchestrated without `dyn Trait` (`GF082`).
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+pub enum ExternalAdapter {
+    /// Astral `ruff check --output-format json --no-fix`.
+    Ruff,
+    /// `mypy --strict --output json --no-error-summary`.
+    Mypy,
+    /// `pyright --outputjson`.
+    Pyright,
+}
 
-    /// Returns the user-configured [`ScannerPolicy`] for this tool.
-    fn configured_policy(&self, config: &Config) -> ScannerPolicy;
+struct AdapterTableEntry {
+    tool: ExternalToolKind,
+    prefix_args: &'static [&'static str],
+    install_hint: &'static str,
+}
 
-    /// Builds CLI arguments targeting `py_targets` (empty slice means full workspace `.`).
-    fn build_args(&self, py_targets: &[String]) -> Vec<String>;
+const ADAPTER_TABLE: [AdapterTableEntry; 3] = [
+    AdapterTableEntry {
+        tool: ExternalToolKind::Ruff,
+        prefix_args: &["check", "--output-format", "json", "--no-fix", "--"],
+        install_hint: "Install `ruff` in `.venv` (`uv add --dev ruff`) or system PATH.",
+    },
+    AdapterTableEntry {
+        tool: ExternalToolKind::Mypy,
+        prefix_args: &["--strict", "--output", "json", "--no-error-summary", "--"],
+        install_hint: "Install `mypy` in `.venv` (`uv add --dev mypy`) or system PATH.",
+    },
+    AdapterTableEntry {
+        tool: ExternalToolKind::Pyright,
+        prefix_args: &["--outputjson"],
+        install_hint: "Install `pyright` in `.venv` (`uv add --dev pyright`) or system PATH.",
+    },
+];
+
+impl ExternalAdapter {
+    /// All active Python external adapters in deterministic execution order.
+    pub const PYTHON_ALL: [Self; 3] = [Self::Ruff, Self::Mypy, Self::Pyright];
+
+    const fn spec(self) -> &'static AdapterTableEntry {
+        &ADAPTER_TABLE[self as usize]
+    }
+
+    /// Canonical [`ExternalToolKind`] corresponding to this adapter.
+    #[must_use]
+    pub const fn tool_kind(self) -> ExternalToolKind {
+        self.spec().tool
+    }
+
+    /// Reads the configured [`ScannerPolicy`] for this adapter from `config`.
+    #[must_use]
+    pub const fn configured_policy(self, config: &Config) -> ScannerPolicy {
+        match self {
+            Self::Ruff => config.tools.python.ruff,
+            Self::Mypy => config.tools.python.mypy,
+            Self::Pyright => config.tools.python.pyright,
+        }
+    }
+
+    /// Actionable install guidance emitted in `GF043` when required and absent.
+    #[must_use]
+    pub const fn install_hint(self) -> &'static str {
+        self.spec().install_hint
+    }
+
+    /// Builds argv slice targeting `py_targets` (empty slice means full workspace `.`).
+    #[must_use]
+    pub fn build_args(self, py_targets: &[String]) -> Vec<String> {
+        let mut args: Vec<String> = self
+            .spec()
+            .prefix_args
+            .iter()
+            .copied()
+            .map(String::from)
+            .collect();
+        if py_targets.is_empty() {
+            args.push(String::from("."));
+        } else {
+            args.extend(py_targets.iter().cloned());
+        }
+        args
+    }
 
     /// Parses raw `stdout` into normalized [`ExternalToolFinding`]s.
     ///
     /// # Errors
     ///
-    /// Returns a diagnostic parse error message if `stdout` is malformed.
-    fn parse_output(&self, stdout: &str, root: &Path) -> Result<Vec<ExternalToolFinding>, String>;
-
-    /// Actionable remediation hint when `policy == Required` and the binary is missing (`GF043`).
-    fn install_hint(&self) -> &'static str;
-}
-
-/// Tier 3 adapter for Astral `ruff check --output-format json`.
-#[derive(Clone, Copy, Debug, Default)]
-pub struct RuffAdapter;
-
-impl LanguageToolAdapter for RuffAdapter {
-    fn tool_id(&self) -> ExternalToolId {
-        ExternalToolId::Ruff
-    }
-
-    fn configured_policy(&self, config: &Config) -> ScannerPolicy {
-        config.tools.python.ruff
-    }
-
-    fn build_args(&self, py_targets: &[String]) -> Vec<String> {
-        let mut args = vec![
-            String::from("check"),
-            String::from("--output-format"),
-            String::from("json"),
-            String::from("--no-fix"),
-            String::from("--"),
-        ];
-        append_targets_or_dot(&mut args, py_targets);
-        args
-    }
-
-    fn parse_output(&self, stdout: &str, root: &Path) -> Result<Vec<ExternalToolFinding>, String> {
-        parse_ruff_json(stdout, root)
-    }
-
-    fn install_hint(&self) -> &'static str {
-        "Install `ruff` in `.venv` (`uv add --dev ruff`) or system PATH."
-    }
-}
-
-/// Tier 3 adapter for `mypy --strict --output json`.
-#[derive(Clone, Copy, Debug, Default)]
-pub struct MypyAdapter;
-
-impl LanguageToolAdapter for MypyAdapter {
-    fn tool_id(&self) -> ExternalToolId {
-        ExternalToolId::Mypy
-    }
-
-    fn configured_policy(&self, config: &Config) -> ScannerPolicy {
-        config.tools.python.mypy
-    }
-
-    fn build_args(&self, py_targets: &[String]) -> Vec<String> {
-        let mut args = vec![
-            String::from("--strict"),
-            String::from("--output"),
-            String::from("json"),
-            String::from("--no-error-summary"),
-            String::from("--"),
-        ];
-        append_targets_or_dot(&mut args, py_targets);
-        args
-    }
-
-    fn parse_output(&self, stdout: &str, root: &Path) -> Result<Vec<ExternalToolFinding>, String> {
-        parse_mypy_ndjson(stdout, root)
-    }
-
-    fn install_hint(&self) -> &'static str {
-        "Install `mypy` in `.venv` (`uv add --dev mypy`) or system PATH."
-    }
-}
-
-/// Tier 3 adapter for `pyright --outputjson`.
-#[derive(Clone, Copy, Debug, Default)]
-pub struct PyrightAdapter;
-
-impl LanguageToolAdapter for PyrightAdapter {
-    fn tool_id(&self) -> ExternalToolId {
-        ExternalToolId::Pyright
-    }
-
-    fn configured_policy(&self, config: &Config) -> ScannerPolicy {
-        config.tools.python.pyright
-    }
-
-    fn build_args(&self, py_targets: &[String]) -> Vec<String> {
-        let mut args = vec![String::from("--outputjson")];
-        append_targets_or_dot(&mut args, py_targets);
-        args
-    }
-
-    fn parse_output(&self, stdout: &str, root: &Path) -> Result<Vec<ExternalToolFinding>, String> {
-        parse_pyright_json(stdout, root)
-    }
-
-    fn install_hint(&self) -> &'static str {
-        "Install `pyright` in `.venv` (`uv add --dev pyright`) or system PATH."
-    }
-}
-
-fn append_targets_or_dot(args: &mut Vec<String>, py_targets: &[String]) {
-    if py_targets.is_empty() {
-        args.push(String::from("."));
-    } else {
-        args.extend(py_targets.iter().cloned());
+    /// Returns [`ToolParseError`] when `stdout` is malformed JSON/NDJSON.
+    pub fn parse_output(
+        self,
+        stdout: &str,
+        root: &Path,
+    ) -> Result<Vec<ExternalToolFinding>, ToolParseError> {
+        match self {
+            Self::Ruff => parse_ruff_json(stdout, root),
+            Self::Mypy => parse_mypy_ndjson(stdout, root),
+            Self::Pyright => parse_pyright_json(stdout, root),
+        }
     }
 }
 
@@ -139,8 +114,13 @@ fn append_targets_or_dot(args: &mut Vec<String>, py_targets: &[String]) {
 pub enum ResolvedPythonTool {
     /// Direct path to `.venv` binary or binary name resolved on `PATH`.
     Direct(PathBuf),
-    /// Executed via `uv run --no-sync <tool> ...` against an existing `.venv`.
-    UvNoSync(String),
+    /// Executed via `<uv_bin> run --no-sync <tool> ...` against an existing `.venv`.
+    UvNoSync {
+        /// Path or binary name for `uv`.
+        uv_bin: PathBuf,
+        /// Target Python tool name (`ruff`, `mypy`, `pyright`).
+        tool: String,
+    },
 }
 
 impl ResolvedPythonTool {
@@ -155,7 +135,7 @@ impl ResolvedPythonTool {
                 .args(args)
                 .current_dir(root)
                 .output()?,
-            Self::UvNoSync(tool) => Command::new("uv")
+            Self::UvNoSync { uv_bin, tool } => Command::new(uv_bin)
                 .args(["run", "--no-sync", tool.as_str()])
                 .args(args)
                 .current_dir(root)
@@ -177,9 +157,13 @@ fn probe_venv_binary(root: &Path, tool_name: &str) -> Option<PathBuf> {
     win_bin.is_file().then_some(win_bin)
 }
 
-/// Resolves `tool_name` in `.venv`, then `PATH`, then `uv run --no-sync` (when `.venv` exists).
+/// Resolves `tool_name` in `.venv`, then `PATH`, then `<uv_bin> run --no-sync` (when `.venv` exists).
 #[must_use]
-pub fn resolve_python_tool(root: &Path, tool_name: &str) -> Option<ResolvedPythonTool> {
+pub fn resolve_python_tool_with_uv(
+    root: &Path,
+    tool_name: &str,
+    uv_bin: &Path,
+) -> Option<ResolvedPythonTool> {
     if let Some(venv_bin) = probe_venv_binary(root, tool_name) {
         return Some(ResolvedPythonTool::Direct(venv_bin));
     }
@@ -193,13 +177,22 @@ pub fn resolve_python_tool(root: &Path, tool_name: &str) -> Option<ResolvedPytho
     let has_uv_project = (root.join("uv.lock").is_file() || root.join("pyproject.toml").is_file())
         && root.join(".venv").is_dir();
     if has_uv_project
-        && Command::new("uv")
+        && Command::new(uv_bin)
             .args(["run", "--no-sync", tool_name, "--version"])
             .current_dir(root)
             .output()
             .is_ok_and(|o| o.status.success())
     {
-        return Some(ResolvedPythonTool::UvNoSync(String::from(tool_name)));
+        return Some(ResolvedPythonTool::UvNoSync {
+            uv_bin: uv_bin.to_path_buf(),
+            tool: String::from(tool_name),
+        });
     }
     None
+}
+
+/// Resolves `tool_name` in `.venv`, then `PATH`, then `uv run --no-sync` (when `.venv` exists).
+#[must_use]
+pub fn resolve_python_tool(root: &Path, tool_name: &str) -> Option<ResolvedPythonTool> {
+    resolve_python_tool_with_uv(root, tool_name, Path::new("uv"))
 }

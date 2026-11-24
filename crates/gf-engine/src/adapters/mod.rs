@@ -1,26 +1,21 @@
 //! Tier 3 language ecosystem tool ingestion orchestrator (`GF082` & `GF043`).
 
-pub mod parsers;
 pub mod python_runners;
 
 use std::collections::BTreeSet;
 use std::path::Path;
 
 use gf_core::{Config, Diagnostic, LanguageId, ProjectContext, RepoPath, ScannerPolicy};
+pub use gf_parsers::{ToolParseError, parse_mypy_ndjson, parse_pyright_json, parse_ruff_json};
 use gf_rules::convert_external_tool_findings;
 use rayon::prelude::*;
 
-pub use parsers::{parse_mypy_ndjson, parse_pyright_json, parse_ruff_json};
 pub use python_runners::{
-    LanguageToolAdapter, MypyAdapter, PyrightAdapter, ResolvedPythonTool, RuffAdapter,
-    resolve_python_tool,
+    ExternalAdapter, ResolvedPythonTool, resolve_python_tool, resolve_python_tool_with_uv,
 };
 
 use crate::scanners::gitleaks::missing_tool_diagnostic;
 use crate::types::{CheckOptions, EngineError};
-
-const PYTHON_ADAPTERS: [&dyn LanguageToolAdapter; 3] =
-    [&RuffAdapter, &MypyAdapter, &PyrightAdapter];
 
 /// Execution context for Tier 3 language tool adapters (zero tuple-packing).
 pub struct AdapterCtx<'a> {
@@ -76,7 +71,7 @@ fn resolve_python_targets(staged_filter: Option<&BTreeSet<RepoPath>>) -> Option<
 }
 
 fn run_single_adapter(
-    adapter: &dyn LanguageToolAdapter,
+    adapter: ExternalAdapter,
     ctx: &AdapterCtx<'_>,
     py_targets: &[String],
 ) -> Result<Vec<Diagnostic>, EngineError> {
@@ -87,7 +82,7 @@ fn run_single_adapter(
     if policy == ScannerPolicy::Off {
         return Ok(Vec::new());
     }
-    let tool_name = adapter.tool_id().as_str();
+    let tool_name = adapter.tool_kind().as_str();
     let Some(launcher) = resolve_python_tool(ctx.root, tool_name) else {
         return if policy == ScannerPolicy::Required {
             Ok(vec![missing_tool_diagnostic(
@@ -119,7 +114,7 @@ fn run_single_adapter(
     }
     let findings = adapter
         .parse_output(&stdout, ctx.root)
-        .map_err(EngineError::InvalidConfig)?;
+        .map_err(|e| EngineError::InvalidConfig(e.to_string()))?;
     Ok(convert_external_tool_findings(&findings))
 }
 
@@ -136,9 +131,9 @@ pub fn run_language_tool_adapters(ctx: &AdapterCtx<'_>) -> Result<Vec<Diagnostic
         return Ok(Vec::new());
     };
 
-    let batches: Vec<Vec<Diagnostic>> = PYTHON_ADAPTERS
+    let batches: Vec<Vec<Diagnostic>> = ExternalAdapter::PYTHON_ALL
         .par_iter()
-        .map(|adapter| run_single_adapter(*adapter, ctx, &py_targets))
+        .map(|&adapter| run_single_adapter(adapter, ctx, &py_targets))
         .collect::<Result<Vec<_>, _>>()?;
 
     Ok(batches.into_iter().flatten().collect())

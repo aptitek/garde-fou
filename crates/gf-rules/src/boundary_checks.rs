@@ -11,7 +11,7 @@ use gf_core::{
 };
 
 use crate::checks::{SourceLoc, rule_error};
-use crate::import_resolver::{normalize_join, resolve_import_indices};
+use crate::import_resolver::{normalize_join, resolve_import_decl_indices};
 
 struct BoundaryIndex<'a> {
     docs: &'a [UastDocument],
@@ -28,12 +28,7 @@ fn candidate_target_strings(
     index: &BoundaryIndex<'_>,
 ) -> Vec<String> {
     let mut targets = Vec::new();
-    for idx in resolve_import_indices(
-        &doc.path,
-        doc.language,
-        &imp.module_source,
-        index.path_index,
-    ) {
+    for idx in resolve_import_decl_indices(&doc.path, doc.language, imp, index.path_index) {
         targets.push(String::from(index.docs[idx].path.as_str()));
     }
     let raw = imp.module_source.trim();

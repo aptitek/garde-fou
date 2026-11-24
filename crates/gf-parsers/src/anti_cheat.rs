@@ -61,8 +61,8 @@ fn is_valid_prefix_tail(prefix: &str, rest: &str) -> bool {
         || rest.starts_with(|c: char| !c.is_ascii_alphanumeric() && c != '_')
 }
 
-fn match_comment_bypass(clean: &str, skip_doc_clippy: bool) -> Option<String> {
-    let lower = clean.to_ascii_lowercase();
+fn match_single_bypass_segment(seg: &str, skip_doc_clippy: bool) -> Option<String> {
+    let lower = seg.to_ascii_lowercase();
     for &prefix in COMMENT_BYPASS_PREFIXES {
         if prefix == "clippy::" && skip_doc_clippy {
             continue;
@@ -77,8 +77,16 @@ fn match_comment_bypass(clean: &str, skip_doc_clippy: bool) -> Option<String> {
     if lower == "noqa" || lower.starts_with("noqa:") || lower.starts_with("noqa ") {
         return Some(String::from("noqa"));
     }
-    is_unjustified_ts_expect_error(clean)
+    is_unjustified_ts_expect_error(seg)
         .then(|| String::from("@ts-expect-error (missing justification)"))
+}
+
+fn match_comment_bypass(clean: &str, skip_doc_clippy: bool) -> Option<String> {
+    clean
+        .split('#')
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .find_map(|seg| match_single_bypass_segment(seg, skip_doc_clippy))
 }
 
 fn scan_comment_text(raw: &str, base_span: Span, doc: &mut UastDocument) {

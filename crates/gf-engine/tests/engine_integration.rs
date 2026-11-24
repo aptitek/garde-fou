@@ -52,7 +52,7 @@ fn populates_blake3_cache_and_serves_subsequent_hits() -> Result<(), Box<dyn std
     )?;
     fs::write(
         dir.join("src/main.py"),
-        "def greet(name):\n    return name\n",
+        "def greet(name: str) -> str:\n    return name\n",
     )?;
 
     let first = run_check_with_options(&dir, &CheckOptions::new(ScanScope::All, true))?;
@@ -61,7 +61,7 @@ fn populates_blake3_cache_and_serves_subsequent_hits() -> Result<(), Box<dyn std
         (2, 0, 2)
     );
     assert!(first.is_clean());
-    assert!(dir.join(".garde-fou-cache/v6").is_dir());
+    assert!(dir.join(".garde-fou-cache/v7").is_dir());
 
     let second = run_check_with_options(&dir, &CheckOptions::new(ScanScope::All, false))?;
     assert_eq!(

@@ -1,4 +1,4 @@
-//! Modern `uv` + `ruff` + `mypy --strict` Python scaffolding templates.
+//! Modern `uv` + `ruff` + `mypy --strict` + `pytest` Python scaffolding templates.
 
 use gf_core::{FrameworkId, ProjectContext};
 
@@ -31,12 +31,17 @@ fn pyproject_toml(project_kebab: &str, ctx: &ProjectContext) -> String {
          target-version = \"py312\"\n\
          \n\
          [tool.ruff.lint]\n\
-         select = [\"E\", \"F\", \"I\", \"B\", \"UP\", \"SIM\"]\n\
+         select = [\"E\", \"F\", \"I\", \"B\", \"UP\", \"SIM\", \"ANN\", \"S\", \"T20\"]\n\
          \n\
          [tool.mypy]\n\
          python_version = \"3.12\"\n\
          mypy_path = \"src\"\n\
-         strict = true\n"
+         strict = true\n\
+         \n\
+         [tool.pytest.ini_options]\n\
+         testpaths = [\"tests\"]\n\
+         pythonpath = [\"src\"]\n\
+         addopts = [\"--strict-markers\", \"--strict-config\"]\n"
     )
 }
 
@@ -52,12 +57,19 @@ fn fastapi_main_py(project_kebab: &str, pkg_snake: &str) -> String {
     )
 }
 
-/// Generates non-destructive Python starter files `(relative_path, contents)`.
-pub fn python_files(
-    project_kebab: &str,
-    pkg_snake: &str,
-    ctx: &ProjectContext,
-) -> Vec<(String, String)> {
+fn django_views_py(project_kebab: &str, pkg_snake: &str) -> String {
+    format!(
+        "\"\"\"Django HTTP view handlers for `{project_kebab}`.\"\"\"\n\
+         \n\
+         from {pkg_snake}.core import build_health_status\n\
+         \n\
+         \n\
+         def status_view() -> dict[str, str]:\n\
+         \x20   return build_health_status(\"{project_kebab}\")\n"
+    )
+}
+
+fn base_python_package_files(project_kebab: &str, pkg_snake: &str) -> [(String, String); 3] {
     let init_py = format!(
         "\"\"\"Top-level package for `{pkg_snake}`.\"\"\"\n\
          \n\
@@ -81,23 +93,37 @@ pub fn python_files(
          \n\
          def test_build_health_status() -> None:\n\
          \x20   payload = build_health_status(\"{project_kebab}\")\n\
-         \x20   assert payload[\"status\"] == \"ok\"\n"
+         \x20   assert payload == {{\"service\": \"{project_kebab}\", \"status\": \"ok\"}}\n"
     );
-
-    let mut files = vec![
-        (
-            String::from("pyproject.toml"),
-            pyproject_toml(project_kebab, ctx),
-        ),
+    [
         (format!("src/{pkg_snake}/__init__.py"), init_py),
         (format!("src/{pkg_snake}/core.py"), core_py),
         (String::from("tests/test_core.py"), test_py),
-    ];
+    ]
+}
+
+/// Generates non-destructive Python starter files `(relative_path, contents)`.
+pub fn python_files(
+    project_kebab: &str,
+    pkg_snake: &str,
+    ctx: &ProjectContext,
+) -> Vec<(String, String)> {
+    let mut files = vec![(
+        String::from("pyproject.toml"),
+        pyproject_toml(project_kebab, ctx),
+    )];
+    files.extend(base_python_package_files(project_kebab, pkg_snake));
 
     if ctx.frameworks.contains(&FrameworkId::FastApi) {
         files.push((
             String::from("app/main.py"),
             fastapi_main_py(project_kebab, pkg_snake),
+        ));
+    }
+    if ctx.frameworks.contains(&FrameworkId::Django) {
+        files.push((
+            format!("src/{pkg_snake}/views.py"),
+            django_views_py(project_kebab, pkg_snake),
         ));
     }
     files

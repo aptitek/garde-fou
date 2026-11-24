@@ -4,9 +4,11 @@
 use std::slice;
 
 use gf_core::{
-    CallableDecl, CallableKind, Config, CoverageConfig, ExternalToolFinding, ExternalToolId,
-    LangRuleFinding, Language, MutationConfig, MutationSummary, RepoPath, SecretFinding, Span,
-    SurvivedMutant, ToolConfigFinding, UastDocument, Validation, parse_lcov,
+    CallableDecl, CallableKind, Config, CoverageConfig, CoverageFailUnder, DebugArtifactKind,
+    ExternalToolFinding, ExternalToolId, LangRuleFinding, Language, MutationConfig,
+    MutationSummary, PythonViolation, RepoPath, RuffConfigIssue, SecretFinding, Span,
+    SurvivedMutant, ToolConfigFinding, ToolConfigViolation, UastDocument, UnsafeExecKind,
+    Validation, parse_lcov,
 };
 use gf_rules::{
     convert_external_tool_findings, evaluate_crap_scores, evaluate_document,
@@ -181,24 +183,20 @@ fn tool_and_lang_rules_exact_boundaries() -> Res {
     let mut py_cli = UastDocument::new(RepoPath::new("src/cli.py")?, Language::Python, 10, 8)?;
     py_cli.lang_rule_findings = vec![
         LangRuleFinding {
-            code: "PY-T201".into(),
+            violation: PythonViolation::LeftoverDebugArtifact(DebugArtifactKind::PrintCall),
             span: Span::FIRST,
             message: "print".into(),
-            remediation: "r".into(),
         },
         LangRuleFinding {
-            code: "PY-S602".into(),
+            violation: PythonViolation::UnsafeExecution(UnsafeExecKind::ShellSubprocess),
             span: Span::FIRST,
             message: "shell".into(),
-            remediation: "r".into(),
         },
     ];
     py_cli.tool_config_findings.push(ToolConfigFinding {
-        tool: ExternalToolId::Ruff,
-        key: "select".into(),
+        violation: ToolConfigViolation::RuffWeakened(RuffConfigIssue::StandaloneEmptySelect),
         span: Span::FIRST,
         message: "m".into(),
-        remediation: "r".into(),
     });
     let cli_d = evaluate_document(&py_cli, &cfg);
     assert_eq!(cli_d.len(), 2);
@@ -220,5 +218,19 @@ fn tool_and_lang_rules_exact_boundaries() -> Res {
         remediation: "fix".into(),
     };
     assert_eq!(convert_external_tool_findings(&[ext])[0].rule_id, "GF082");
+    verify_py_coverage_floor_and_import_resolver()
+}
+
+fn verify_py_coverage_floor_and_import_resolver() -> Res {
+    let mut cfg = Config::strict_defaults();
+    cfg.coverage.min_line_coverage = Some(85);
+    for (pct, expected_len) in [(84_u32, 1_usize), (85, 0), (86, 0)] {
+        let mut doc = UastDocument::new(RepoPath::new("pyproject.toml")?, Language::Toml, 4, 4)?;
+        doc.coverage_fail_under = Some(CoverageFailUnder {
+            floor_pct: pct,
+            span: Span::FIRST,
+        });
+        assert_eq!(evaluate_document(&doc, &cfg).len(), expected_len);
+    }
     Ok(())
 }

@@ -5,7 +5,8 @@ use alloc::format;
 use alloc::vec::Vec;
 
 use gf_core::{
-    Config, Diagnostic, ExternalToolFinding, Span, UastDocument, Validation, glob_matches,
+    Config, Diagnostic, ExternalToolFinding, PytestCoverageIssue, Span, ToolConfigViolation,
+    UastDocument, Validation, glob_matches,
 };
 
 use crate::checks::{SourceLoc, rule_error};
@@ -26,13 +27,13 @@ pub fn check_local_tool_and_lang_rules(
     let is_cli_entry = is_declared_cli_entrypoint(doc.path.as_str(), config);
 
     for finding in &doc.lang_rule_findings {
-        if finding.code == "PY-T201" && is_cli_entry {
+        if finding.violation.is_entrypoint_exempt() && is_cli_entry {
             continue;
         }
         diags.push(rule_error(
             "GF080",
-            format!("[{}] {}", finding.code, finding.message),
-            &finding.remediation,
+            format!("[{}] {}", finding.code(), finding.message),
+            finding.remediation(),
             SourceLoc::new(&doc.path, finding.span),
         ));
     }
@@ -40,12 +41,27 @@ pub fn check_local_tool_and_lang_rules(
     for cfg_finding in &doc.tool_config_findings {
         diags.push(rule_error(
             "GF081",
-            format!(
-                "[{}:{}] {}",
-                cfg_finding.tool, cfg_finding.key, cfg_finding.message
-            ),
-            &cfg_finding.remediation,
+            format!("[{}] {}", cfg_finding.violation, cfg_finding.message),
+            cfg_finding.remediation(),
             SourceLoc::new(&doc.path, cfg_finding.span),
+        ));
+    }
+
+    if let (Some(min_cov), Some(decl)) =
+        (config.coverage.min_line_coverage, doc.coverage_fail_under)
+        && decl.floor_pct < min_cov
+    {
+        let v = ToolConfigViolation::PytestOrCoverageWeakened(
+            PytestCoverageIssue::CoverageFailUnderTooLow,
+        );
+        diags.push(rule_error(
+            "GF081",
+            format!(
+                "[{v}] `[tool.coverage.report] fail_under = {}` is below required `min_line_coverage = {min_cov}`",
+                decl.floor_pct
+            ),
+            v.remediation(),
+            SourceLoc::new(&doc.path, decl.span),
         ));
     }
 

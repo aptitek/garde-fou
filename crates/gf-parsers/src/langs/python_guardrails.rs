@@ -1,18 +1,22 @@
 //! Tier 1 native Python AST guardrails (`GF080` & `GF011` `SilentErrorSwallow`).
 
 use gf_core::{
-    DomainKind, EffectSighting, EffectSightingKind, ForbiddenRuleKind, LangRuleFinding,
-    UastDocument, UastKind, UastNode,
+    DomainKind, EffectSighting, EffectSightingKind, ExceptViolationKind, ForbiddenRuleKind,
+    LangRuleFinding, PythonViolation, UastDocument, UastKind, UastNode,
 };
 use tree_sitter::Node;
 
-use super::python_calls::{PyFindingSpec, compact_callee, inspect_py_call, push_py_finding};
+use super::python_calls::{
+    PyCallCtx, collect_bare_unsafe_imports, compact_callee, inspect_py_call,
+};
+use super::python_typing::inspect_public_fn_annotations;
 use crate::cst::{field_name_string, node_span, node_text};
 
 const MUTABLE_CALL_CONSTRUCTORS: &[&str] = &[
     "list",
     "dict",
     "set",
+    "bytearray",
     "deque",
     "collections.deque",
     "defaultdict",
@@ -24,6 +28,13 @@ const MUTABLE_CALL_CONSTRUCTORS: &[&str] = &[
 ];
 
 const FALLBACK_RETURN_LITERALS: &[&str] = &["", "None", "[]", "{}", "\"\"", "''", "False", "0"];
+
+#[derive(Clone, Copy)]
+struct PyGuardrailScope<'a> {
+    call_ctx: PyCallCtx<'a>,
+    in_public_scope: bool,
+    in_class: bool,
+}
 
 fn is_mutable_default_expr(val: Node<'_>, source: &str) -> bool {
     if matches!(
@@ -49,17 +60,11 @@ fn inspect_default_param(node: Node<'_>, source: &str, out: &mut Vec<LangRuleFin
         return;
     }
     let param = field_name_string(node, "name", "<param>", source);
-    push_py_finding(
-        out,
-        PyFindingSpec {
-            code: "PY-B006",
-            span: node_span(node),
-            message: format!(
-                "mutable default argument in parameter `{param}` is shared across calls"
-            ),
-            remediation: "Default the parameter to `None` (`param: list[T] | None = None`) and allocate a fresh container inside the function body.",
-        },
-    );
+    out.push(LangRuleFinding {
+        violation: PythonViolation::MutableDefaultArg,
+        span: node_span(node),
+        message: format!("mutable default argument in parameter `{param}` is shared across calls"),
+    });
 }
 
 fn is_noop_stmt(stmt: Node<'_>) -> bool {
@@ -119,29 +124,19 @@ fn inspect_except_clause(node: Node<'_>, source: &str, doc: &mut UastDocument) {
         .find(|child| child.kind() == "block");
     let span = node_span(node);
     if !has_exc_type {
-        push_py_finding(
-            &mut doc.lang_rule_findings,
-            PyFindingSpec {
-                code: "PY-E722",
-                span,
-                message: String::from(
-                    "bare `except:` catches `SystemExit` and `KeyboardInterrupt`",
-                ),
-                remediation: "Catch a specific exception class (e.g. `except ValueError as err:`) and handle or re-raise it explicitly.",
-            },
-        );
+        doc.lang_rule_findings.push(LangRuleFinding {
+            violation: PythonViolation::BareOrSilentExcept(ExceptViolationKind::Bare),
+            span,
+            message: String::from("bare `except:` catches `SystemExit` and `KeyboardInterrupt`"),
+        });
     } else if body_block.is_some_and(is_silent_except_block) {
-        push_py_finding(
-            &mut doc.lang_rule_findings,
-            PyFindingSpec {
-                code: "PY-B001",
-                span,
-                message: String::from(
-                    "silent `except` handler swallows exceptions with `pass`/`...`",
-                ),
-                remediation: "Log context, return an explicit error result, or re-raise with `raise ... from err` instead of swallowing exceptions.",
-            },
-        );
+        doc.lang_rule_findings.push(LangRuleFinding {
+            violation: PythonViolation::BareOrSilentExcept(ExceptViolationKind::Silent),
+            span,
+            message: String::from(
+                "silent `except` handler swallows exceptions with `pass`/`...`/docstring",
+            ),
+        });
     } else if body_block.is_some_and(|b| is_silent_fallback_return_block(b, source)) {
         doc.root.children.push(UastNode::leaf(
             UastKind::ForbiddenCall {
@@ -168,44 +163,78 @@ fn has_type_ancestor(mut node: Node<'_>) -> bool {
     false
 }
 
-/// Extracts Tier 1 Python AST idiom, security, and silent error-swallowing findings.
+/// Extracts Tier 1 Python AST idiom, typing, security, and silent error-swallowing findings.
 pub fn extract_python_guardrails(
     root: Node<'_>,
     source: &str,
     domain: DomainKind,
     doc: &mut UastDocument,
 ) {
-    walk_guardrails(root, source, domain, doc);
+    let bare_unsafe = collect_bare_unsafe_imports(doc);
+    let root_scope = PyGuardrailScope {
+        call_ctx: PyCallCtx {
+            source,
+            domain,
+            bare_unsafe: &bare_unsafe,
+        },
+        in_public_scope: true,
+        in_class: false,
+    };
+    walk_guardrails(root, root_scope, doc);
 }
 
-fn walk_guardrails(node: Node<'_>, source: &str, domain: DomainKind, doc: &mut UastDocument) {
+fn child_scope_for_node<'a>(node: Node<'_>, scope: PyGuardrailScope<'a>) -> PyGuardrailScope<'a> {
     match node.kind() {
+        "class_definition" => {
+            let cls_name = field_name_string(node, "name", "", scope.call_ctx.source);
+            PyGuardrailScope {
+                call_ctx: scope.call_ctx,
+                in_public_scope: scope.in_public_scope && !cls_name.starts_with('_'),
+                in_class: true,
+            }
+        }
+        "function_definition" => PyGuardrailScope {
+            call_ctx: scope.call_ctx,
+            in_public_scope: false,
+            in_class: false,
+        },
+        _ => scope,
+    }
+}
+
+fn walk_guardrails(node: Node<'_>, scope: PyGuardrailScope<'_>, doc: &mut UastDocument) {
+    let source = scope.call_ctx.source;
+    let domain = scope.call_ctx.domain;
+    match node.kind() {
+        "function_definition" if domain == DomainKind::Code && scope.in_public_scope => {
+            inspect_public_fn_annotations(
+                node,
+                source,
+                scope.in_class,
+                &mut doc.lang_rule_findings,
+            );
+        }
         "default_parameter" | "typed_default_parameter" => {
             inspect_default_param(node, source, &mut doc.lang_rule_findings);
         }
         "except_clause" | "except_group_clause" => inspect_except_clause(node, source, doc),
-        "call" => inspect_py_call(node, source, domain, doc),
+        "call" => inspect_py_call(node, scope.call_ctx, doc),
         "identifier"
             if domain == DomainKind::Code
                 && node_text(node, source) == "Any"
                 && has_type_ancestor(node) =>
         {
-            push_py_finding(
-                &mut doc.lang_rule_findings,
-                PyFindingSpec {
-                    code: "PY-ANN401",
-                    span: node_span(node),
-                    message: String::from(
-                        "explicit `Any` annotation weakens static typing in `Code`",
-                    ),
-                    remediation: "Replace `Any` with concrete types, `TypeVar`, `TypedDict`, `dataclass`, or a `Protocol`.",
-                },
-            );
+            doc.lang_rule_findings.push(LangRuleFinding {
+                violation: PythonViolation::ForbiddenAny,
+                span: node_span(node),
+                message: String::from("explicit `Any` annotation weakens static typing in `Code`"),
+            });
         }
         _ => {}
     }
+    let next_scope = child_scope_for_node(node, scope);
     let mut cursor = node.walk();
     for child in node.children(&mut cursor) {
-        walk_guardrails(child, source, domain, doc);
+        walk_guardrails(child, next_scope, doc);
     }
 }

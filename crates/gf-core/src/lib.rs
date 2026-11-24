@@ -30,7 +30,9 @@ pub mod metrics;
 pub mod mutation;
 pub mod path;
 pub mod policies;
+pub mod python_violations;
 pub mod skills_catalog;
+pub mod tool_config_violations;
 pub mod tool_ingest;
 pub mod uast;
 pub mod validation;
@@ -76,12 +78,19 @@ pub use {
         KissYagniKind, TddConfig, TddParityGate, TestCaseSummary, YagniRule,
     },
     commit_msg::{CommitConfig, validate_commit_message},
+    python_violations::{
+        CoverageFailUnder, DebugArtifactKind, ExceptViolationKind, PythonViolation, UnsafeExecKind,
+    },
     skills_catalog::{
         AgenticSyncStatus, AgentsConfig, RemoteSkillSpec, ResolvedSkillSpec, SkillEntry,
         parse_extra_skill_spec, select_contextual_skills,
     },
+    tool_config_violations::{
+        MutantsConfigIssue, MypyConfigIssue, PytestCoverageIssue, RuffConfigIssue,
+        StrykerConfigIssue, ToolConfigViolation, TsconfigIssue,
+    },
     tool_ingest::{
-        ExternalToolFinding, ExternalToolId, LangRuleFinding, PythonToolsConfig, ToolConfigFinding,
-        ToolsConfig, is_audited_tool_config_file,
+        ExternalToolFinding, ExternalToolId, ExternalToolKind, LangRuleFinding, PythonToolsConfig,
+        ToolConfigFinding, ToolsConfig, is_audited_tool_config_file,
     },
 };

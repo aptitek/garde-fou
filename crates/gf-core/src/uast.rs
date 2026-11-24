@@ -1,4 +1,4 @@
-//! Unified Abstract Syntax Tree (`UAST`) hub representations (`v6` schema).
+//! Unified Abstract Syntax Tree (`UAST`) hub representations (`v7` schema).
 
 use alloc::collections::BTreeSet;
 use alloc::string::String;
@@ -18,6 +18,7 @@ use crate::metrics::{
 };
 use crate::path::RepoPath;
 use crate::policies::ForbiddenRuleKind;
+use crate::python_violations::CoverageFailUnder;
 use crate::tool_ingest::{LangRuleFinding, ToolConfigFinding};
 
 /// Source language, stylesheet, content, or asset format mapped into the `UAST`.
@@ -131,7 +132,7 @@ impl UastNode {
     }
 }
 
-/// Normalized `UAST` document produced by `gf-parsers`, cached in `.garde-fou-cache/v6/`,
+/// Normalized `UAST` document produced by `gf-parsers`, cached in `.garde-fou-cache/v7/`,
 /// and analyzed locally and globally by `gf-rules`.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct UastDocument {
@@ -181,6 +182,8 @@ pub struct UastDocument {
     pub lang_rule_findings: Vec<LangRuleFinding>,
     /// Tier 2 static tool-configuration hardening findings (`GF081`).
     pub tool_config_findings: Vec<ToolConfigFinding>,
+    /// Optional `[tool.coverage.report] fail_under` floor percentage (`GF081`).
+    pub coverage_fail_under: Option<CoverageFailUnder>,
     /// Architectural effect and silent error-swallowing sightings (`GF011`, `GF078`).
     pub effect_sightings: Vec<EffectSighting>,
     /// Optional structured `Dockerfile` representation.
@@ -234,6 +237,7 @@ impl UastDocument {
             test_cases: Vec::new(),
             lang_rule_findings: Vec::new(),
             tool_config_findings: Vec::new(),
+            coverage_fail_under: None,
             effect_sightings: Vec::new(),
             docker: None,
             forme: None,

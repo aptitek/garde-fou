@@ -8,7 +8,7 @@ use crate::cst::{count_named_kinds, field_name_string, node_span, node_text};
 
 pub(super) fn normalize_contract_ident(raw: &str) -> &str {
     let clean = raw.trim().trim_start_matches(':').trim();
-    let before_generics = clean.split('<').next().unwrap_or(clean).trim();
+    let before_generics = clean.split(['<', '[']).next().unwrap_or(clean).trim();
     before_generics
         .rsplit("::")
         .next()

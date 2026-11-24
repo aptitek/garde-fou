@@ -18,6 +18,8 @@ const UNIVERSAL_ENTRYPOINT_GLOBS: &[&str] = &[
     "src/index.*",
     "main.*",
     "index.*",
+    "__init__.py",
+    "src/*/__init__.py",
     "tests/**",
     "**/tests/**",
     "*.test.*",

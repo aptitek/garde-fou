@@ -8,7 +8,7 @@ use crate::cst::{field_name_string, node_span, node_text};
 use crate::test_inspector::{
     TestAssertionStats, compact_expr, compact_named_arg, try_extract_rust_test_fn,
 };
-use crate::test_inspector_py::try_extract_py_test_fn;
+use crate::test_inspector_py::{try_extract_py_test_fn, try_extract_vacuous_py_test_class};
 
 const TS_EQUALITY_MATCHERS: &[&str] = &["toBe", "toEqual", "toStrictEqual"];
 const TS_ASSERT_EQUAL_FNS: &[&str] = &[
@@ -171,17 +171,27 @@ fn try_extract_ts_test_call(node: Node<'_>, source: &str) -> Option<TestCaseSumm
 
 /// Extracts [`TestCaseSummary`] records across Rust, TypeScript/JS, and Python CSTs (`GF076`).
 pub fn extract_test_cases(root: Node<'_>, source: &str, doc: &mut UastDocument) {
-    let extracted = match root.kind() {
-        "function_item" => try_extract_rust_test_fn(root, source),
-        "function_definition" => try_extract_py_test_fn(root, source),
-        "call_expression" => try_extract_ts_test_call(root, source),
+    let fname = doc.path.file_name();
+    let in_py_tests = fname.starts_with("test_")
+        || fname.ends_with("_test.py")
+        || doc.path.as_str().starts_with("tests/")
+        || doc.path.as_str().contains("/tests/");
+    walk_test_cases(root, source, in_py_tests, doc);
+}
+
+fn walk_test_cases(node: Node<'_>, source: &str, in_py_tests: bool, doc: &mut UastDocument) {
+    let extracted = match node.kind() {
+        "function_item" => try_extract_rust_test_fn(node, source),
+        "function_definition" => try_extract_py_test_fn(node, source),
+        "class_definition" => try_extract_vacuous_py_test_class(node, source, in_py_tests),
+        "call_expression" => try_extract_ts_test_call(node, source),
         _ => None,
     };
     if let Some(tc) = extracted {
         doc.test_cases.push(tc);
     }
-    let mut c = root.walk();
-    for ch in root.children(&mut c) {
-        extract_test_cases(ch, source, doc);
+    let mut c = node.walk();
+    for ch in node.children(&mut c) {
+        walk_test_cases(ch, source, in_py_tests, doc);
     }
 }

@@ -7,7 +7,7 @@ use alloc::vec::Vec;
 use gf_core::{Diagnostic, Span, UastDocument, Validation};
 
 use crate::checks::{SourceLoc, rule_error};
-use crate::import_resolver::resolve_import_indices;
+use crate::import_resolver::resolve_import_decl_indices;
 
 struct TarjanState {
     next_index: usize,
@@ -194,9 +194,7 @@ pub fn check_dependency_cycles(docs: &[UastDocument]) -> Validation<(), Diagnost
 
     for (from_idx, doc) in docs.iter().enumerate() {
         for imp in &doc.imports {
-            for to_idx in
-                resolve_import_indices(&doc.path, doc.language, &imp.module_source, &path_index)
-            {
+            for to_idx in resolve_import_decl_indices(&doc.path, doc.language, imp, &path_index) {
                 adj.entry(from_idx).or_default().insert(to_idx);
                 edge_spans
                     .entry(DirectedEdge {

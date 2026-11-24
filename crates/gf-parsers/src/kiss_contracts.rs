@@ -3,17 +3,19 @@
 
 mod ts_contracts;
 
-use gf_core::{ContractDecl, ContractImpl, UastDocument};
+use gf_core::{ContractDecl, ContractImpl, Language, UastDocument};
 use tree_sitter::Node;
 
 use crate::cst::{
     count_children_of_kind, count_named_kinds, field_name_string, node_span, node_text,
 };
+use crate::langs::python_typing::has_dataclass_decorator;
 use ts_contracts::{has_pub_visibility, normalize_contract_ident, record_ts_contracts};
 
-const PY_ABSTRACT_BASES: &[&str] = &["ABC", "Protocol"];
-const PY_IGNORED_BASES: &[&str] = &[
+const PY_ABSTRACT_BASES: &[&str] = &["ABC", "ABCMeta", "Protocol"];
+const PY_DATA_OR_IGNORED_BASES: &[&str] = &[
     "ABC",
+    "ABCMeta",
     "Protocol",
     "object",
     "Exception",
@@ -21,6 +23,8 @@ const PY_IGNORED_BASES: &[&str] = &[
     "Enum",
     "IntEnum",
     "StrEnum",
+    "Flag",
+    "IntFlag",
     "BaseModel",
     "TypedDict",
     "NamedTuple",
@@ -56,20 +60,65 @@ fn record_rust_contracts(node: Node<'_>, source: &str, doc: &mut UastDocument) {
     }
 }
 
+fn extract_py_base_ident<'a>(arg: Node<'_>, source: &'a str) -> Option<&'a str> {
+    if arg.kind() == "keyword_argument" {
+        let is_meta = arg
+            .child_by_field_name("name")
+            .is_some_and(|n| node_text(n, source).trim() == "metaclass");
+        let val = arg.child_by_field_name("value")?;
+        return is_meta
+            .then(|| normalize_contract_ident(node_text(val, source)))
+            .filter(|s| !s.is_empty());
+    }
+    let norm = normalize_contract_ident(node_text(arg, source));
+    (!norm.is_empty()).then_some(norm)
+}
+
 fn collect_py_superclasses(node: Node<'_>, source: &str) -> Vec<String> {
     let Some(sup) = node.child_by_field_name("superclasses") else {
         return Vec::new();
     };
     let mut c = sup.walk();
     sup.named_children(&mut c)
-        .map(|arg| normalize_contract_ident(node_text(arg, source)))
-        .filter(|base| !base.is_empty())
+        .filter_map(|arg| extract_py_base_ident(arg, source))
         .map(String::from)
         .collect()
 }
 
+fn record_py_structural_assign(node: Node<'_>, source: &str, doc: &mut UastDocument) {
+    if doc.language != Language::Python || node.kind() != "assignment" {
+        return;
+    }
+    let Some(ty_node) = node.child_by_field_name("type") else {
+        return;
+    };
+    let Some(rhs) = node
+        .child_by_field_name("right")
+        .filter(|r| r.kind() == "call")
+    else {
+        return;
+    };
+    let Some(callee) = rhs.child_by_field_name("function") else {
+        return;
+    };
+    let contract = normalize_contract_ident(node_text(ty_node, source));
+    let impl_cls = normalize_contract_ident(node_text(callee, source));
+    if !contract.is_empty()
+        && impl_cls
+            .bytes()
+            .next()
+            .is_some_and(|b| b.is_ascii_uppercase())
+    {
+        doc.contract_impls.insert(ContractImpl {
+            contract: String::from(contract),
+            implementor: String::from(impl_cls),
+        });
+    }
+}
+
 fn record_python_contracts(node: Node<'_>, source: &str, doc: &mut UastDocument) {
-    if node.kind() != "class_definition" {
+    record_py_structural_assign(node, source, doc);
+    if node.kind() != "class_definition" || has_dataclass_decorator(node, source) {
         return;
     }
     let cls_name = field_name_string(node, "name", "<class>", source);
@@ -92,7 +141,7 @@ fn record_python_contracts(node: Node<'_>, source: &str, doc: &mut UastDocument)
         return;
     }
     for base in bases {
-        if !PY_IGNORED_BASES.contains(&base.as_str()) {
+        if !PY_DATA_OR_IGNORED_BASES.contains(&base.as_str()) {
             doc.contract_impls.insert(ContractImpl {
                 contract: base,
                 implementor: cls_name.clone(),

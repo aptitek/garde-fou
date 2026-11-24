@@ -33,6 +33,6 @@ Use this skill whenever working inside a repository governed by `garde-fou.toml`
 | `GF071`–`GF072` | DAG & Boundaries | Break circular imports via leaf `types` modules (Tarjan SCC) and respect `[[boundaries]]` / Atomic Design layers. |
 | `GF073`–`GF075` | KISS & YAGNI | Eliminate nested ternaries, Law of Demeter chains (`a.b.c.d.e`), wildcard `export *`, multi-boolean flag params, `TODO` markers, and single-implementation traits. |
 | `GF076`–`GF077` | TDD & Git Commits | Ensure every test has non-tautological assertions (plus companion tests/`.stories` when active) and format commits as `<type>(<scope>): <summary>`. |
-| `GF080` | Language AST Idioms & Security | Fix native language anti-patterns (`PY-B006` mutable defaults, `PY-E722`/`PY-B001` bare/silent `except`, `PY-S102`/`PY-S301`/`PY-S602` dangerous calls, `PY-ANN401` `: Any`, `PY-T201` `print`). |
-| `GF081` | Tool Config Hardening | Keep `[tool.mypy] strict = true`, avoid `ignore = ["ALL"]` in `pyproject.toml`/`ruff.toml`, and keep `"strict": true` in `tsconfig.json`. |
+| `GF080` | Language AST Idioms & Security | Fix native language anti-patterns (`PY-B006` mutable defaults, `PY-E722`/`PY-B001` bare/silent `except`, `PY-S102`/`PY-S301`/`PY-S506`/`PY-S602` dangerous calls, `PY-ANN201`/`PY-ANN401` missing/Any types, `PY-T100`/`PY-T201` debug/print). |
+| `GF081` | Tool Config Hardening | Keep `[tool.mypy] strict = true`, avoid `ignore`/`extend-ignore = ["ALL"]` or `--no-cov` in `pyproject.toml`/`ruff.toml`, and keep `"strict": true` in `tsconfig.json`. |
 | `GF082` | External Tool Ingestion | Resolve type-checker and linter errors (`[ruff:...]`, `[mypy:...]`, `[pyright:...]`) at their source rather than suppressing rules. |

@@ -14,6 +14,7 @@ mod secrets;
 mod test_inspector;
 mod test_inspector_py;
 mod test_inspector_script;
+pub mod tool_output;
 pub mod types;
 
 use gf_core::{
@@ -31,6 +32,7 @@ use langs::{
     tool_config::extract_tool_config,
     typescript::{TsDialect, TypeScriptExtractor},
 };
+pub use tool_output::{ToolParseError, parse_mypy_ndjson, parse_pyright_json, parse_ruff_json};
 pub use types::{LanguageExtractor, ParseError, ProjectMarker};
 
 const EXT_LANGUAGES: &[(&str, Language)] = &[

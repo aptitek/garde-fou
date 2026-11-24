@@ -1,109 +1,81 @@
 //! Pure `#![no_std]` types for the 3-tier ecosystem tool ingestion architecture (`GF080`–`GF082`).
-//!
-//! - **Tier 1 ([`LangRuleFinding`])**: language-specific AST idioms & security rules (`GF080`).
-//! - **Tier 2 ([`ToolConfigFinding`])**: ecosystem tool config hardening (`GF081`).
-//! - **Tier 3 ([`ExternalToolFinding`])**: normalized diagnostics ingested from external
-//!   type-checkers and linters (`ruff`, `mypy`, `pyright`, `tsc`, `eslint`, `shellcheck`, `GF082`).
 
 use alloc::format;
 use alloc::string::String;
-use core::fmt;
 use serde::{Deserialize, Serialize};
 
 use crate::diagnostic::Span;
 use crate::path::RepoPath;
 use crate::policies::ScannerPolicy;
+pub use crate::python_violations::ExternalToolKind;
+use crate::python_violations::PythonViolation;
+use crate::tool_config_violations::ToolConfigViolation;
 
-/// Identifier of a first-class ecosystem linter or type-checker (`GF081` / `GF082`).
-#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
-pub enum ExternalToolId {
-    /// Astral `ruff` Python linter (`ruff check --output-format json`).
-    Ruff,
-    /// `mypy` static type checker (`mypy --strict --output json`).
-    Mypy,
-    /// `pyright` static type checker (`pyright --outputjson`).
-    Pyright,
-    /// TypeScript compiler (`tsc --noEmit`).
-    Tsc,
-    /// `eslint` JavaScript/TypeScript linter.
-    Eslint,
-    /// `shellcheck` POSIX shell script analyzer.
-    Shellcheck,
-    /// `cargo-mutants` Rust mutation testing runner (`mutants.toml`).
-    CargoMutants,
-    /// `Stryker` JS/TS mutation testing runner (`stryker.config.json`).
-    Stryker,
-}
-
-impl ExternalToolId {
-    /// All known ecosystem tool identifiers in deterministic order.
-    pub const ALL: [Self; 8] = [
-        Self::Ruff,
-        Self::Mypy,
-        Self::Pyright,
-        Self::Tsc,
-        Self::Eslint,
-        Self::Shellcheck,
-        Self::CargoMutants,
-        Self::Stryker,
-    ];
-
-    /// Canonical lowercase CLI/config name of the tool.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::Ruff => "ruff",
-            Self::Mypy => "mypy",
-            Self::Pyright => "pyright",
-            Self::Tsc => "tsc",
-            Self::Eslint => "eslint",
-            Self::Shellcheck => "shellcheck",
-            Self::CargoMutants => "cargo-mutants",
-            Self::Stryker => "stryker",
-        }
-    }
-}
-
-impl fmt::Display for ExternalToolId {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(self.as_str())
-    }
-}
+/// Type alias preserving compatibility with [`ExternalToolKind`].
+pub type ExternalToolId = ExternalToolKind;
 
 /// Tier 1 native AST language rule violation (`GF080`), requiring zero external binaries.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct LangRuleFinding {
-    /// Upstream ecosystem rule code (e.g. `"PY-B006"`, `"PY-S602"`, `"PY-ANN401"`).
-    pub code: String,
+    /// Closed algebraic Python AST violation category (`PY-B006`, `PY-ANN201`, etc.).
+    pub violation: PythonViolation,
     /// 1-based source line span of the offending AST construct.
     pub span: Span,
     /// Concrete description of the anti-pattern or security hazard.
     pub message: String,
-    /// Actionable root-cause remediation in the target language.
-    pub remediation: String,
+}
+
+impl LangRuleFinding {
+    /// Canonical ecosystem rule code (`"PY-..."`).
+    #[must_use]
+    pub const fn code(&self) -> &'static str {
+        self.violation.code()
+    }
+
+    /// Actionable root-cause remediation derived from [`PythonViolation`].
+    #[must_use]
+    pub const fn remediation(&self) -> &'static str {
+        self.violation.remediation()
+    }
 }
 
 /// Tier 2 static configuration weakening finding (`GF081`) in `pyproject.toml`,
-/// `ruff.toml`, `.ruff.toml`, or `tsconfig.json`.
+/// `ruff.toml`, `.ruff.toml`, `tsconfig.json`, `mutants.toml`, or `stryker.config.json`.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct ToolConfigFinding {
-    /// Ecosystem tool whose configuration is weakened.
-    pub tool: ExternalToolId,
-    /// Dotted configuration key path (e.g. `"tool.mypy.strict"`, `"compilerOptions.strict"`).
-    pub key: String,
+    /// Closed algebraic configuration weakening category.
+    pub violation: ToolConfigViolation,
     /// 1-based source line span inside the configuration file.
     pub span: Span,
     /// Human/agent explanation of what setting is missing or weakened.
     pub message: String,
-    /// Exact TOML/JSON snippet required to restore strict enforcement.
-    pub remediation: String,
+}
+
+impl ToolConfigFinding {
+    /// Ecosystem tool affected by this configuration weakening.
+    #[must_use]
+    pub const fn tool(&self) -> ExternalToolKind {
+        self.violation.tool()
+    }
+
+    /// Canonical dotted key path inside the configuration file.
+    #[must_use]
+    pub const fn key(&self) -> &'static str {
+        self.violation.key()
+    }
+
+    /// Actionable root-cause remediation derived from [`ToolConfigViolation`].
+    #[must_use]
+    pub const fn remediation(&self) -> &'static str {
+        self.violation.remediation()
+    }
 }
 
 /// Tier 3 finding parsed from JSON/NDJSON output of an external tool (`GF082`).
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
 pub struct ExternalToolFinding {
     /// Source ecosystem tool that emitted the diagnostic.
-    pub tool: ExternalToolId,
+    pub tool: ExternalToolKind,
     /// Normalized repository-relative path of the offending file.
     pub path: RepoPath,
     /// 1-based line number (`>= 1`).

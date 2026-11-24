@@ -1,7 +1,11 @@
-//! Tier 1 Python dangerous-call & `Code`-purity AST checks (`PY-S102`, `PY-S301`, `PY-S602`, `PY-T201`).
+//! Tier 1 Python dangerous-call, `typing.cast(Any, ...)`, and debug/console AST checks
+//! (`PY-S102`, `PY-S301`, `PY-S506`, `PY-S602`, `PY-ANN401`, `PY-T100`, `PY-T201`).
+
+use std::collections::BTreeSet;
 
 use gf_core::{
-    DomainKind, EffectSighting, EffectSightingKind, LangRuleFinding, Span, UastDocument,
+    DebugArtifactKind, DomainKind, EffectSighting, EffectSightingKind, ImportDecl, LangRuleFinding,
+    PythonViolation, UastDocument, UnsafeExecKind,
 };
 use tree_sitter::Node;
 
@@ -32,24 +36,51 @@ const SUBPROCESS_CALLEES: &[&str] = &[
     "check_output",
 ];
 
-/// Structured specification for a Tier 1 Python AST finding (`GF080`).
-pub struct PyFindingSpec {
-    pub code: &'static str,
-    pub span: Span,
-    pub message: String,
-    pub remediation: &'static str,
+const DEBUGGER_CALLEES: &[&str] = &[
+    "breakpoint",
+    "builtins.breakpoint",
+    "pdb.set_trace",
+    "ipdb.set_trace",
+    "pudb.set_trace",
+];
+
+const CONSOLE_CALLEES: &[&str] = &["print", "builtins.print", "pprint", "pprint.pprint"];
+
+/// Shared context passed across Tier 1 Python guardrail call inspections.
+#[derive(Clone, Copy)]
+pub(super) struct PyCallCtx<'a> {
+    pub source: &'a str,
+    pub domain: DomainKind,
+    pub bare_unsafe: &'a BTreeSet<String>,
 }
 
-pub fn push_py_finding(out: &mut Vec<LangRuleFinding>, spec: PyFindingSpec) {
-    out.push(LangRuleFinding {
-        code: String::from(spec.code),
-        span: spec.span,
-        message: spec.message,
-        remediation: String::from(spec.remediation),
-    });
+fn collect_bare_from_import(imp: &ImportDecl, out: &mut BTreeSet<String>) {
+    let mod_name = imp.module_source.trim();
+    let allowed: &[&str] = if matches!(mod_name, "pickle" | "_pickle" | "cPickle" | "marshal") {
+        &["load", "loads"]
+    } else if matches!(mod_name, "pdb" | "ipdb" | "pudb") {
+        &["set_trace"]
+    } else {
+        return;
+    };
+    for sym in &imp.symbols {
+        if allowed.contains(&sym.as_str()) {
+            out.insert(sym.clone());
+        }
+    }
 }
 
-pub fn compact_callee(call_node: Node<'_>, source: &str) -> String {
+/// Collects bare unsafe function symbols imported via `from pickle/marshal/pdb import ...`.
+pub(super) fn collect_bare_unsafe_imports(doc: &UastDocument) -> BTreeSet<String> {
+    let mut set = BTreeSet::new();
+    for imp in &doc.imports {
+        collect_bare_from_import(imp, &mut set);
+    }
+    set
+}
+
+/// Compacts a Python call callee expression by stripping internal whitespace.
+pub(super) fn compact_callee(call_node: Node<'_>, source: &str) -> String {
     call_node
         .child_by_field_name("function")
         .map(|fn_node| {
@@ -61,96 +92,146 @@ pub fn compact_callee(call_node: Node<'_>, source: &str) -> String {
         .unwrap_or_default()
 }
 
-fn has_keyword_arg_eq(call_node: Node<'_>, source: &str, kw_name: &str, kw_val: &str) -> bool {
-    let Some(args) = call_node.child_by_field_name("arguments") else {
-        return false;
-    };
+fn find_keyword_value<'a>(call_node: Node<'a>, source: &str, kw_name: &str) -> Option<Node<'a>> {
+    let args = call_node.child_by_field_name("arguments")?;
     let mut cursor = args.walk();
-    args.named_children(&mut cursor).any(|arg| {
-        arg.kind() == "keyword_argument"
+    args.named_children(&mut cursor).find_map(|arg| {
+        (arg.kind() == "keyword_argument"
             && arg
                 .child_by_field_name("name")
-                .is_some_and(|n| node_text(n, source).trim() == kw_name)
-            && arg
-                .child_by_field_name("value")
-                .is_some_and(|v| node_text(v, source).trim() == kw_val)
+                .is_some_and(|n| node_text(n, source).trim() == kw_name))
+        .then(|| arg.child_by_field_name("value"))
+        .flatten()
     })
 }
 
-fn has_safe_yaml_loader(call_node: Node<'_>, source: &str) -> bool {
-    call_node
-        .child_by_field_name("arguments")
-        .is_some_and(|args| {
-            let text = node_text(args, source);
-            text.contains("SafeLoader") || text.contains("CSafeLoader")
-        })
+fn has_keyword_arg_eq(call_node: Node<'_>, source: &str, kw_name: &str, kw_val: &str) -> bool {
+    find_keyword_value(call_node, source, kw_name)
+        .is_some_and(|val| node_text(val, source).trim() == kw_val)
 }
 
-fn classify_security_call(node: Node<'_>, source: &str, callee: &str) -> Option<PyFindingSpec> {
-    let span = node_span(node);
-    if matches!(callee, "eval" | "exec" | "builtins.eval" | "builtins.exec") {
-        return Some(PyFindingSpec {
-            code: "PY-S102",
-            span,
-            message: format!(
-                "dynamic code execution `{callee}(...)` enables arbitrary code execution"
-            ),
-            remediation: "Replace `eval`/`exec` with `ast.literal_eval`, explicit dispatch tables, or typed schema parsing.",
+fn has_safe_yaml_loader(call_node: Node<'_>, source: &str) -> bool {
+    let Some(loader_val) = find_keyword_value(call_node, source, "Loader") else {
+        return false;
+    };
+    if !matches!(loader_val.kind(), "identifier" | "attribute") {
+        return false;
+    }
+    let leaf = node_text(loader_val, source)
+        .trim()
+        .rsplit('.')
+        .next()
+        .unwrap_or("");
+    matches!(leaf, "SafeLoader" | "CSafeLoader")
+}
+
+fn inspect_cast_any_arg(node: Node<'_>, source: &str, out: &mut Vec<LangRuleFinding>) {
+    if node.kind() == "identifier" && node_text(node, source) == "Any" {
+        out.push(LangRuleFinding {
+            violation: PythonViolation::ForbiddenAny,
+            span: node_span(node),
+            message: String::from("`typing.cast(Any, ...)` bypasses static typing in `Code`"),
         });
+    }
+    let mut cursor = node.walk();
+    for child in node.children(&mut cursor) {
+        inspect_cast_any_arg(child, source, out);
+    }
+}
+
+fn classify_unsafe_exec(
+    node: Node<'_>,
+    callee: &str,
+    ctx: PyCallCtx<'_>,
+) -> Option<(UnsafeExecKind, String)> {
+    if matches!(callee, "eval" | "exec" | "builtins.eval" | "builtins.exec") {
+        return Some((
+            UnsafeExecKind::DynamicEval,
+            format!("dynamic code execution `{callee}(...)` enables arbitrary code execution"),
+        ));
     }
     if UNSAFE_DESERIALIZERS.contains(&callee)
-        || (callee == "yaml.load" && !has_safe_yaml_loader(node, source))
+        || (matches!(callee, "load" | "loads") && ctx.bare_unsafe.contains(callee))
     {
-        return Some(PyFindingSpec {
-            code: "PY-S301",
-            span,
-            message: format!(
-                "unsafe deserialization `{callee}(...)` can execute untrusted payloads"
-            ),
-            remediation: "Use `json`, `pydantic`, or `yaml.safe_load(...)` instead of untrusted `pickle`/`yaml.load`.",
-        });
+        return Some((
+            UnsafeExecKind::UnsafePickle,
+            format!("unsafe deserialization `{callee}(...)` can execute untrusted payloads"),
+        ));
     }
-    if callee == "os.system"
-        || (SUBPROCESS_CALLEES.contains(&callee)
-            && has_keyword_arg_eq(node, source, "shell", "True"))
-    {
-        return Some(PyFindingSpec {
-            code: "PY-S602",
-            span,
-            message: format!(
-                "subprocess call `{callee}` with shell execution risks command injection"
+    if matches!(callee, "yaml.load" | "yaml.load_all") && !has_safe_yaml_loader(node, ctx.source) {
+        return Some((
+            UnsafeExecKind::UnsafeYamlLoad,
+            format!(
+                "`{callee}(...)` without `Loader=yaml.SafeLoader` risks arbitrary object instantiation"
             ),
-            remediation: "Pass command arguments as a list (`subprocess.run([\"cmd\", arg], check=True)`) without `shell=True`.",
-        });
+        ));
+    }
+    if matches!(callee, "os.system" | "os.popen")
+        || (SUBPROCESS_CALLEES.contains(&callee)
+            && has_keyword_arg_eq(node, ctx.source, "shell", "True"))
+    {
+        return Some((
+            UnsafeExecKind::ShellSubprocess,
+            format!("subprocess call `{callee}` with shell execution risks command injection"),
+        ));
     }
     None
 }
 
-pub fn inspect_py_call(node: Node<'_>, source: &str, domain: DomainKind, doc: &mut UastDocument) {
-    let callee = compact_callee(node, source);
+fn classify_debug_call(callee: &str, ctx: PyCallCtx<'_>) -> Option<(DebugArtifactKind, String)> {
+    if ctx.domain != DomainKind::Code {
+        return None;
+    }
+    if DEBUGGER_CALLEES.contains(&callee)
+        || (callee == "set_trace" && ctx.bare_unsafe.contains("set_trace"))
+    {
+        return Some((
+            DebugArtifactKind::DebuggerTrace,
+            format!("leftover debugger hook `{callee}()` in `Code` module"),
+        ));
+    }
+    CONSOLE_CALLEES.contains(&callee).then(|| {
+        (
+            DebugArtifactKind::PrintCall,
+            format!("`{callee}(...)` console output is forbidden in `Code` domain modules"),
+        )
+    })
+}
+
+/// Inspects a Python `call` node for `GF080` security/debug findings and console `EffectSighting`s.
+pub(super) fn inspect_py_call(node: Node<'_>, ctx: PyCallCtx<'_>, doc: &mut UastDocument) {
+    let callee = compact_callee(node, ctx.source);
     let span = node_span(node);
-    if matches!(callee.as_str(), "print" | "pprint" | "pprint.pprint") {
+    if CONSOLE_CALLEES.contains(&callee.as_str()) {
         doc.effect_sightings.push(EffectSighting {
             kind: EffectSightingKind::ConsoleOutput,
             detail: format!("{callee}(...)"),
             span,
         });
     }
-    if let Some(spec) = classify_security_call(node, source, &callee) {
-        push_py_finding(&mut doc.lang_rule_findings, spec);
-    } else if domain == DomainKind::Code
-        && matches!(callee.as_str(), "print" | "pprint" | "pprint.pprint")
+    if ctx.domain == DomainKind::Code
+        && matches!(
+            callee.as_str(),
+            "cast" | "typing.cast" | "typing_extensions.cast"
+        )
+        && let Some(first_arg) = node
+            .child_by_field_name("arguments")
+            .and_then(|a| a.named_child(0))
     {
-        push_py_finding(
-            &mut doc.lang_rule_findings,
-            PyFindingSpec {
-                code: "PY-T201",
-                span,
-                message: format!(
-                    "`{callee}(...)` console output is forbidden in `Code` domain modules"
-                ),
-                remediation: "Use `logging.getLogger(__name__)` or restrict console I/O to declared CLI `entrypoints`.",
-            },
-        );
+        inspect_cast_any_arg(first_arg, ctx.source, &mut doc.lang_rule_findings);
+    }
+
+    if let Some((exec_kind, message)) = classify_unsafe_exec(node, &callee, ctx) {
+        doc.lang_rule_findings.push(LangRuleFinding {
+            violation: PythonViolation::UnsafeExecution(exec_kind),
+            span,
+            message,
+        });
+    } else if let Some((dbg_kind, message)) = classify_debug_call(&callee, ctx) {
+        doc.lang_rule_findings.push(LangRuleFinding {
+            violation: PythonViolation::LeftoverDebugArtifact(dbg_kind),
+            span,
+            message,
+        });
     }
 }
