@@ -54,6 +54,7 @@ const SOURCE_LANGUAGE_MAP: &[(Language, LanguageId)] = &[
     (Language::Xml, LanguageId::Xml),
     (Language::Svg, LanguageId::Xml),
     (Language::Toml, LanguageId::Toml),
+    (Language::Sql, LanguageId::Sql),
 ];
 
 fn language_id_for_path(path: &RepoPath, lang: Language) -> Option<LanguageId> {

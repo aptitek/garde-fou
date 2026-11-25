@@ -58,9 +58,15 @@ pub enum ExternalToolKind {
     Taplo,
     /// `xmllint` XML 1.0 well-formedness & DTD verifier (`xmllint --noout --nonet`).
     Xmllint,
+    /// `squawk` Rust-native PostgreSQL zero-downtime migration linter (`squawk --reporter Json`).
+    Squawk,
+    /// `sqruff` Rust-native multi-dialect SQL linter (`sqruff lint -f json`).
+    Sqruff,
+    /// `sqlfluff` Python multi-dialect SQL linter (`sqlfluff lint --format json`).
+    Sqlfluff,
 }
 
-const TOOL_NAMES: [&str; 23] = [
+const TOOL_NAMES: [&str; 26] = [
     "ruff",
     "mypy",
     "pyright",
@@ -84,11 +90,14 @@ const TOOL_NAMES: [&str; 23] = [
     "markdownlint",
     "taplo",
     "xmllint",
+    "squawk",
+    "sqruff",
+    "sqlfluff",
 ];
 
 impl ExternalToolKind {
     /// All known ecosystem tool identifiers in deterministic order.
-    pub const ALL: [Self; 23] = [
+    pub const ALL: [Self; 26] = [
         Self::Ruff,
         Self::Mypy,
         Self::Pyright,
@@ -112,6 +121,9 @@ impl ExternalToolKind {
         Self::Markdownlint,
         Self::Taplo,
         Self::Xmllint,
+        Self::Squawk,
+        Self::Sqruff,
+        Self::Sqlfluff,
     ];
 
     /// Canonical lowercase CLI/config name of the tool.
@@ -164,6 +176,8 @@ pub enum Language {
     Svg,
     /// XML document or package manifest (`.xml`, `.csproj`, `.props`, `pom.xml`).
     Xml,
+    /// SQL query, view, or database migration script (`.sql`).
+    Sql,
     /// Non-text binary media or font asset (`.png`, `.woff2`, `.pdf`, etc.).
     BinaryAsset,
     /// Unclassified text or source file.
@@ -200,6 +214,7 @@ impl Language {
                     | Self::Toml
                     | Self::Xml
                     | Self::Svg
+                    | Self::Sql
                     | Self::BinaryAsset
             )
     }

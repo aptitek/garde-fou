@@ -90,7 +90,7 @@ impl DiskCache {
     #[must_use]
     pub fn new(workspace_root: &Path, cache_dir: &str) -> Self {
         Self {
-            base_dir: workspace_root.join(cache_dir).join("v11"),
+            base_dir: workspace_root.join(cache_dir).join("v12"),
         }
     }
 

@@ -20,14 +20,15 @@ pub mod tool_output_formats;
 mod tool_output_gha;
 mod tool_output_pssa;
 pub mod tool_output_shell;
+pub mod tool_output_sql;
 mod tool_output_taplo_xml;
 pub mod tool_output_ts;
 pub mod tool_output_yaml;
 pub mod types;
 
 use gf_core::{
-    AssetDocument, DomainKind, DomainLayoutConfig, Language, RepoPath, UastDocument, classify_path,
-    is_audited_tool_config_file,
+    AssetDocument, DomainKind, DomainLayoutConfig, Language, RepoPath, SqlDialectKind,
+    UastDocument, classify_path, is_audited_tool_config_file,
 };
 pub use lang_detect::{detect_language, detect_language_or_shebang, detect_project_marker};
 pub use langs::shell::dialect::detect_shebang_language;
@@ -42,6 +43,7 @@ use langs::{
     python::PythonExtractor,
     rust::RustExtractor,
     shell::ShellExtractor,
+    sql::extract_sql_with_dialect_hint,
     toml_lang::TomlExtractor,
     tool_config::extract_tool_config,
     ts::{TsDialect, TypeScriptExtractor},
@@ -56,6 +58,7 @@ pub use tool_output_formats::{
 pub use tool_output_shell::{
     parse_hadolint_json, parse_psscriptanalyzer_json, parse_shellcheck_json,
 };
+pub use tool_output_sql::{parse_sqlfluff_json, parse_sqruff_json, parse_squawk_json};
 pub use tool_output_ts::{parse_biome_json, parse_oxlint_json, parse_tsc_output};
 pub use tool_output_yaml::{
     parse_actionlint_json, parse_dclint_json, parse_yamllint_parsable, parse_zizmor_sarif,
@@ -81,12 +84,19 @@ pub fn build_binary_asset_document(
     Ok(doc)
 }
 
+#[derive(Clone, Copy)]
+struct DispatchCtx<'a> {
+    domains: &'a DomainLayoutConfig,
+    sql_dialect_hint: Option<SqlDialectKind>,
+}
+
 fn dispatch_non_code_domain(
     lang: Language,
     path: &RepoPath,
     source: &str,
-    domain: DomainKind,
+    ctx: DispatchCtx<'_>,
 ) -> Result<UastDocument, ParseError> {
+    let domain = classify_path(path, ctx.domains);
     match lang {
         Language::Css => CssExtractor.extract(path, source),
         Language::Markdown => MarkdownExtractor.extract(path, source),
@@ -96,6 +106,7 @@ fn dispatch_non_code_domain(
         }
         Language::Toml => TomlExtractor.extract(path, source),
         Language::Xml => XmlExtractor.extract(path, source),
+        Language::Sql => extract_sql_with_dialect_hint(path, source, ctx.sql_dialect_hint),
         other => {
             let (total_lines, effective_lines) = cst::line_metrics(source);
             Ok(UastDocument::new(
@@ -112,12 +123,12 @@ fn dispatch_language_extractor(
     lang: Language,
     path: &RepoPath,
     source: &str,
-    domains: &DomainLayoutConfig,
+    ctx: DispatchCtx<'_>,
 ) -> Result<UastDocument, ParseError> {
     if is_audited_tool_config_file(path) {
         return extract_tool_config(path, lang, source);
     }
-    let domain = classify_path(path, domains);
+    let domain = classify_path(path, ctx.domains);
     if let Some(dialect) = TsDialect::from_path_and_lang(path, lang) {
         return TypeScriptExtractor::new(dialect).extract_in_domain(path, source, domain);
     }
@@ -128,8 +139,38 @@ fn dispatch_language_extractor(
         Language::PowerShell => PowerShellExtractor.extract(path, source),
         Language::Dockerfile => DockerfileExtractor.extract(path, source),
         Language::Yaml => YamlExtractor.extract(path, source),
-        other => dispatch_non_code_domain(other, path, source, domain),
+        other => dispatch_non_code_domain(other, path, source, ctx),
     }
+}
+
+/// Parses `source` with explicit [`DomainLayoutConfig`] and optional workspace [`SqlDialectKind`] hint.
+///
+/// # Errors
+///
+/// Returns [`ParseError`] if grammar setup or span construction fails.
+pub fn parse_source_with_context(
+    path: &RepoPath,
+    source: &str,
+    domains: &DomainLayoutConfig,
+    sql_dialect_hint: Option<SqlDialectKind>,
+) -> Result<UastDocument, ParseError> {
+    let lang = detect_language_or_shebang(path, source);
+    let ctx = DispatchCtx {
+        domains,
+        sql_dialect_hint,
+    };
+    let mut doc = dispatch_language_extractor(lang, path, source, ctx)?;
+    doc.secret_findings = secrets::extract_secret_findings(path, source);
+    if classify_path(path, domains) == DomainKind::Tests
+        && (TsDialect::from_path_and_lang(path, lang).is_some()
+            || matches!(
+                lang,
+                Language::Rust | Language::Python | Language::Shell | Language::PowerShell
+            ))
+    {
+        doc.script_refs = collect_script_mentions(source);
+    }
+    Ok(doc)
 }
 
 /// Parses `source` with explicit [`DomainLayoutConfig`] (enabling `Texte` `.json`/`.toml` parsing).
@@ -142,19 +183,7 @@ pub fn parse_source_with_domains(
     source: &str,
     domains: &DomainLayoutConfig,
 ) -> Result<UastDocument, ParseError> {
-    let lang = detect_language_or_shebang(path, source);
-    let mut doc = dispatch_language_extractor(lang, path, source, domains)?;
-    doc.secret_findings = secrets::extract_secret_findings(path, source);
-    if classify_path(path, domains) == DomainKind::Tests
-        && (TsDialect::from_path_and_lang(path, lang).is_some()
-            || matches!(
-                lang,
-                Language::Rust | Language::Python | Language::Shell | Language::PowerShell
-            ))
-    {
-        doc.script_refs = collect_script_mentions(source);
-    }
-    Ok(doc)
+    parse_source_with_context(path, source, domains, None)
 }
 
 /// Parses `source` using strict default domain boundaries.

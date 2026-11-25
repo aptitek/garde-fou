@@ -51,6 +51,12 @@ pub enum ExternalAdapter {
     Taplo,
     /// `xmllint --noout --nonet <xml-or-svg-files...>`.
     Xmllint,
+    /// `squawk --reporter Json <pg-migration-files...>`.
+    Squawk,
+    /// `sqruff lint -f json <sql-files...>`.
+    Sqruff,
+    /// `sqlfluff lint --format json <sql-files...>`.
+    Sqlfluff,
 }
 
 impl ExternalAdapter {
@@ -70,12 +76,18 @@ impl ExternalAdapter {
         self.spec().tool
     }
 
-    /// Returns `true` for tools resolvable via `.venv` / `uv` (`ruff`, `mypy`, `pyright`, `yamllint`, `zizmor`).
+    /// Returns `true` for tools resolvable via `.venv` / `uv` (`ruff`, `mypy`, `pyright`, `yamllint`, `zizmor`, `sqlfluff`).
     #[must_use]
     pub const fn is_python(self) -> bool {
         matches!(
             self,
-            Self::Ruff | Self::Mypy | Self::Pyright | Self::Yamllint | Self::Zizmor | Self::Rumdl
+            Self::Ruff
+                | Self::Mypy
+                | Self::Pyright
+                | Self::Yamllint
+                | Self::Zizmor
+                | Self::Rumdl
+                | Self::Sqlfluff
         )
     }
 

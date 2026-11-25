@@ -4,6 +4,7 @@ use gf_core::{EffectSightingKind, ForbiddenRuleKind, Span, UastDocument, UastKin
 use tree_sitter::Node;
 
 use super::rust_effects::{inspect_rust_effect_node, push_effect};
+use super::sql::embedded_sql::inspect_rust_embedded_sql_node;
 use crate::cst::{field_name_string, node_span, node_text};
 
 fn push_forbidden(doc: &mut UastDocument, rule: ForbiddenRuleKind, symbol: &str, span: Span) {
@@ -167,6 +168,9 @@ pub fn inspect_rust_guardrail_node(
 ) {
     inspect_unsafe_construct(node, source, doc);
     inspect_rust_effect_node(node, source, in_cfg_test, doc);
+    if !in_cfg_test {
+        inspect_rust_embedded_sql_node(node, source, &mut doc.lang_rule_findings);
+    }
     match node.kind() {
         "macro_invocation" => inspect_macro_call(node, source, in_cfg_test, doc),
         "call_expression" => inspect_method_call(node, source, in_cfg_test, doc),

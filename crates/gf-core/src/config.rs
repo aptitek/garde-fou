@@ -17,6 +17,7 @@ pub use crate::policies::{
     ScannersConfig,
 };
 use crate::skills_catalog::AgentsConfig;
+use crate::sql_violations::SqlConfig;
 use crate::tools_config::ToolsConfig;
 
 /// Explicit `[project]` overrides merged with automatic workspace context detection.
@@ -134,6 +135,9 @@ pub struct Config {
     pub mutation: MutationConfig,
     /// Granular `[rules]` set of forbidden constructs (`GF010`–`GF011`).
     pub rules: ForbiddenRulesConfig,
+    /// Multi-dialect SQL & zero-downtime migration policy (`[sql]`, `GF080`).
+    #[serde(default)]
+    pub sql: SqlConfig,
     /// Explicit repository-relative glob patterns excluded from analysis.
     pub ignore_paths: Vec<String>,
     /// Explicit repository-relative glob patterns marking binary/library entrypoints.
@@ -160,6 +164,7 @@ impl Config {
             coverage: CoverageConfig::empty(),
             mutation: MutationConfig::empty(),
             rules: ForbiddenRulesConfig::strict_defaults(),
+            sql: SqlConfig::strict_defaults(),
             ignore_paths: Vec::new(),
             entrypoints: Vec::new(),
         }
@@ -172,7 +177,7 @@ impl Config {
             .map(BoundaryRule::canonical_fragment)
             .collect();
         format!(
-            "lk={}|bnd=[{}]|{}|{}|{}|{}|{}|{}|{}",
+            "lk={}|bnd=[{}]|{}|{}|{}|{}|{}|{}|{}|{}",
             self.integrity.require_lock,
             bnd.join(";"),
             self.architecture.canonical_fragment(),
@@ -182,6 +187,7 @@ impl Config {
             self.agents.canonical_fragment(),
             self.tools.canonical_fragment(),
             self.rules.canonical_fragment(),
+            self.sql.canonical_fragment(),
         )
     }
 
@@ -208,7 +214,7 @@ impl Config {
         let cov = self.coverage.canonical_fragment();
         let mut_f = self.mutation.canonical_fragment();
         format!(
-            "v15|fl={}|fnl={}|p={}|cyc={}|cog={}|nest={}|imp={}|meth={}|sb={}|cll={}|cln={}|csim={}|{dom}|{fort}|sec={sec}|vul={vul}|{cov}|{mut_f}|i={}|e={}|l={}|ft={}|fw={}",
+            "v16|fl={}|fnl={}|p={}|cyc={}|cog={}|nest={}|imp={}|meth={}|sb={}|cll={}|cln={}|csim={}|{dom}|{fort}|sec={sec}|vul={vul}|{cov}|{mut_f}|i={}|e={}|l={}|ft={}|fw={}",
             l.max_file_lines,
             l.max_function_lines,
             l.max_parameters,

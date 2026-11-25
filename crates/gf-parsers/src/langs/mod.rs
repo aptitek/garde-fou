@@ -22,6 +22,7 @@ mod rust_effects;
 mod rust_guardrails;
 pub mod shell;
 mod shell_docker_config;
+pub mod sql;
 pub mod toml_lang;
 pub mod tool_config;
 mod tool_config_py;

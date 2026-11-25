@@ -40,6 +40,9 @@ pub mod python_violations;
 pub mod shell_ps_tools;
 pub mod shell_ps_violations;
 pub mod skills_catalog;
+pub mod sql_tools;
+pub mod sql_types;
+pub mod sql_violations;
 pub mod tool_config_violations;
 pub mod tool_ingest;
 pub mod tools_config;
@@ -115,6 +118,14 @@ pub use {
     skills_catalog::{
         AgenticSyncStatus, AgentsConfig, RemoteSkillSpec, ResolvedSkillSpec, SkillEntry,
         parse_extra_skill_spec, select_contextual_skills,
+    },
+    sql_tools::{
+        DrizzleConfigIssue, SqlToolConfigIssue, SqlToolsConfig, SqruffSqlfluffConfigIssue,
+        SquawkConfigIssue, is_sql_tool_config_file,
+    },
+    sql_violations::{
+        DestructiveDdlFinding, MigrationViolation, SqlConfig, SqlDialectKind, SqlDialectSetting,
+        SqlDocument, SqlRole, SqlViolation,
     },
     tool_config_violations::{
         MutantsConfigIssue, MypyConfigIssue, PytestCoverageIssue, RuffConfigIssue,

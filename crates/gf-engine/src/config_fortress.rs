@@ -4,8 +4,8 @@
 use std::collections::BTreeSet;
 
 use gf_core::{
-    AgentsConfig, BoundaryRule, CleanCodeConfig, CommitConfig, IntegrityConfig, ScannerPolicy,
-    TddConfig, TddParityGate, YagniRule, parse_extra_skill_spec,
+    AgentsConfig, BoundaryRule, CleanCodeConfig, CommitConfig, CoverageConfig, IntegrityConfig,
+    MutationConfig, ScannerPolicy, TddConfig, TddParityGate, YagniRule, parse_extra_skill_spec,
 };
 use serde::Deserialize;
 
@@ -87,6 +87,52 @@ pub struct MutationSection {
     pub zero_survivor_globs: Vec<String>,
     #[serde(default)]
     pub report_path: Option<String>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SqlSection {
+    #[serde(default)]
+    pub dialect: Option<String>,
+    #[serde(default)]
+    pub allow_destructive_migrations: Option<bool>,
+}
+
+fn check_pct_bound(field: &str, pct: Option<u32>) -> Result<(), EngineError> {
+    if let Some(val) = pct
+        && val > 100
+    {
+        return Err(EngineError::InvalidConfig(format!(
+            "{field} {val} exceeds 100%"
+        )));
+    }
+    Ok(())
+}
+
+pub fn parse_coverage_section(raw: Option<CoverageSection>) -> Result<CoverageConfig, EngineError> {
+    let Some(cov) = raw else {
+        return Ok(CoverageConfig::empty());
+    };
+    check_pct_bound("min_line_coverage", cov.min_line_coverage)?;
+    check_pct_bound("min_branch_coverage", cov.min_branch_coverage)?;
+    Ok(CoverageConfig {
+        min_line_coverage: cov.min_line_coverage,
+        min_branch_coverage: cov.min_branch_coverage,
+        max_crap_score: cov.max_crap_score,
+        lcov_path: cov.lcov_path,
+    })
+}
+
+pub fn parse_mutation_section(raw: Option<MutationSection>) -> Result<MutationConfig, EngineError> {
+    let Some(m) = raw else {
+        return Ok(MutationConfig::empty());
+    };
+    check_pct_bound("min_mutation_score", m.min_mutation_score)?;
+    Ok(MutationConfig {
+        min_mutation_score: m.min_mutation_score,
+        zero_survivor_globs: m.zero_survivor_globs,
+        report_path: m.report_path,
+    })
 }
 
 fn toggle_set_flag<T: Ord>(set: &mut BTreeSet<T>, flag: T, opt: Option<bool>) {

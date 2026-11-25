@@ -15,6 +15,7 @@ use crate::context_detector::detect_project_context;
 use crate::discovery::discover_files;
 use crate::file_loader::{FileOutcome, FileScanCtx, load_or_analyze_file};
 use crate::scanners::run_external_gates;
+use crate::sql_context::detect_workspace_sql_dialect;
 use crate::types::{CheckOptions, CheckReport, EngineError, ScanScope};
 
 /// Execution environment shared across the workspace check pipeline (zero tuple-packing).
@@ -37,6 +38,7 @@ struct ReportInputs<'a> {
     scope: ScanScope,
     context: ProjectContext,
     config: &'a Config,
+    effective_cfg_key: String,
     staged_filter: Option<&'a BTreeSet<RepoPath>>,
 }
 
@@ -68,32 +70,44 @@ fn collect_gate_diagnostics(
     Ok(external_diags)
 }
 
-/// Executes file discovery, parallel `v6` cache/parse pass, workspace rules, and external gates.
+fn empty_staged_report(
+    env: &PipelineEnv<'_>,
+    context: ProjectContext,
+    staged: &BTreeSet<RepoPath>,
+    effective_cfg_key: &str,
+) -> Result<CheckReport, EngineError> {
+    let mut external_diags = collect_gate_diagnostics(env, &context, Some(staged), &[])?;
+    external_diags.sort();
+    Ok(CheckReport {
+        scope: env.options.scope,
+        context,
+        files_checked: 0,
+        cache_hits: 0,
+        cache_misses: 0,
+        cache_fingerprint: CacheKey::from_bytes(effective_cfg_key.as_bytes()).to_hex(),
+        diagnostics: external_diags,
+    })
+}
+
+/// Executes file discovery, parallel `v12` cache/parse pass, workspace rules, and external gates.
 pub fn execute_pipeline(env: &PipelineEnv<'_>) -> Result<CheckReport, EngineError> {
     let all_files = discover_files(env.root, ScanScope::All, env.config)?;
     let context = detect_project_context(env.root, &all_files, env.config);
+    let sql_dialect_hint = detect_workspace_sql_dialect(env.root, env.config.sql.dialect);
+    let effective_cfg_key = sql_dialect_hint.map_or_else(
+        || env.config.canonical_string(),
+        |hint| format!("{}|ws_sql={}", env.config.canonical_string(), hint.as_str()),
+    );
     let staged_filter: Option<BTreeSet<RepoPath>> = (env.options.scope == ScanScope::StagedOnly)
         .then(|| discover_files(env.root, ScanScope::StagedOnly, env.config))
         .transpose()?
         .map(|v| v.into_iter().collect());
 
-    if staged_filter.as_ref().is_some_and(BTreeSet::is_empty) {
-        let mut external_diags =
-            collect_gate_diagnostics(env, &context, staged_filter.as_ref(), &[])?;
-        external_diags.sort();
-        return Ok(CheckReport {
-            scope: env.options.scope,
-            context,
-            files_checked: 0,
-            cache_hits: 0,
-            cache_misses: 0,
-            cache_fingerprint: CacheKey::from_bytes(env.config.canonical_string().as_bytes())
-                .to_hex(),
-            diagnostics: external_diags,
-        });
+    if let Some(staged) = staged_filter.as_ref().filter(|s| s.is_empty()) {
+        return empty_staged_report(env, context, staged, &effective_cfg_key);
     }
 
-    let config_hash = CacheKey::from_bytes(env.config.canonical_string().as_bytes());
+    let config_hash = CacheKey::from_bytes(effective_cfg_key.as_bytes());
     let outcomes: Vec<FileOutcome> = all_files
         .par_iter()
         .map(|path| {
@@ -106,6 +120,7 @@ pub fn execute_pipeline(env: &PipelineEnv<'_>) -> Result<CheckReport, EngineErro
                 config_hash,
                 disk_cache: env.disk_cache,
                 bypass_read,
+                sql_dialect_hint,
             };
             load_or_analyze_file(env.root, path, &scan_ctx)
         })
@@ -115,6 +130,7 @@ pub fn execute_pipeline(env: &PipelineEnv<'_>) -> Result<CheckReport, EngineErro
         scope: env.options.scope,
         context,
         config: env.config,
+        effective_cfg_key,
         staged_filter: staged_filter.as_ref(),
     };
     assemble_report(env, inputs, outcomes)
@@ -126,7 +142,7 @@ fn assemble_report(
     outcomes: Vec<FileOutcome>,
 ) -> Result<CheckReport, EngineError> {
     let mut fp_hasher = blake3::Hasher::new();
-    fp_hasher.update(inputs.config.canonical_string().as_bytes());
+    fp_hasher.update(inputs.effective_cfg_key.as_bytes());
 
     let mut cache_hits = 0_usize;
     let mut cache_misses = 0_usize;

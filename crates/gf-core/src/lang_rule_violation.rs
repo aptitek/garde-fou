@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 use crate::format_violations::{TomlViolation, XmlSvgViolation};
 use crate::python_violations::PythonViolation;
 use crate::shell_ps_violations::{PowerShellViolation, ShellViolation};
+use crate::sql_violations::{MigrationViolation, SqlViolation};
 use crate::ts_violations::{ReactViolation, TypescriptViolation};
 use crate::yaml_violations::{ComposeViolation, WorkflowViolation, YamlViolation};
 
@@ -33,41 +34,60 @@ pub enum LangRuleViolation {
     XmlSvg(XmlSvgViolation),
     /// Native TOML 1.0/1.1 & manifest supply-chain violation (`TOML-*`).
     Toml(TomlViolation),
+    /// Native SQL AST & embedded SQL injection violation (`SQL-*`).
+    Sql(SqlViolation),
+    /// Native zero-downtime database migration violation (`MIG-*`).
+    Migration(MigrationViolation),
 }
 
 impl LangRuleViolation {
-    /// Canonical ecosystem rule code (`"PY-..."`, `"TS-..."`, `"SH-..."`, `"YAML-..."`, `"XML-..."`, `"TOML-..."`).
+    const fn infra_data_descriptor(self) -> Option<(&'static str, &'static str)> {
+        match self {
+            Self::Yaml(v) => Some((v.code(), v.remediation())),
+            Self::Compose(v) => Some((v.code(), v.remediation())),
+            Self::Workflow(v) => Some((v.code(), v.remediation())),
+            Self::XmlSvg(v) => Some((v.code(), v.remediation())),
+            Self::Toml(v) => Some((v.code(), v.remediation())),
+            Self::Sql(v) => Some((v.code(), v.remediation())),
+            Self::Migration(v) => Some((v.code(), v.remediation())),
+            Self::Python(_)
+            | Self::TypeScript(_)
+            | Self::React(_)
+            | Self::Shell(_)
+            | Self::PowerShell(_) => None,
+        }
+    }
+
+    const fn descriptor(self) -> (&'static str, &'static str) {
+        if let Some(pair) = self.infra_data_descriptor() {
+            return pair;
+        }
+        match self {
+            Self::Python(v) => (v.code(), v.remediation()),
+            Self::TypeScript(v) => (v.code(), v.remediation()),
+            Self::React(v) => (v.code(), v.remediation()),
+            Self::Shell(v) => (v.code(), v.remediation()),
+            Self::PowerShell(v) => (v.code(), v.remediation()),
+            Self::Yaml(_)
+            | Self::Compose(_)
+            | Self::Workflow(_)
+            | Self::XmlSvg(_)
+            | Self::Toml(_)
+            | Self::Sql(_)
+            | Self::Migration(_) => ("", ""),
+        }
+    }
+
+    /// Canonical ecosystem rule code (`"PY-..."`, `"TS-..."`, `"SH-..."`, `"YAML-..."`, `"SQL-..."`, `"MIG-..."`).
     #[must_use]
     pub const fn code(self) -> &'static str {
-        match self {
-            Self::Python(v) => v.code(),
-            Self::TypeScript(v) => v.code(),
-            Self::React(v) => v.code(),
-            Self::Shell(v) => v.code(),
-            Self::PowerShell(v) => v.code(),
-            Self::Yaml(v) => v.code(),
-            Self::Compose(v) => v.code(),
-            Self::Workflow(v) => v.code(),
-            Self::XmlSvg(v) => v.code(),
-            Self::Toml(v) => v.code(),
-        }
+        self.descriptor().0
     }
 
     /// Actionable root-cause remediation guidance.
     #[must_use]
     pub const fn remediation(self) -> &'static str {
-        match self {
-            Self::Python(v) => v.remediation(),
-            Self::TypeScript(v) => v.remediation(),
-            Self::React(v) => v.remediation(),
-            Self::Shell(v) => v.remediation(),
-            Self::PowerShell(v) => v.remediation(),
-            Self::Yaml(v) => v.remediation(),
-            Self::Compose(v) => v.remediation(),
-            Self::Workflow(v) => v.remediation(),
-            Self::XmlSvg(v) => v.remediation(),
-            Self::Toml(v) => v.remediation(),
-        }
+        self.descriptor().1
     }
 
     /// Returns `true` when exempted inside declared CLI/server `entrypoints`.
@@ -83,7 +103,9 @@ impl LangRuleViolation {
             | Self::Compose(_)
             | Self::Workflow(_)
             | Self::XmlSvg(_)
-            | Self::Toml(_) => false,
+            | Self::Toml(_)
+            | Self::Sql(_)
+            | Self::Migration(_) => false,
         }
     }
 }
@@ -151,5 +173,17 @@ impl From<XmlSvgViolation> for LangRuleViolation {
 impl From<TomlViolation> for LangRuleViolation {
     fn from(v: TomlViolation) -> Self {
         Self::Toml(v)
+    }
+}
+
+impl From<SqlViolation> for LangRuleViolation {
+    fn from(v: SqlViolation) -> Self {
+        Self::Sql(v)
+    }
+}
+
+impl From<MigrationViolation> for LangRuleViolation {
+    fn from(v: MigrationViolation) -> Self {
+        Self::Migration(v)
     }
 }

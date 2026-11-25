@@ -39,9 +39,11 @@ pub enum LanguageId {
     Toml,
     /// `CommonMark`, GFM, and MDX editorial ecosystem (`.md`, `.mdx`).
     Markdown,
+    /// Multi-dialect SQL & zero-downtime database migrations ecosystem (`.sql`).
+    Sql,
 }
 
-const LANG_NAMES: [&str; 10] = [
+const LANG_NAMES: [&str; 11] = [
     "rust",
     "typescript",
     "python",
@@ -52,6 +54,7 @@ const LANG_NAMES: [&str; 10] = [
     "xml",
     "toml",
     "markdown",
+    "sql",
 ];
 const LANGUAGE_ALIASES: &[(&str, LanguageId)] = &[
     ("rust", LanguageId::Rust),
@@ -77,6 +80,9 @@ const LANGUAGE_ALIASES: &[(&str, LanguageId)] = &[
     ("markdown", LanguageId::Markdown),
     ("md", LanguageId::Markdown),
     ("mdx", LanguageId::Markdown),
+    ("sql", LanguageId::Sql),
+    ("postgres", LanguageId::Sql),
+    ("sqlite", LanguageId::Sql),
 ];
 
 impl LanguageId {

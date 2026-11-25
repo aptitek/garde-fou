@@ -37,6 +37,7 @@ const EXT_LANGUAGES: &[(&str, Language)] = &[
     ("xml", Language::Xml),
     ("csproj", Language::Xml),
     ("props", Language::Xml),
+    ("sql", Language::Sql),
 ];
 
 fn is_dockerfile_name(file_name: &str) -> bool {

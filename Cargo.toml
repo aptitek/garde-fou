@@ -33,6 +33,7 @@ roxmltree = { version = "0.21" }
 saphyr-parser = { version = "0.4", default-features = false }
 serde = { version = "1.0", default-features = false, features = ["derive", "alloc"] }
 serde_json = { version = "1.0" }
+sqlparser = { version = "0.64", default-features = false, features = ["std", "visitor"] }
 toml = { version = "0.8", default-features = false, features = ["parse"] }
 toml_edit = { version = "0.22", default-features = false, features = ["parse"] }
 tree-sitter = { version = "0.26" }

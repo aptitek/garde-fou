@@ -5,7 +5,8 @@
 
 use gf_core::{
     CoverageFailUnder, Language, MutantsConfigIssue, PytestCoverageIssue, RepoPath,
-    ToolConfigFinding, ToolConfigViolation, UastDocument, is_tsconfig_filename,
+    ToolConfigFinding, ToolConfigViolation, UastDocument, is_sql_tool_config_file,
+    is_tsconfig_filename,
 };
 
 use super::format_tool_config::{
@@ -15,6 +16,7 @@ use super::format_tool_toml::{audit_rumdl_toml, audit_taplo_toml};
 use super::jsonc::{audit_stryker_json, line_span_containing, push_cfg_violation};
 use super::powershell::psd1_config::audit_psscriptanalyzer_psd1;
 use super::shell_docker_config::{audit_hadolint_yaml, audit_shellcheckrc};
+use super::sql::sql_tool_config::audit_sql_tool_config;
 use super::toml_lang::analyze_toml_into_document;
 use super::tool_config_py::{audit_mypy_table, audit_ruff_tables, section_key_span};
 use super::ts::tsconfig_jsonc::{audit_biome_jsonc, audit_tsconfig_jsonc};
@@ -195,6 +197,10 @@ pub fn extract_tool_config(
 ) -> Result<UastDocument, ParseError> {
     let (total_lines, effective_lines) = line_metrics(source);
     let mut doc = UastDocument::new(path.clone(), lang, total_lines, effective_lines)?;
+    if is_sql_tool_config_file(path) {
+        audit_sql_tool_config(path, source, &mut doc);
+        return Ok(doc);
+    }
     if try_audit_format_or_yaml_config(path, source, &mut doc) {
         return Ok(doc);
     }

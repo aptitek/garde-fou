@@ -4,7 +4,8 @@
 use std::collections::BTreeSet;
 
 use gf_core::{
-    Language, RepoPath, UastDocument, YamlFlavor, classify_yaml_flavor, is_audited_tool_config_file,
+    Language, RepoPath, SqlDialectKind, SqlRole, UastDocument, YamlFlavor, classify_yaml_flavor,
+    is_audited_tool_config_file,
 };
 
 use super::python_runners::ExternalAdapter;
@@ -138,5 +139,45 @@ pub fn push_format_jobs(
         no_extra_cfg,
     ) {
         jobs.push((ExternalAdapter::Xmllint, xml_t));
+    }
+    push_sql_jobs(docs, staged_filter, jobs);
+}
+
+fn is_squawk_cfg(name: &str) -> bool {
+    matches!(
+        name.to_ascii_lowercase().as_str(),
+        ".squawk.toml" | "squawk.toml"
+    )
+}
+
+fn is_sqruff_or_fluff_cfg(name: &str) -> bool {
+    matches!(name.to_ascii_lowercase().as_str(), ".sqruff" | ".sqlfluff")
+}
+
+fn push_sql_jobs(
+    docs: &[UastDocument],
+    staged_filter: Option<&BTreeSet<RepoPath>>,
+    jobs: &mut Vec<(ExternalAdapter, Vec<String>)>,
+) {
+    if let Some(pg_migs) = resolve_matching_doc_targets(
+        docs,
+        staged_filter,
+        |d| {
+            d.sql_doc.as_ref().is_some_and(|s| {
+                s.dialect == SqlDialectKind::Postgres && matches!(s.role, SqlRole::Migration { .. })
+            })
+        },
+        is_squawk_cfg,
+    ) {
+        jobs.push((ExternalAdapter::Squawk, pg_migs));
+    }
+    if let Some(sql_all) = resolve_matching_doc_targets(
+        docs,
+        staged_filter,
+        |d| d.language == Language::Sql,
+        is_sqruff_or_fluff_cfg,
+    ) {
+        jobs.push((ExternalAdapter::Sqruff, sql_all.clone()));
+        jobs.push((ExternalAdapter::Sqlfluff, sql_all));
     }
 }

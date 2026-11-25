@@ -17,6 +17,7 @@ roxmltree = { workspace = true }
 saphyr-parser = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+sqlparser = { workspace = true }
 toml = { workspace = true }
 toml_edit = { workspace = true }
 tree-sitter = { workspace = true }

@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::format_tools::{CssToolsConfig, MarkdownToolsConfig, TomlToolsConfig, XmlToolsConfig};
 use crate::shell_ps_tools::{DockerToolsConfig, PowerShellToolsConfig, ShellToolsConfig};
+use crate::sql_tools::SqlToolsConfig;
 use crate::tool_ingest::{PythonToolsConfig, TypeScriptToolsConfig};
 use crate::yaml_tools::YamlToolsConfig;
 
@@ -43,6 +44,9 @@ pub struct ToolsConfig {
     /// XML/SVG `xmllint` policy (`[tools.xml]`).
     #[serde(default)]
     pub xml: XmlToolsConfig,
+    /// SQL & migration `squawk`, `sqruff`, and `sqlfluff` policies (`[tools.sql]`).
+    #[serde(default)]
+    pub sql: SqlToolsConfig,
 }
 
 impl ToolsConfig {
@@ -60,6 +64,7 @@ impl ToolsConfig {
             markdown: MarkdownToolsConfig::defaults(),
             toml: TomlToolsConfig::defaults(),
             xml: XmlToolsConfig::defaults(),
+            sql: SqlToolsConfig::defaults(),
         }
     }
 
@@ -67,7 +72,7 @@ impl ToolsConfig {
     #[must_use]
     pub fn canonical_fragment(self) -> String {
         format!(
-            "tl({},{},{},{},{},{},{},{},{},{})",
+            "tl({},{},{},{},{},{},{},{},{},{},{})",
             self.python.canonical_fragment(),
             self.typescript.canonical_fragment(),
             self.shell.canonical_fragment(),
@@ -78,6 +83,7 @@ impl ToolsConfig {
             self.markdown.canonical_fragment(),
             self.toml.canonical_fragment(),
             self.xml.canonical_fragment(),
+            self.sql.canonical_fragment(),
         )
     }
 }

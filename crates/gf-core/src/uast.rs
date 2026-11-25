@@ -1,8 +1,6 @@
 //! Unified Abstract Syntax Tree (`UAST`) hub representations (`v9` schema).
 
-use alloc::collections::BTreeSet;
-use alloc::string::String;
-use alloc::vec::Vec;
+use alloc::{collections::BTreeSet, string::String, vec::Vec};
 use serde::{Deserialize, Serialize};
 
 use crate::clean_code::{
@@ -22,6 +20,7 @@ use crate::metrics::{
 use crate::path::RepoPath;
 use crate::policies::ForbiddenRuleKind;
 use crate::python_violations::CoverageFailUnder;
+use crate::sql_violations::SqlDocument;
 use crate::tool_ingest::{LangRuleFinding, ToolConfigFinding};
 
 /// Language-agnostic semantic node categories inside a [`UastDocument`].
@@ -140,6 +139,9 @@ pub struct UastDocument {
     /// Optional `Cargo.toml` workspace dependency summary (`GF080` `TOML-WORKSPACE-BYPASS`).
     #[serde(default)]
     pub toml_manifest: Option<TomlManifestSummary>,
+    /// Optional SQL & database migration summary (`GF080` `MIG-*`).
+    #[serde(default)]
+    pub sql_doc: Option<SqlDocument>,
     /// Root `UAST` node (typically [`UastKind::File`]).
     pub root: UastNode,
 }
@@ -190,6 +192,7 @@ impl UastDocument {
             contenus: None,
             asset: None,
             toml_manifest: None,
+            sql_doc: None,
             root: UastNode::leaf(UastKind::File, root_span),
         })
     }

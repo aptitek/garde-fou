@@ -7,7 +7,7 @@ use serde::Deserialize;
 
 use crate::config_fortress::{
     AgentsSection, BoundarySection, CleanCodeSection, CommitSection, CoverageSection,
-    IntegritySection, MutationSection, TddSection, ToolsSection,
+    IntegritySection, MutationSection, SqlSection, TddSection, ToolsSection,
 };
 use crate::types::EngineError;
 
@@ -57,6 +57,8 @@ pub struct RawManifest {
     pub mutation: Option<MutationSection>,
     #[serde(default)]
     pub rules: Option<RulesSection>,
+    #[serde(default)]
+    pub sql: Option<SqlSection>,
     #[serde(default)]
     paths: Option<PathsSection>,
     #[serde(default)]

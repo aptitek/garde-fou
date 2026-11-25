@@ -15,11 +15,11 @@ pub mod tsconfig_jsonc;
 use gf_core::{
     DomainKind, DomainLayoutConfig, RepoPath, UastDocument, classify_path, is_ts_declaration_path,
 };
-use tree_sitter::Node;
 
 pub use react_classify::is_hook_identifier;
 pub use routing::TsDialect;
 
+use super::sql::embedded_sql::extract_ts_embedded_sql;
 use crate::anti_cheat::populate_cst_fortress;
 use crate::cst::{collect_syntax_errors, line_metrics, parse_with_language};
 use crate::fingerprint::collect_referenced_symbols;
@@ -86,6 +86,9 @@ impl TypeScriptExtractor {
         );
         if !is_dts {
             extract_react_hooks(root, source, &mut doc.lang_rule_findings);
+            if domain == DomainKind::Code {
+                extract_ts_embedded_sql(root, source, &mut doc.lang_rule_findings);
+            }
         }
         if self.dialect.supports_jsx() {
             extract_jsx_semantics(root, source, false, &mut doc);
@@ -104,7 +107,12 @@ impl LanguageExtractor for TypeScriptExtractor {
     }
 }
 
-fn walk_ts_structure(node: Node<'_>, source: &str, is_dts: bool, doc: &mut UastDocument) {
+fn walk_ts_structure(
+    node: tree_sitter::Node<'_>,
+    source: &str,
+    is_dts: bool,
+    doc: &mut UastDocument,
+) {
     match node.kind() {
         "import_statement" => doc.imports.push(extract_ts_import(node, source)),
         "export_statement" => record_ts_export_stmt(node, source, is_dts, doc),

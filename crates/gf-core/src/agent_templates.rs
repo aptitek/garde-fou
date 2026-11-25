@@ -13,7 +13,7 @@ pub const CORE_FRAGMENT: &str = include_str!("../../../content/agent-fragments/c
 /// Six-domain segregation fragment (`GF060`–`GF066`).
 pub const DOMAINS_FRAGMENT: &str = include_str!("../../../content/agent-fragments/domains.md");
 
-const LANGUAGE_FRAGMENTS: [&str; 10] = [
+const LANGUAGE_FRAGMENTS: [&str; 11] = [
     include_str!("../../../content/agent-fragments/lang-rust.md"),
     include_str!("../../../content/agent-fragments/lang-typescript.md"),
     include_str!("../../../content/agent-fragments/lang-python.md"),
@@ -24,6 +24,7 @@ const LANGUAGE_FRAGMENTS: [&str; 10] = [
     include_str!("../../../content/agent-fragments/lang-xml.md"),
     include_str!("../../../content/agent-fragments/lang-toml.md"),
     include_str!("../../../content/agent-fragments/lang-markdown.md"),
+    include_str!("../../../content/agent-fragments/lang-sql.md"),
 ];
 
 const FEATURE_FRAGMENTS: [&str; 9] = [

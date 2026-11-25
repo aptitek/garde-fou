@@ -4,14 +4,14 @@ use std::fs;
 use std::path::Path;
 
 use gf_core::{
-    ArchitectureConfig, Config, CoverageConfig, DomainLayoutConfig, FeatureId,
-    ForbiddenRulesConfig, FrameworkId, LanguageId, LimitsConfig, MutationConfig, ProjectConfig,
-    ScannerPolicy, ScannersConfig,
+    ArchitectureConfig, Config, DomainLayoutConfig, FeatureId, ForbiddenRulesConfig, FrameworkId,
+    LanguageId, LimitsConfig, ProjectConfig, ScannerPolicy, ScannersConfig, SqlConfig,
+    SqlDialectSetting,
 };
 
 use crate::config_fortress::{
-    CoverageSection, MutationSection, merge_agents, merge_boundaries, merge_clean_code,
-    merge_commit, merge_integrity, merge_tdd, merge_tools,
+    SqlSection, merge_agents, merge_boundaries, merge_clean_code, merge_commit, merge_integrity,
+    merge_tdd, merge_tools, parse_coverage_section, parse_mutation_section,
 };
 use crate::config_schema::{
     ArchitectureSection, DomainsSection, LimitsSection, PathsAndCache, ProjectSection, RawManifest,
@@ -82,40 +82,24 @@ fn parse_scanners_section(raw: Option<ScannersSection>) -> Result<ScannersConfig
     })
 }
 
-fn check_pct_bound(field: &str, pct: Option<u32>) -> Result<(), EngineError> {
-    if let Some(val) = pct
-        && val > 100
-    {
-        return Err(EngineError::InvalidConfig(format!(
-            "{field} {val} exceeds 100%"
-        )));
-    }
-    Ok(())
-}
-
-fn parse_coverage_section(raw: Option<CoverageSection>) -> Result<CoverageConfig, EngineError> {
-    let Some(cov) = raw else {
-        return Ok(CoverageConfig::empty());
+fn merge_sql(raw: Option<SqlSection>) -> Result<SqlConfig, EngineError> {
+    let base = SqlConfig::strict_defaults();
+    let Some(s) = raw else {
+        return Ok(base);
     };
-    check_pct_bound("min_line_coverage", cov.min_line_coverage)?;
-    check_pct_bound("min_branch_coverage", cov.min_branch_coverage)?;
-    Ok(CoverageConfig {
-        min_line_coverage: cov.min_line_coverage,
-        min_branch_coverage: cov.min_branch_coverage,
-        max_crap_score: cov.max_crap_score,
-        lcov_path: cov.lcov_path,
-    })
-}
-
-fn parse_mutation_section(raw: Option<MutationSection>) -> Result<MutationConfig, EngineError> {
-    let Some(m) = raw else {
-        return Ok(MutationConfig::empty());
+    let dialect = match s.dialect {
+        None => base.dialect,
+        Some(val) => SqlDialectSetting::from_config_str(&val).ok_or_else(|| {
+            EngineError::InvalidConfig(format!(
+                "invalid `sql.dialect` `{val}` (expected `auto`, `postgres`, `sqlite`, `d1`, `mysql`, `duckdb`, or `generic`)"
+            ))
+        })?,
     };
-    check_pct_bound("min_mutation_score", m.min_mutation_score)?;
-    Ok(MutationConfig {
-        min_mutation_score: m.min_mutation_score,
-        zero_survivor_globs: m.zero_survivor_globs,
-        report_path: m.report_path,
+    Ok(SqlConfig {
+        dialect,
+        allow_destructive_migrations: s
+            .allow_destructive_migrations
+            .unwrap_or(base.allow_destructive_migrations),
     })
 }
 
@@ -192,6 +176,7 @@ fn build_loaded_config(mut raw: RawManifest) -> Result<LoadedWorkspaceConfig, En
         || Ok(ForbiddenRulesConfig::strict_defaults()),
         RulesSection::into_config,
     )?;
+    let sql = merge_sql(raw.sql.take())?;
     let paths_cache: PathsAndCache = raw.into_paths_and_cache()?;
 
     Ok(LoadedWorkspaceConfig {
@@ -211,6 +196,7 @@ fn build_loaded_config(mut raw: RawManifest) -> Result<LoadedWorkspaceConfig, En
             coverage,
             mutation,
             rules,
+            sql,
             ignore_paths: paths_cache.ignore_paths,
             entrypoints: paths_cache.entrypoints,
         },

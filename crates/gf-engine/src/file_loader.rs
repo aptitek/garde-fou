@@ -4,8 +4,8 @@ use std::borrow::Cow;
 use std::fs;
 use std::path::Path;
 
-use gf_core::{Config, Language, RepoPath};
-use gf_parsers::{build_binary_asset_document, detect_language, parse_source_with_domains};
+use gf_core::{Config, Language, RepoPath, SqlDialectKind};
+use gf_parsers::{build_binary_asset_document, detect_language, parse_source_with_context};
 use gf_rules::evaluate_document;
 
 use crate::cache::{CacheKey, CachedFileArtifact, DiskCache};
@@ -17,6 +17,7 @@ pub struct FileScanCtx<'a> {
     pub config_hash: CacheKey,
     pub disk_cache: Option<&'a DiskCache>,
     pub bypass_read: bool,
+    pub sql_dialect_hint: Option<SqlDialectKind>,
 }
 
 /// Analyzed or `v6`-cached single-file outcome.
@@ -66,7 +67,15 @@ fn load_binary_asset_outcome(
     })
 }
 
-/// Loads `repo_path` from the `v6` cache or parses + evaluates it, persisting to disk on miss.
+fn normalize_lf(raw_source: &str) -> Cow<'_, str> {
+    if raw_source.contains('\r') {
+        Cow::Owned(raw_source.replace("\r\n", "\n").replace('\r', "\n"))
+    } else {
+        Cow::Borrowed(raw_source)
+    }
+}
+
+/// Loads `repo_path` from the `v12` cache or parses + evaluates it, persisting to disk on miss.
 pub fn load_or_analyze_file(
     root: &Path,
     repo_path: &RepoPath,
@@ -76,11 +85,7 @@ pub fn load_or_analyze_file(
         return load_binary_asset_outcome(root, repo_path, ctx);
     }
     let raw_source = fs::read_to_string(root.join(repo_path.as_str()))?;
-    let source: Cow<'_, str> = if raw_source.contains('\r') {
-        Cow::Owned(raw_source.replace("\r\n", "\n").replace('\r', "\n"))
-    } else {
-        Cow::Borrowed(raw_source.as_str())
-    };
+    let source = normalize_lf(&raw_source);
     let content_hash = CacheKey::from_bytes(source.as_bytes());
     let file_key = CacheKey::for_file(
         env!("CARGO_PKG_VERSION"),
@@ -98,7 +103,12 @@ pub fn load_or_analyze_file(
             artifact,
         });
     }
-    let document = parse_source_with_domains(repo_path, &source, &ctx.config.domains)?;
+    let document = parse_source_with_context(
+        repo_path,
+        &source,
+        &ctx.config.domains,
+        ctx.sql_dialect_hint,
+    )?;
     let local_diagnostics = evaluate_document(&document, ctx.config);
     let artifact = CachedFileArtifact {
         document,

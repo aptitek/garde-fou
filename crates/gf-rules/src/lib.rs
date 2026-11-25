@@ -25,6 +25,7 @@ mod kiss_yagni_checks;
 mod mutation_checks;
 mod rust_import_resolver;
 mod security_checks;
+mod sql_workspace_checks;
 mod tarjan;
 mod tdd_checks;
 mod tdd_parity;
@@ -47,6 +48,7 @@ use {
     i18n_checks::check_workspace_i18n,
     kiss_yagni_checks::{check_local_kiss_yagni_and_bypass, check_single_impl_contracts},
     security_checks::check_native_secrets,
+    sql_workspace_checks::{check_local_sql_destructive_ddl, check_workspace_sql_migrations},
     tarjan::check_dependency_cycles,
     tdd_checks::check_local_test_assertions,
     tdd_parity::check_workspace_tdd,
@@ -85,6 +87,7 @@ fn check_local_domains_and_fortress(
         check_local_kiss_yagni_and_bypass(doc, config),
         check_local_test_assertions(doc, config),
         check_local_tool_and_lang_rules(doc, config),
+        check_local_sql_destructive_ddl(doc, config),
     ])
 }
 
@@ -136,6 +139,7 @@ pub fn evaluate_workspace(
         check_workspace_tdd(docs, ctx, config),
         check_workspace_tsconfigs(docs),
         check_workspace_formats(docs),
+        check_workspace_sql_migrations(docs),
         check_architecture_purity(docs, config),
     ])
 }

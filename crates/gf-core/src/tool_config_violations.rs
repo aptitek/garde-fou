@@ -7,6 +7,7 @@ use crate::format_tools::FormatConfigIssue;
 use crate::language_meta::ExternalToolKind;
 pub use crate::mutation_config_issues::{MutantsConfigIssue, StrykerConfigIssue};
 use crate::shell_ps_tools::ShellInfraConfigIssue;
+use crate::sql_tools::SqlToolConfigIssue;
 use crate::yaml_tools::YamlCiConfigIssue;
 
 /// Specific `[tool.mypy]` configuration weakening (`GF081`).
@@ -159,58 +160,64 @@ pub enum ToolConfigViolation {
     YamlCi(YamlCiConfigIssue),
     /// `.stylelintrc*`, `.markdownlint*`/`rumdl.toml`, `taplo.toml`, or `svgo.config.*` weakened.
     Formats(FormatConfigIssue),
+    /// `.squawk.toml`, `.sqruff`, `.sqlfluff`, or `drizzle.config.*` weakened.
+    Sql(SqlToolConfigIssue),
 }
 
 impl ToolConfigViolation {
+    const fn domain_descriptor(self) -> Option<(ExternalToolKind, &'static str, &'static str)> {
+        match self {
+            Self::ShellInfra(k) => Some((k.tool(), k.key(), k.remediation())),
+            Self::YamlCi(k) => Some((k.tool(), k.key(), k.remediation())),
+            Self::Formats(k) => Some((k.tool(), k.key(), k.remediation())),
+            Self::Sql(k) => Some((k.tool(), k.key(), k.remediation())),
+            Self::MypyNotStrict(_)
+            | Self::RuffWeakened(_)
+            | Self::PytestOrCoverageWeakened(_)
+            | Self::TsconfigNotStrict(_)
+            | Self::MutantsScopeWeakened(_)
+            | Self::StrykerWeakened(_)
+            | Self::BiomeLinterDisabled => None,
+        }
+    }
+
+    const fn descriptor(self) -> (ExternalToolKind, &'static str, &'static str) {
+        if let Some(triple) = self.domain_descriptor() {
+            return triple;
+        }
+        match self {
+            Self::MypyNotStrict(k) => (ExternalToolKind::Mypy, k.key(), REM_CFG_MYPY),
+            Self::RuffWeakened(k) => (ExternalToolKind::Ruff, k.key(), k.remediation()),
+            Self::PytestOrCoverageWeakened(k) => (k.tool(), k.key(), k.remediation()),
+            Self::TsconfigNotStrict(k) => (ExternalToolKind::Tsc, k.key(), REM_CFG_TSCONFIG),
+            Self::MutantsScopeWeakened(k) => {
+                (ExternalToolKind::CargoMutants, k.key(), REM_CFG_MUTANTS)
+            }
+            Self::StrykerWeakened(k) => (ExternalToolKind::Stryker, k.key(), REM_CFG_STRYKER),
+            Self::BiomeLinterDisabled
+            | Self::ShellInfra(_)
+            | Self::YamlCi(_)
+            | Self::Formats(_)
+            | Self::Sql(_) => (ExternalToolKind::Biome, "linter.enabled", REM_CFG_BIOME),
+        }
+    }
+
     /// Ecosystem tool affected by this configuration violation.
     #[must_use]
     pub const fn tool(self) -> ExternalToolKind {
-        match self {
-            Self::MypyNotStrict(_) => ExternalToolKind::Mypy,
-            Self::RuffWeakened(_) => ExternalToolKind::Ruff,
-            Self::PytestOrCoverageWeakened(k) => k.tool(),
-            Self::TsconfigNotStrict(_) => ExternalToolKind::Tsc,
-            Self::MutantsScopeWeakened(_) => ExternalToolKind::CargoMutants,
-            Self::StrykerWeakened(_) => ExternalToolKind::Stryker,
-            Self::BiomeLinterDisabled => ExternalToolKind::Biome,
-            Self::ShellInfra(k) => k.tool(),
-            Self::YamlCi(k) => k.tool(),
-            Self::Formats(k) => k.tool(),
-        }
+        self.descriptor().0
     }
 
     /// Canonical dotted key path inside the configuration file.
     #[must_use]
     pub const fn key(self) -> &'static str {
-        match self {
-            Self::MypyNotStrict(k) => k.key(),
-            Self::RuffWeakened(k) => k.key(),
-            Self::PytestOrCoverageWeakened(k) => k.key(),
-            Self::TsconfigNotStrict(k) => k.key(),
-            Self::MutantsScopeWeakened(k) => k.key(),
-            Self::StrykerWeakened(k) => k.key(),
-            Self::BiomeLinterDisabled => "linter.enabled",
-            Self::ShellInfra(k) => k.key(),
-            Self::YamlCi(k) => k.key(),
-            Self::Formats(k) => k.key(),
-        }
+        self.descriptor().1
     }
 
     /// Actionable root-cause remediation snippet.
     #[must_use]
     pub const fn remediation(self) -> &'static str {
-        match self {
-            Self::MypyNotStrict(_) => REM_CFG_MYPY,
-            Self::RuffWeakened(k) => k.remediation(),
-            Self::PytestOrCoverageWeakened(k) => k.remediation(),
-            Self::TsconfigNotStrict(_) => REM_CFG_TSCONFIG,
-            Self::MutantsScopeWeakened(_) => REM_CFG_MUTANTS,
-            Self::StrykerWeakened(_) => REM_CFG_STRYKER,
-            Self::BiomeLinterDisabled => REM_CFG_BIOME,
-            Self::ShellInfra(k) => k.remediation(),
-            Self::YamlCi(k) => k.remediation(),
-            Self::Formats(k) => k.remediation(),
-        }
+        self.descriptor().2
     }
 }
 

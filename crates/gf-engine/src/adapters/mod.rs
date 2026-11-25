@@ -17,8 +17,9 @@ pub use gf_parsers::{
     ToolParseError, parse_actionlint_json, parse_biome_json, parse_dclint_json,
     parse_hadolint_json, parse_mypy_ndjson, parse_oxlint_json, parse_psscriptanalyzer_json,
     parse_pyright_json, parse_ruff_json, parse_rumdl_or_markdownlint_json, parse_shellcheck_json,
-    parse_stylelint_json, parse_taplo_output, parse_tsc_output, parse_xmllint_output,
-    parse_yamllint_parsable, parse_zizmor_sarif,
+    parse_sqlfluff_json, parse_sqruff_json, parse_squawk_json, parse_stylelint_json,
+    parse_taplo_output, parse_tsc_output, parse_xmllint_output, parse_yamllint_parsable,
+    parse_zizmor_sarif,
 };
 use gf_rules::convert_external_tool_findings;
 use rayon::prelude::*;

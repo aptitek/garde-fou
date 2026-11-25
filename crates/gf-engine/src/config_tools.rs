@@ -1,10 +1,10 @@
 //! Strict `serde` TOML `[tools]` (`python`, `typescript`, `shell`, `powershell`, `docker`,
-//! `yaml`, `css`, `markdown`, `toml`, `xml`) parser.
+//! `yaml`, `css`, `markdown`, `toml`, `xml`, `sql`) parser.
 
 use gf_core::{
     CssToolsConfig, DockerToolsConfig, MarkdownToolsConfig, PowerShellToolsConfig,
-    PythonToolsConfig, ScannerPolicy, ShellToolsConfig, TomlToolsConfig, ToolsConfig,
-    TypeScriptToolsConfig, XmlToolsConfig, YamlToolsConfig,
+    PythonToolsConfig, ScannerPolicy, ShellToolsConfig, SqlToolsConfig, TomlToolsConfig,
+    ToolsConfig, TypeScriptToolsConfig, XmlToolsConfig, YamlToolsConfig,
 };
 use serde::Deserialize;
 
@@ -80,6 +80,14 @@ struct XmlToolsSection {
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
+struct SqlToolsSection {
+    squawk: Option<String>,
+    sqruff: Option<String>,
+    sqlfluff: Option<String>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ToolsSection {
     python: Option<PythonToolsSection>,
     typescript: Option<TypeScriptToolsSection>,
@@ -91,6 +99,7 @@ pub struct ToolsSection {
     markdown: Option<MarkdownToolsSection>,
     toml: Option<TomlToolsSection>,
     xml: Option<XmlToolsSection>,
+    sql: Option<SqlToolsSection>,
 }
 
 fn parse_opt_tool_policy(
@@ -111,9 +120,7 @@ fn merge_py_tools(
     raw: Option<PythonToolsSection>,
     base: PythonToolsConfig,
 ) -> Result<PythonToolsConfig, EngineError> {
-    let Some(py) = raw else {
-        return Ok(base);
-    };
+    let Some(py) = raw else { return Ok(base) };
     Ok(PythonToolsConfig {
         ruff: parse_opt_tool_policy(py.ruff, base.ruff, "tools.python.ruff")?,
         mypy: parse_opt_tool_policy(py.mypy, base.mypy, "tools.python.mypy")?,
@@ -125,9 +132,7 @@ fn merge_ts_tools(
     raw: Option<TypeScriptToolsSection>,
     base: TypeScriptToolsConfig,
 ) -> Result<TypeScriptToolsConfig, EngineError> {
-    let Some(ts) = raw else {
-        return Ok(base);
-    };
+    let Some(ts) = raw else { return Ok(base) };
     Ok(TypeScriptToolsConfig {
         oxlint: parse_opt_tool_policy(ts.oxlint, base.oxlint, "tools.typescript.oxlint")?,
         biome: parse_opt_tool_policy(ts.biome, base.biome, "tools.typescript.biome")?,
@@ -139,9 +144,7 @@ fn merge_yaml_tools(
     raw: Option<YamlToolsSection>,
     base: YamlToolsConfig,
 ) -> Result<YamlToolsConfig, EngineError> {
-    let Some(yml) = raw else {
-        return Ok(base);
-    };
+    let Some(yml) = raw else { return Ok(base) };
     Ok(YamlToolsConfig {
         yamllint: parse_opt_tool_policy(yml.yamllint, base.yamllint, "tools.yaml.yamllint")?,
         dclint: parse_opt_tool_policy(yml.dclint, base.dclint, "tools.yaml.dclint")?,
@@ -158,9 +161,7 @@ fn merge_md_tools(
     raw: Option<MarkdownToolsSection>,
     base: MarkdownToolsConfig,
 ) -> Result<MarkdownToolsConfig, EngineError> {
-    let Some(md) = raw else {
-        return Ok(base);
-    };
+    let Some(md) = raw else { return Ok(base) };
     Ok(MarkdownToolsConfig {
         rumdl: parse_opt_tool_policy(md.rumdl, base.rumdl, "tools.markdown.rumdl")?,
         markdownlint: parse_opt_tool_policy(
@@ -171,11 +172,21 @@ fn merge_md_tools(
     })
 }
 
+fn merge_sql_tools(
+    raw: Option<SqlToolsSection>,
+    base: SqlToolsConfig,
+) -> Result<SqlToolsConfig, EngineError> {
+    let Some(sq) = raw else { return Ok(base) };
+    Ok(SqlToolsConfig {
+        squawk: parse_opt_tool_policy(sq.squawk, base.squawk, "tools.sql.squawk")?,
+        sqruff: parse_opt_tool_policy(sq.sqruff, base.sqruff, "tools.sql.sqruff")?,
+        sqlfluff: parse_opt_tool_policy(sq.sqlfluff, base.sqlfluff, "tools.sql.sqlfluff")?,
+    })
+}
+
 pub fn merge_tools(raw: Option<ToolsSection>) -> Result<ToolsConfig, EngineError> {
     let base = ToolsConfig::defaults();
-    let Some(s) = raw else {
-        return Ok(base);
-    };
+    let Some(s) = raw else { return Ok(base) };
     let sh = parse_opt_tool_policy(
         s.shell.and_then(|x| x.shellcheck),
         base.shell.shellcheck,
@@ -219,5 +230,6 @@ pub fn merge_tools(raw: Option<ToolsSection>) -> Result<ToolsConfig, EngineError
         markdown: merge_md_tools(s.markdown, base.markdown)?,
         toml: TomlToolsConfig { taplo: tm },
         xml: XmlToolsConfig { xmllint: xm },
+        sql: merge_sql_tools(s.sql, base.sql)?,
     })
 }

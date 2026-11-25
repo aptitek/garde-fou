@@ -223,6 +223,7 @@ pub fn is_audited_tool_config_file(path: &RepoPath) -> bool {
     is_tsconfig_filename(name)
         || crate::yaml_tools::is_yaml_tool_config_file(path)
         || crate::format_tools::is_format_tool_config_file(path)
+        || crate::sql_tools::is_sql_tool_config_file(path)
         || name.eq_ignore_ascii_case("psscriptanalyzersettings.psd1")
         || matches!(
             name,
