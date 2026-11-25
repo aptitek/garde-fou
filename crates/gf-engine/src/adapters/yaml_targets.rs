@@ -1,5 +1,5 @@
-//! Zero-cost `--staged` target resolution for YAML, Docker Compose, and GitHub Actions
-//! Tier 3 external verifiers (`yamllint`, `dclint`, `actionlint`, `zizmor`).
+//! Zero-cost `--staged` target resolution for YAML, Docker Compose, GitHub Actions,
+//! CSS, Markdown, TOML, and XML/SVG Tier 3 external verifiers.
 
 use std::collections::BTreeSet;
 
@@ -8,6 +8,7 @@ use gf_core::{
 };
 
 use super::python_runners::ExternalAdapter;
+use super::tool_resolvers::resolve_matching_doc_targets;
 
 fn is_yamllint_cfg(name: &str) -> bool {
     matches!(
@@ -22,41 +23,6 @@ fn is_dclint_cfg(name: &str) -> bool {
 
 fn is_zizmor_cfg(name: &str) -> bool {
     name.eq_ignore_ascii_case("zizmor.yml")
-}
-
-fn resolve_filtered_yaml_docs(
-    docs: &[UastDocument],
-    staged_filter: Option<&BTreeSet<RepoPath>>,
-    doc_pred: fn(&RepoPath) -> bool,
-    cfg_pred: fn(&str) -> bool,
-) -> Option<Vec<String>> {
-    let all_matching: Vec<String> = docs
-        .iter()
-        .filter(|d| {
-            d.language == Language::Yaml
-                && !is_audited_tool_config_file(&d.path)
-                && doc_pred(&d.path)
-        })
-        .map(|d| String::from(d.path.as_str()))
-        .collect();
-    if all_matching.is_empty() {
-        return None;
-    }
-    let Some(staged) = staged_filter else {
-        return Some(all_matching);
-    };
-    if staged.iter().any(|p| cfg_pred(p.file_name())) {
-        return Some(all_matching);
-    }
-    let staged_matching: Vec<String> = all_matching
-        .into_iter()
-        .filter(|p| RepoPath::new(p).is_ok_and(|rp| staged.contains(&rp)))
-        .collect();
-    (!staged_matching.is_empty()).then_some(staged_matching)
-}
-
-const fn is_any_yaml(_path: &RepoPath) -> bool {
-    true
 }
 
 fn is_compose_yaml(path: &RepoPath) -> bool {
@@ -78,30 +44,99 @@ const fn no_extra_cfg(_name: &str) -> bool {
     false
 }
 
+fn resolve_yaml_subset(
+    docs: &[UastDocument],
+    staged_filter: Option<&BTreeSet<RepoPath>>,
+    path_pred: fn(&RepoPath) -> bool,
+    cfg_pred: fn(&str) -> bool,
+) -> Option<Vec<String>> {
+    resolve_matching_doc_targets(
+        docs,
+        staged_filter,
+        |d| {
+            d.language == Language::Yaml
+                && !is_audited_tool_config_file(&d.path)
+                && path_pred(&d.path)
+        },
+        cfg_pred,
+    )
+}
+
 /// Appends active `yamllint`, `dclint`, `actionlint`, and `zizmor` jobs (with `0 ms` `--staged` skip).
 pub fn push_yaml_compose_ci_jobs(
     docs: &[UastDocument],
     staged_filter: Option<&BTreeSet<RepoPath>>,
     jobs: &mut Vec<(ExternalAdapter, Vec<String>)>,
 ) {
-    if let Some(yl_targets) =
-        resolve_filtered_yaml_docs(docs, staged_filter, is_any_yaml, is_yamllint_cfg)
-    {
-        jobs.push((ExternalAdapter::Yamllint, yl_targets));
+    if let Some(yl) = resolve_yaml_subset(docs, staged_filter, |_| true, is_yamllint_cfg) {
+        jobs.push((ExternalAdapter::Yamllint, yl));
     }
-    if let Some(dc_targets) =
-        resolve_filtered_yaml_docs(docs, staged_filter, is_compose_yaml, is_dclint_cfg)
-    {
-        jobs.push((ExternalAdapter::Dclint, dc_targets));
+    if let Some(dc) = resolve_yaml_subset(docs, staged_filter, is_compose_yaml, is_dclint_cfg) {
+        jobs.push((ExternalAdapter::Dclint, dc));
     }
-    if let Some(al_targets) =
-        resolve_filtered_yaml_docs(docs, staged_filter, is_workflow_action_file, no_extra_cfg)
+    if let Some(al) =
+        resolve_yaml_subset(docs, staged_filter, is_workflow_action_file, no_extra_cfg)
     {
-        jobs.push((ExternalAdapter::Actionlint, al_targets));
+        jobs.push((ExternalAdapter::Actionlint, al));
     }
-    if let Some(zz_targets) =
-        resolve_filtered_yaml_docs(docs, staged_filter, is_gha_yaml, is_zizmor_cfg)
-    {
-        jobs.push((ExternalAdapter::Zizmor, zz_targets));
+    if let Some(zz) = resolve_yaml_subset(docs, staged_filter, is_gha_yaml, is_zizmor_cfg) {
+        jobs.push((ExternalAdapter::Zizmor, zz));
+    }
+}
+
+fn is_stylelint_cfg(name: &str) -> bool {
+    name.to_ascii_lowercase().starts_with(".stylelintrc")
+}
+
+fn is_md_cfg(name: &str) -> bool {
+    let low = name.to_ascii_lowercase();
+    low.starts_with(".markdownlint.") || matches!(low.as_str(), "rumdl.toml" | ".rumdl.toml")
+}
+
+fn is_taplo_cfg(name: &str) -> bool {
+    matches!(
+        name.to_ascii_lowercase().as_str(),
+        "taplo.toml" | ".taplo.toml"
+    )
+}
+
+/// Appends active CSS, Markdown, TOML, and XML/SVG Tier 3 jobs (with `0 ms` `--staged` skip).
+pub fn push_format_jobs(
+    docs: &[UastDocument],
+    staged_filter: Option<&BTreeSet<RepoPath>>,
+    jobs: &mut Vec<(ExternalAdapter, Vec<String>)>,
+) {
+    if let Some(css_t) = resolve_matching_doc_targets(
+        docs,
+        staged_filter,
+        |d| d.language == Language::Css,
+        is_stylelint_cfg,
+    ) {
+        jobs.push((ExternalAdapter::Stylelint, css_t));
+    }
+    if let Some(md_t) = resolve_matching_doc_targets(
+        docs,
+        staged_filter,
+        |d| d.language == Language::Markdown,
+        is_md_cfg,
+    ) {
+        jobs.push((ExternalAdapter::Rumdl, md_t.clone()));
+        jobs.push((ExternalAdapter::Markdownlint, md_t));
+    }
+    if let Some(tm_t) = resolve_matching_doc_targets(
+        docs,
+        staged_filter,
+        |d| d.language == Language::Toml,
+        is_taplo_cfg,
+    ) {
+        jobs.push((ExternalAdapter::Taplo, tm_t));
+    }
+    if let Some(xml_t) = resolve_matching_doc_targets(
+        docs,
+        staged_filter,
+        |d| matches!(d.language, Language::Xml | Language::Svg),
+        no_extra_cfg,
+    ) {
+        jobs.push((ExternalAdapter::Xmllint, xml_t));
     }
 }

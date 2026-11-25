@@ -13,52 +13,54 @@ pub const CORE_FRAGMENT: &str = include_str!("../../../content/agent-fragments/c
 /// Six-domain segregation fragment (`GF060`–`GF066`).
 pub const DOMAINS_FRAGMENT: &str = include_str!("../../../content/agent-fragments/domains.md");
 
+const LANGUAGE_FRAGMENTS: [&str; 10] = [
+    include_str!("../../../content/agent-fragments/lang-rust.md"),
+    include_str!("../../../content/agent-fragments/lang-typescript.md"),
+    include_str!("../../../content/agent-fragments/lang-python.md"),
+    include_str!("../../../content/agent-fragments/lang-shell.md"),
+    include_str!("../../../content/agent-fragments/lang-powershell.md"),
+    include_str!("../../../content/agent-fragments/lang-yaml.md"),
+    include_str!("../../../content/agent-fragments/lang-css.md"),
+    include_str!("../../../content/agent-fragments/lang-xml.md"),
+    include_str!("../../../content/agent-fragments/lang-toml.md"),
+    include_str!("../../../content/agent-fragments/lang-markdown.md"),
+];
+
+const FEATURE_FRAGMENTS: [&str; 9] = [
+    include_str!("../../../content/agent-fragments/feat-docker.md"),
+    include_str!("../../../content/agent-fragments/feat-git-hooks.md"),
+    include_str!("../../../content/agent-fragments/feat-ci-github.md"),
+    include_str!("../../../content/agent-fragments/feat-task-runner.md"),
+    include_str!("../../../content/agent-fragments/feat-ui.md"),
+    include_str!("../../../content/agent-fragments/feat-i18n.md"),
+    include_str!("../../../content/agent-fragments/feat-content.md"),
+    include_str!("../../../content/agent-fragments/feat-tdd.md"),
+    include_str!("../../../content/agent-fragments/feat-storybook.md"),
+];
+
+const FRAMEWORK_FRAGMENTS: [&str; 6] = [
+    include_str!("../../../content/agent-fragments/fw-cargo-workspace.md"),
+    include_str!("../../../content/agent-fragments/fw-react.md"),
+    include_str!("../../../content/agent-fragments/fw-astro.md"),
+    include_str!("../../../content/agent-fragments/fw-nextjs.md"),
+    include_str!("../../../content/agent-fragments/fw-fastapi.md"),
+    include_str!("../../../content/agent-fragments/fw-django.md"),
+];
+
 /// Returns the embedded Markdown fragment for `lang`.
 #[must_use]
 pub const fn language_fragment(lang: LanguageId) -> &'static str {
-    match lang {
-        LanguageId::Rust => include_str!("../../../content/agent-fragments/lang-rust.md"),
-        LanguageId::TypeScript => {
-            include_str!("../../../content/agent-fragments/lang-typescript.md")
-        }
-        LanguageId::Python => include_str!("../../../content/agent-fragments/lang-python.md"),
-        LanguageId::Shell => include_str!("../../../content/agent-fragments/lang-shell.md"),
-        LanguageId::PowerShell => {
-            include_str!("../../../content/agent-fragments/lang-powershell.md")
-        }
-        LanguageId::Yaml => include_str!("../../../content/agent-fragments/lang-yaml.md"),
-    }
+    LANGUAGE_FRAGMENTS[lang as usize]
 }
 
 /// Returns the embedded Markdown fragment for `feat`.
 #[must_use]
 pub const fn feature_fragment(feat: FeatureId) -> &'static str {
-    match feat {
-        FeatureId::Docker => include_str!("../../../content/agent-fragments/feat-docker.md"),
-        FeatureId::GitHooks => include_str!("../../../content/agent-fragments/feat-git-hooks.md"),
-        FeatureId::CiGithub => include_str!("../../../content/agent-fragments/feat-ci-github.md"),
-        FeatureId::TaskRunner => {
-            include_str!("../../../content/agent-fragments/feat-task-runner.md")
-        }
-        FeatureId::Ui => include_str!("../../../content/agent-fragments/feat-ui.md"),
-        FeatureId::I18n => include_str!("../../../content/agent-fragments/feat-i18n.md"),
-        FeatureId::Content => include_str!("../../../content/agent-fragments/feat-content.md"),
-        FeatureId::Tdd => include_str!("../../../content/agent-fragments/feat-tdd.md"),
-        FeatureId::Storybook => include_str!("../../../content/agent-fragments/feat-storybook.md"),
-    }
+    FEATURE_FRAGMENTS[feat as usize]
 }
 
 /// Returns the embedded Markdown fragment for `fw`.
 #[must_use]
 pub const fn framework_fragment(fw: FrameworkId) -> &'static str {
-    match fw {
-        FrameworkId::CargoWorkspace => {
-            include_str!("../../../content/agent-fragments/fw-cargo-workspace.md")
-        }
-        FrameworkId::React => include_str!("../../../content/agent-fragments/fw-react.md"),
-        FrameworkId::Astro => include_str!("../../../content/agent-fragments/fw-astro.md"),
-        FrameworkId::NextJs => include_str!("../../../content/agent-fragments/fw-nextjs.md"),
-        FrameworkId::FastApi => include_str!("../../../content/agent-fragments/fw-fastapi.md"),
-        FrameworkId::Django => include_str!("../../../content/agent-fragments/fw-django.md"),
-    }
+    FRAMEWORK_FRAGMENTS[fw as usize]
 }

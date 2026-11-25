@@ -148,7 +148,7 @@ fn language_ids_tools_config_and_docker_active_shell_invariants() {
 
     let mut cfg = Config::strict_defaults();
     let base_canon = cfg.canonical_string();
-    assert!(base_canon.starts_with("v14|"));
+    assert!(base_canon.starts_with("v15|"));
     cfg.tools.shell.shellcheck = ScannerPolicy::Required;
     let c1 = cfg.canonical_string();
     assert_ne!(base_canon, c1);

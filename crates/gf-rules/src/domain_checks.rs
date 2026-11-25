@@ -12,6 +12,7 @@ use gf_core::{
 };
 
 use crate::checks::{SourceLoc, rule_error as domain_diag};
+use crate::format_workspace_checks::emit_svg_hazards;
 
 fn check_code_style_and_ui(doc: &UastDocument, domain: DomainKind, out: &mut Vec<Diagnostic>) {
     if doc.language == Language::Css && domain != DomainKind::Forme {
@@ -64,6 +65,48 @@ fn check_code_style_and_ui(doc: &UastDocument, domain: DomainKind, out: &mut Vec
     }
 }
 
+fn emit_forme_finding(
+    finding: &gf_core::FormeFinding,
+    is_token_file: bool,
+    loc: SourceLoc<'_>,
+) -> Option<Diagnostic> {
+    match finding.kind {
+        FormeFindingKind::RawColor
+        | FormeFindingKind::RawPxUnit
+        | FormeFindingKind::ImportantOverride
+            if !is_token_file =>
+        {
+            Some(domain_diag(
+                "GF061",
+                format!("design-token violation in `Forme`: {}", finding.detail),
+                "Define primitive colors and sizes exclusively inside `tokens/` (`forme_token_globs`) and consume `var(--token)` in stylesheets without `!important`.",
+                loc,
+            ))
+        }
+        FormeFindingKind::TranslatedContentText => Some(domain_diag(
+            "GF061",
+            format!("`Texte` leak in `Forme`: {}", finding.detail),
+            "Never embed human-readable strings in CSS `content:`; render localized strings via `Texte` dictionaries.",
+            loc,
+        )),
+        FormeFindingKind::DataUri => Some(domain_diag(
+            "GF061",
+            format!("`Asset` leak in `Forme`: {}", finding.detail),
+            "Move embedded `url(data:...)` payloads to dedicated files in `assets/` (`asset_globs`).",
+            loc,
+        )),
+        FormeFindingKind::CssSpec(v) if !(is_token_file && v.allowed_in_token_file()) => {
+            Some(domain_diag(
+                "GF061",
+                format!("[{}] {}", v.code(), finding.detail),
+                v.remediation(),
+                loc,
+            ))
+        }
+        _ => None,
+    }
+}
+
 fn check_forme_tokens(
     doc: &UastDocument,
     domain: DomainKind,
@@ -78,34 +121,36 @@ fn check_forme_tokens(
     };
     let is_token_file = is_forme_token_path(&doc.path, &config.domains);
     for finding in &forme.findings {
-        let loc = SourceLoc::new(&doc.path, finding.span);
-        match finding.kind {
-            FormeFindingKind::RawColor
-            | FormeFindingKind::RawPxUnit
-            | FormeFindingKind::ImportantOverride
-                if !is_token_file =>
-            {
-                out.push(domain_diag(
-                    "GF061",
-                    format!("design-token violation in `Forme`: {}", finding.detail),
-                    "Define primitive colors and sizes exclusively inside `tokens/` (`forme_token_globs`) and consume `var(--token)` in stylesheets without `!important`.",
-                    loc,
-                ));
-            }
-            FormeFindingKind::TranslatedContentText => out.push(domain_diag(
-                "GF061",
-                format!("`Texte` leak in `Forme`: {}", finding.detail),
-                "Never embed human-readable strings in CSS `content:`; render localized strings via `Texte` dictionaries.",
-                loc,
-            )),
-            FormeFindingKind::DataUri => out.push(domain_diag(
-                "GF061",
-                format!("`Asset` leak in `Forme`: {}", finding.detail),
-                "Move embedded `url(data:...)` payloads to dedicated files in `assets/` (`asset_globs`).",
-                loc,
-            )),
-            _ => {}
+        if let Some(d) = emit_forme_finding(
+            finding,
+            is_token_file,
+            SourceLoc::new(&doc.path, finding.span),
+        ) {
+            out.push(d);
         }
+    }
+}
+
+fn emit_contenus_issue(iss: &gf_core::ContenusIssue, loc: SourceLoc<'_>) -> Diagnostic {
+    match iss.kind {
+        ContenusIssueKind::DataUri => domain_diag(
+            "GF064",
+            format!("`Asset` leak in `Contenus`: {}", iss.detail),
+            "Store images under `assets/` and link them by relative path instead of `data:` URIs.",
+            loc,
+        ),
+        ContenusIssueKind::MarkdownSpec(v) => domain_diag(
+            "GF063",
+            format!("[{}] {}", v.code(), iss.detail),
+            v.remediation(),
+            loc,
+        ),
+        _ => domain_diag(
+            "GF063",
+            format!("impure `Contenus` Markdown: {}", iss.detail),
+            "Keep Markdown/MDX strictly editorial: no raw HTML outside code blocks, no hooks/exports/CSS imports, sequential heading levels, and non-empty image `alt`.",
+            loc,
+        ),
     }
 }
 
@@ -135,24 +180,11 @@ fn check_contenus_and_local_texte(
             SourceLoc::new(&doc.path, Span::FIRST),
         ));
     }
-    let Some(contenus) = &doc.contenus else {
-        return;
-    };
-    for iss in &contenus.issues {
-        let loc = SourceLoc::new(&doc.path, iss.span);
-        if iss.kind == ContenusIssueKind::DataUri {
-            out.push(domain_diag(
-                "GF064",
-                format!("`Asset` leak in `Contenus`: {}", iss.detail),
-                "Store images under `assets/` and link them by relative path instead of `data:` URIs.",
-                loc,
-            ));
-        } else {
-            out.push(domain_diag(
-                "GF063",
-                format!("impure `Contenus` Markdown: {}", iss.detail),
-                "Keep Markdown/MDX strictly editorial: no raw HTML outside code blocks, no hooks/exports/CSS imports, sequential heading levels, and non-empty image `alt`.",
-                loc,
+    if let Some(contenus) = &doc.contenus {
+        for iss in &contenus.issues {
+            out.push(emit_contenus_issue(
+                iss,
+                SourceLoc::new(&doc.path, iss.span),
             ));
         }
     }
@@ -196,14 +228,7 @@ fn check_local_asset(
             span: Span::FIRST,
         });
     }
-    for haz in &asset.hazards {
-        out.push(domain_diag(
-            "GF064",
-            format!("unsafe SVG asset `{}`: {}", doc.path, haz.detail),
-            "Sanitize `.svg` files to remove `<script>`, `on*=` event handlers, and embedded `data:` URIs.",
-            SourceLoc::new(&doc.path, haz.span),
-        ));
-    }
+    emit_svg_hazards(&doc.path, &asset.hazards, out);
 }
 
 /// Evaluates all single-file 6-domain segregation rules (`GF060`–`GF064`, `GF066`).

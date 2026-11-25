@@ -94,18 +94,12 @@ fn contenus_and_texte_enforce_markdown_and_i18n_purity() -> Res {
         evaluate_document(&doc_at("src/notes.md", Language::Markdown)?, &cfg)[0].rule_id,
         "GF063"
     );
-    assert_eq!(
-        evaluate_document(&doc_at("docs/guide.md", Language::Markdown)?, &cfg),
-        Vec::new()
-    );
-    assert_eq!(
-        evaluate_document(&doc_at("tests/fix.md", Language::Markdown)?, &cfg),
-        Vec::new()
-    );
-    assert_eq!(
-        evaluate_document(&doc_at("README.md", Language::Markdown)?, &cfg),
-        Vec::new()
-    );
+    for clean_md in ["docs/guide.md", "tests/fix.md", "README.md"] {
+        assert_eq!(
+            evaluate_document(&doc_at(clean_md, Language::Markdown)?, &cfg),
+            Vec::new()
+        );
+    }
 
     let mut md_uri = doc_at("docs/uri.md", Language::Markdown)?;
     md_uri.contenus = Some(ContenusDocument {
@@ -114,6 +108,7 @@ fn contenus_and_texte_enforce_markdown_and_i18n_purity() -> Res {
             detail: "data:".into(),
             span: Span::FIRST,
         }],
+        ..ContenusDocument::default()
     });
     assert_eq!(evaluate_document(&md_uri, &cfg)[0].rule_id, "GF064");
     let mut md_html = doc_at("docs/html.md", Language::Markdown)?;
@@ -123,6 +118,7 @@ fn contenus_and_texte_enforce_markdown_and_i18n_purity() -> Res {
             detail: "<div>".into(),
             span: Span::FIRST,
         }],
+        ..ContenusDocument::default()
     });
     assert_eq!(evaluate_document(&md_html, &cfg)[0].rule_id, "GF063");
     Ok(())

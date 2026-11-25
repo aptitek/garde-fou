@@ -57,9 +57,13 @@ fn markdown_raw_html_outside_code_always_triggers_gf063() -> Result<(), String> 
         let md = format!("# Pure Heading\n\n<{tag}>{body}</{tag}>\n");
         let doc = parse_source(&path, &md).map_err(|e| TestCaseError::fail(e.to_string()))?;
         let has_raw_html = doc.contenus.as_ref().is_some_and(|c| {
-            c.issues
-                .iter()
-                .any(|i| i.kind == ContenusIssueKind::RawHtml)
+            c.issues.iter().any(|i| {
+                matches!(
+                    i.kind,
+                    ContenusIssueKind::RawHtml
+                        | ContenusIssueKind::MarkdownSpec(gf_core::MarkdownViolation::RawHtml)
+                )
+            })
         });
         prop_assert!(has_raw_html);
         let diags = evaluate_document(&doc, &cfg);

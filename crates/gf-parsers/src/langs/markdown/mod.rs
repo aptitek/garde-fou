@@ -1,0 +1,241 @@
+//! Specification-grade `CommonMark` / GFM (`pulldown-cmark`) and MDX extractor
+//! (`GF063`, `GF064`, `GF000`, `GF080`).
+
+mod frontmatter;
+mod mdx_bridge;
+pub mod slugger_links;
+
+use std::collections::{BTreeMap, BTreeSet};
+
+use gf_core::{ContenusDocument, Language, MarkdownViolation, RepoPath, Span, UastDocument};
+use pulldown_cmark::{BrokenLink, Event, LinkType, Options, Parser, Tag, TagEnd};
+
+use crate::cst::line_metrics;
+use crate::types::{LanguageExtractor, ParseError};
+use frontmatter::{FrontmatterSplit, LineIndex, heading_level_u8, split_and_validate_frontmatter};
+use mdx_bridge::{inspect_html_or_mdx_tag, scan_mdx_esm_and_expressions};
+use slugger_links::{MdLinkAcc, github_slugify, push_md_issue, scan_reversed_links_outside_code};
+
+const MD_PARSE_OPTS: Options = Options::ENABLE_TABLES
+    .union(Options::ENABLE_STRIKETHROUGH)
+    .union(Options::ENABLE_TASKLISTS)
+    .union(Options::ENABLE_GFM);
+
+/// Specification-grade `CommonMark` / GFM (`.md`) and MDX (`.mdx`) extractor.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct MarkdownExtractor;
+
+struct MdWalkState {
+    is_mdx: bool,
+    prev_heading: u8,
+    h1_count: u32,
+    active_heading: Option<(u8, Span, String)>,
+    active_image: Option<(String, Span, String)>,
+    active_link: Option<(LinkType, String, Span)>,
+    slug_counts: BTreeMap<String, usize>,
+    heading_slugs: BTreeSet<String>,
+    fenced_ranges: Vec<(usize, usize)>,
+    code_ranges: Vec<(usize, usize)>,
+    acc: MdLinkAcc,
+}
+
+impl MdWalkState {
+    fn new(is_mdx: bool) -> Self {
+        Self {
+            is_mdx,
+            prev_heading: 0,
+            h1_count: 0,
+            active_heading: None,
+            active_image: None,
+            active_link: None,
+            slug_counts: BTreeMap::new(),
+            heading_slugs: BTreeSet::new(),
+            fenced_ranges: Vec::new(),
+            code_ranges: Vec::new(),
+            acc: MdLinkAcc::default(),
+        }
+    }
+
+    fn finish_heading(&mut self) {
+        let Some((level, span, text)) = self.active_heading.take() else {
+            return;
+        };
+        if level == 1 {
+            self.h1_count = self.h1_count.saturating_add(1);
+            if self.h1_count > 1 {
+                push_md_issue(
+                    &mut self.acc.issues,
+                    MarkdownViolation::HeadingHierarchy,
+                    span,
+                    String::from("multiple top-level `# H1` headings in document"),
+                );
+            }
+        }
+        if self.prev_heading > 0 && level > self.prev_heading.saturating_add(1) {
+            push_md_issue(
+                &mut self.acc.issues,
+                MarkdownViolation::HeadingHierarchy,
+                span,
+                format!("heading level jump `H{}` -> `H{level}`", self.prev_heading),
+            );
+        }
+        self.prev_heading = level;
+        let slug = github_slugify(&text, &mut self.slug_counts);
+        if !slug.is_empty() {
+            self.heading_slugs.insert(slug);
+        }
+    }
+
+    fn append_inline_text(&mut self, txt: &str) {
+        if let Some((_, _, h_buf)) = &mut self.active_heading {
+            h_buf.push_str(txt);
+        }
+        if let Some((_, _, alt_buf)) = &mut self.active_image {
+            alt_buf.push_str(txt);
+        }
+    }
+
+    fn handle_start_tag(&mut self, tag: Tag<'_>, range: std::ops::Range<usize>, span: Span) {
+        match tag {
+            Tag::Heading { level, .. } => {
+                self.active_heading = Some((heading_level_u8(level), span, String::new()));
+            }
+            Tag::CodeBlock(_) => {
+                self.fenced_ranges.push((range.start, range.end));
+                self.code_ranges.push((range.start, range.end));
+            }
+            Tag::Image { dest_url, .. } => {
+                self.active_image = Some((String::from(dest_url.as_ref()), span, String::new()));
+            }
+            Tag::Link {
+                link_type,
+                dest_url,
+                ..
+            } => {
+                self.active_link = Some((link_type, String::from(dest_url.as_ref()), span));
+            }
+            _ => {}
+        }
+    }
+
+    fn handle_end_tag(&mut self, end: TagEnd) {
+        match end {
+            TagEnd::Heading(_) => self.finish_heading(),
+            TagEnd::Image => {
+                if let Some((url, sp, alt)) = self.active_image.take() {
+                    self.acc.inspect_image(&alt, &url, sp);
+                }
+            }
+            TagEnd::Link => {
+                if let Some((lt, url, sp)) = self.active_link.take() {
+                    self.acc.inspect_link(lt, &url, sp);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    fn handle_event(
+        &mut self,
+        ev: Event<'_>,
+        range: std::ops::Range<usize>,
+        lines: &LineIndex<'_>,
+    ) {
+        let span = lines.span_at(range.start);
+        match ev {
+            Event::Start(tag) => self.handle_start_tag(tag, range, span),
+            Event::End(end) => self.handle_end_tag(end),
+            Event::Text(txt) => self.append_inline_text(&txt),
+            Event::Code(code) => {
+                self.code_ranges.push((range.start, range.end));
+                self.append_inline_text(&code);
+            }
+            Event::Html(h) | Event::InlineHtml(h) => {
+                inspect_html_or_mdx_tag(&h, self.is_mdx, span.start_line(), &mut self.acc.issues);
+            }
+            _ => {}
+        }
+    }
+
+    fn finalize_post_walk(
+        &mut self,
+        fm: &FrontmatterSplit<'_>,
+        lines: &LineIndex<'_>,
+        broken_refs: Vec<(String, Span)>,
+    ) {
+        for (ref_id, sp) in broken_refs {
+            push_md_issue(
+                &mut self.acc.issues,
+                MarkdownViolation::UnresolvedRefOrAnchor,
+                sp,
+                format!("unresolved Markdown reference link `[{ref_id}]`"),
+            );
+        }
+        for (anchor, sp) in &self.acc.local_anchors_used {
+            if !self.heading_slugs.contains(anchor) {
+                push_md_issue(
+                    &mut self.acc.issues,
+                    MarkdownViolation::UnresolvedRefOrAnchor,
+                    *sp,
+                    format!("unresolved local heading anchor `#{anchor}`"),
+                );
+            }
+        }
+        scan_reversed_links_outside_code(
+            fm.body,
+            &self.code_ranges,
+            |off| lines.span_at(off),
+            &mut self.acc.issues,
+        );
+        if self.is_mdx {
+            scan_mdx_esm_and_expressions(
+                fm.body,
+                fm.body_start_line,
+                &self.fenced_ranges,
+                &mut self.acc.issues,
+            );
+        }
+    }
+}
+
+impl LanguageExtractor for MarkdownExtractor {
+    fn extract(&self, path: &RepoPath, source: &str) -> Result<UastDocument, ParseError> {
+        let (total_lines, effective_lines) = line_metrics(source);
+        let mut doc = UastDocument::new(
+            path.clone(),
+            Language::Markdown,
+            total_lines,
+            effective_lines,
+        )?;
+        let is_mdx = path
+            .extension()
+            .is_some_and(|e| e.eq_ignore_ascii_case("mdx"));
+        let fm = split_and_validate_frontmatter(source, &mut doc);
+        let lines = LineIndex::new(fm.body, fm.body_start_line);
+        let mut state = MdWalkState::new(is_mdx);
+        let mut broken_refs: Vec<(String, Span)> = Vec::new();
+        let mut cb = |broken: BrokenLink<'_>| {
+            if matches!(broken.link_type, LinkType::Reference | LinkType::Collapsed) {
+                broken_refs.push((
+                    String::from(broken.reference.as_ref()),
+                    lines.span_at(broken.span.start),
+                ));
+            }
+            None
+        };
+        for (ev, range) in
+            Parser::new_with_broken_link_callback(fm.body, MD_PARSE_OPTS, Some(&mut cb))
+                .into_offset_iter()
+        {
+            state.handle_event(ev, range, &lines);
+        }
+        state.finalize_post_walk(&fm, &lines, broken_refs);
+        doc.asset_refs = state.acc.asset_refs;
+        doc.contenus = Some(ContenusDocument {
+            issues: state.acc.issues,
+            heading_slugs: state.heading_slugs,
+            doc_links: state.acc.doc_links,
+        });
+        Ok(doc)
+    }
+}

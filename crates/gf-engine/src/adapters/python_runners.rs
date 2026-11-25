@@ -41,6 +41,16 @@ pub enum ExternalAdapter {
     Actionlint,
     /// `zizmor --format sarif <workflow-files...>`.
     Zizmor,
+    /// `stylelint --formatter json -- <css-files...>`.
+    Stylelint,
+    /// `rumdl check --output-format json <md-files...>`.
+    Rumdl,
+    /// `markdownlint --json <md-files...>`.
+    Markdownlint,
+    /// `taplo check --colors never <toml-files...>`.
+    Taplo,
+    /// `xmllint --noout --nonet <xml-or-svg-files...>`.
+    Xmllint,
 }
 
 impl ExternalAdapter {
@@ -65,14 +75,28 @@ impl ExternalAdapter {
     pub const fn is_python(self) -> bool {
         matches!(
             self,
-            Self::Ruff | Self::Mypy | Self::Pyright | Self::Yamllint | Self::Zizmor
+            Self::Ruff | Self::Mypy | Self::Pyright | Self::Yamllint | Self::Zizmor | Self::Rumdl
         )
     }
 
-    /// Returns `true` for Node/npm CLI adapters (`oxlint`, `biome`, `tsc`, `dclint`).
+    /// Returns `true` for Node/npm CLI adapters (`oxlint`, `biome`, `tsc`, `dclint`, `stylelint`, `markdownlint`).
     #[must_use]
     pub const fn is_typescript(self) -> bool {
-        matches!(self, Self::Oxlint | Self::Biome | Self::Tsc | Self::Dclint)
+        matches!(
+            self,
+            Self::Oxlint
+                | Self::Biome
+                | Self::Tsc
+                | Self::Dclint
+                | Self::Stylelint
+                | Self::Markdownlint
+        )
+    }
+
+    /// Returns `true` when diagnostics are emitted on `stderr` (`taplo`, `xmllint`).
+    #[must_use]
+    pub const fn reads_stderr_when_stdout_empty(self) -> bool {
+        matches!(self, Self::Taplo | Self::Xmllint)
     }
 
     /// Reads the configured [`ScannerPolicy`] for this adapter from `config`.

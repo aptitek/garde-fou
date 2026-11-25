@@ -17,6 +17,7 @@ mod clone_checks;
 mod docker_checks;
 mod docker_instr_checks;
 mod domain_checks;
+mod format_workspace_checks;
 mod governance_checks;
 mod i18n_checks;
 mod import_resolver;
@@ -42,6 +43,7 @@ use {
     clone_checks::check_type2_clones,
     docker_checks::check_docker_feature,
     domain_checks::check_single_file_domains,
+    format_workspace_checks::check_workspace_formats,
     i18n_checks::check_workspace_i18n,
     kiss_yagni_checks::{check_local_kiss_yagni_and_bypass, check_single_impl_contracts},
     security_checks::check_native_secrets,
@@ -133,6 +135,7 @@ pub fn evaluate_workspace(
         check_single_impl_contracts(docs, ctx, config),
         check_workspace_tdd(docs, ctx, config),
         check_workspace_tsconfigs(docs),
+        check_workspace_formats(docs),
         check_architecture_purity(docs, config),
     ])
 }

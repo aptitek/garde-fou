@@ -180,15 +180,15 @@ pub fn resolve_staged_targets(
     }
 }
 
-pub fn resolve_explicit_doc_targets(
+pub fn resolve_matching_doc_targets(
     docs: &[UastDocument],
     staged_filter: Option<&BTreeSet<RepoPath>>,
-    target_lang: Language,
+    doc_pred: impl Fn(&UastDocument) -> bool,
     is_cfg_fn: fn(&str) -> bool,
 ) -> Option<Vec<String>> {
     let all_matching: Vec<String> = docs
         .iter()
-        .filter(|d| d.language == target_lang && !is_audited_tool_config_file(&d.path))
+        .filter(|d| doc_pred(d))
         .map(|d| String::from(d.path.as_str()))
         .collect();
     if all_matching.is_empty() {
@@ -205,4 +205,18 @@ pub fn resolve_explicit_doc_targets(
         .filter(|p| RepoPath::new(p).is_ok_and(|rp| staged.contains(&rp)))
         .collect();
     (!staged_matching.is_empty()).then_some(staged_matching)
+}
+
+pub fn resolve_explicit_doc_targets(
+    docs: &[UastDocument],
+    staged_filter: Option<&BTreeSet<RepoPath>>,
+    target_lang: Language,
+    is_cfg_fn: fn(&str) -> bool,
+) -> Option<Vec<String>> {
+    resolve_matching_doc_targets(
+        docs,
+        staged_filter,
+        |d| d.language == target_lang && !is_audited_tool_config_file(&d.path),
+        is_cfg_fn,
+    )
 }

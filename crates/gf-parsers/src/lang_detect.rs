@@ -34,6 +34,9 @@ const EXT_LANGUAGES: &[(&str, Language)] = &[
     ("psm1", Language::PowerShell),
     ("psd1", Language::PowerShell),
     ("svg", Language::Svg),
+    ("xml", Language::Xml),
+    ("csproj", Language::Xml),
+    ("props", Language::Xml),
 ];
 
 fn is_dockerfile_name(file_name: &str) -> bool {

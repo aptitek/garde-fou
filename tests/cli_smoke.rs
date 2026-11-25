@@ -48,7 +48,7 @@ fn cli_init_no_cache_and_cache_hit_succeed() -> Result<(), Box<dyn std::error::E
         .output()?;
     assert!(fresh.status.success());
     let fresh_out = String::from_utf8(fresh.stdout)?;
-    assert!(fresh_out.contains("`0` hits, `2` misses"));
+    assert!(fresh_out.contains("`0` hits, `4` misses"), "{fresh_out}");
 
     let cached = Command::new(garde_bin())
         .args(["check", "--format", "agent"])
@@ -56,7 +56,7 @@ fn cli_init_no_cache_and_cache_hit_succeed() -> Result<(), Box<dyn std::error::E
         .output()?;
     assert!(cached.status.success());
     let cached_out = String::from_utf8(cached.stdout)?;
-    assert!(cached_out.contains("`2` hits, `0` misses"));
+    assert!(cached_out.contains("`4` hits, `0` misses"), "{cached_out}");
 
     let sarif = Command::new(garde_bin())
         .args(["check", "--format", "sarif"])

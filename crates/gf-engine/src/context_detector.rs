@@ -31,18 +31,38 @@ const TASK_RUNNER_MARKERS: &[&str] = &[
     "mise.toml",
 ];
 
-const fn language_id_for_source(lang: Language) -> Option<LanguageId> {
-    match lang {
-        Language::Rust => Some(LanguageId::Rust),
-        Language::TypeScript | Language::Tsx | Language::JavaScript | Language::Jsx => {
-            Some(LanguageId::TypeScript)
-        }
-        Language::Python => Some(LanguageId::Python),
-        Language::Shell => Some(LanguageId::Shell),
-        Language::PowerShell => Some(LanguageId::PowerShell),
-        Language::Yaml => Some(LanguageId::Yaml),
-        _ => None,
+const ROOT_EXEMPT_MD: &[&str] = &[
+    "README.md",
+    "AGENTS.md",
+    "CLAUDE.md",
+    "CHANGELOG.md",
+    "CONTRIBUTING.md",
+    "LICENSE.md",
+];
+
+const SOURCE_LANGUAGE_MAP: &[(Language, LanguageId)] = &[
+    (Language::Rust, LanguageId::Rust),
+    (Language::TypeScript, LanguageId::TypeScript),
+    (Language::Tsx, LanguageId::TypeScript),
+    (Language::JavaScript, LanguageId::TypeScript),
+    (Language::Jsx, LanguageId::TypeScript),
+    (Language::Python, LanguageId::Python),
+    (Language::Shell, LanguageId::Shell),
+    (Language::PowerShell, LanguageId::PowerShell),
+    (Language::Yaml, LanguageId::Yaml),
+    (Language::Css, LanguageId::Css),
+    (Language::Xml, LanguageId::Xml),
+    (Language::Svg, LanguageId::Xml),
+    (Language::Toml, LanguageId::Toml),
+];
+
+fn language_id_for_path(path: &RepoPath, lang: Language) -> Option<LanguageId> {
+    if lang == Language::Markdown {
+        return (!ROOT_EXEMPT_MD.contains(&path.as_str())).then_some(LanguageId::Markdown);
     }
+    SOURCE_LANGUAGE_MAP
+        .iter()
+        .find_map(|&(src, id)| (src == lang).then_some(id))
 }
 
 fn detect_manifest_languages(root: &Path, out: &mut BTreeSet<LanguageId>) {
@@ -65,7 +85,7 @@ fn detect_languages_into(root: &Path, files: &[RepoPath], out: &mut BTreeSet<Lan
             }
             known => known,
         };
-        if let Some(id) = language_id_for_source(lang) {
+        if let Some(id) = language_id_for_path(path, lang) {
             out.insert(id);
         }
     }

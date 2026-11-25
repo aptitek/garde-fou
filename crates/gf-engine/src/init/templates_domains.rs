@@ -125,6 +125,28 @@ fn six_domain_feature_files(project_kebab: &str, ctx: &ProjectContext) -> Vec<(S
     files
 }
 
+fn infer_feature_languages(ctx: &mut ProjectContext) {
+    ctx.languages.insert(LanguageId::Toml);
+    let has_yaml_feat = [
+        FeatureId::GitHooks,
+        FeatureId::TaskRunner,
+        FeatureId::CiGithub,
+    ]
+    .iter()
+    .any(|f| ctx.features.contains(f));
+    if has_yaml_feat {
+        ctx.languages.insert(LanguageId::Yaml);
+    }
+    if ctx.features.contains(&FeatureId::Ui) {
+        ctx.languages.insert(LanguageId::Css);
+        ctx.languages.insert(LanguageId::Xml);
+    }
+    if ctx.features.contains(&FeatureId::Content) {
+        ctx.languages.insert(LanguageId::Xml);
+        ctx.languages.insert(LanguageId::Markdown);
+    }
+}
+
 /// Applies framework-to-language inference and default Rust fallback on `ctx`.
 pub fn finalize_init_context(ctx: &mut ProjectContext) {
     for fw in &ctx.frameworks {
@@ -147,10 +169,5 @@ pub fn finalize_init_context(ctx: &mut ProjectContext) {
     if ctx.languages.contains(&LanguageId::Rust) {
         ctx.frameworks.insert(FrameworkId::CargoWorkspace);
     }
-    if ctx.features.contains(&FeatureId::GitHooks)
-        || ctx.features.contains(&FeatureId::TaskRunner)
-        || ctx.features.contains(&FeatureId::CiGithub)
-    {
-        ctx.languages.insert(LanguageId::Yaml);
-    }
+    infer_feature_languages(ctx);
 }

@@ -12,10 +12,13 @@ publish.workspace = true
 [dependencies]
 blake3 = { workspace = true }
 gf-core = { workspace = true }
+pulldown-cmark = { workspace = true }
+roxmltree = { workspace = true }
 saphyr-parser = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 toml = { workspace = true }
+toml_edit = { workspace = true }
 tree-sitter = { workspace = true }
 tree-sitter-bash = { workspace = true }
 tree-sitter-powershell = { workspace = true }

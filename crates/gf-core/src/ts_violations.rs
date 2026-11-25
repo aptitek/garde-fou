@@ -148,3 +148,21 @@ impl ReactViolation {
         }
     }
 }
+
+/// Returns `true` if `spec` names a well-known external TypeScript preset with `"strict": true`.
+#[must_use]
+pub fn is_known_strict_preset(spec: &str) -> bool {
+    let s = spec.trim();
+    s.starts_with("@tsconfig/") || s.contains("tsconfig/strict") || s.contains("tsconfigs/strict")
+}
+
+/// Returns `true` for ambient TypeScript declaration files (`*.d.ts`, `*.d.mts`, `*.d.cts`).
+#[must_use]
+pub fn is_ts_declaration_path(path: &str) -> bool {
+    let lower = path.to_ascii_lowercase();
+    let Some((stem, ext)) = lower.rsplit_once('.') else {
+        return false;
+    };
+    let ends_with_d = stem.rsplit_once('.').is_some_and(|(_, sub)| sub == "d");
+    matches!(ext, "ts" | "mts" | "cts") && (ends_with_d || stem.contains(".d."))
+}

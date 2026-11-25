@@ -25,9 +25,10 @@ use gf_core::{Config, LockStatus, ScannerPolicy};
 pub use adapters::{
     AdapterCtx, ExternalAdapter, ResolvedPythonTool, ToolParseError, parse_actionlint_json,
     parse_biome_json, parse_dclint_json, parse_hadolint_json, parse_mypy_ndjson, parse_oxlint_json,
-    parse_psscriptanalyzer_json, parse_pyright_json, parse_ruff_json, parse_shellcheck_json,
-    parse_tsc_output, parse_yamllint_parsable, parse_zizmor_sarif, resolve_node_tool,
-    resolve_python_tool, resolve_python_tool_with_uv,
+    parse_psscriptanalyzer_json, parse_pyright_json, parse_ruff_json,
+    parse_rumdl_or_markdownlint_json, parse_shellcheck_json, parse_stylelint_json,
+    parse_taplo_output, parse_tsc_output, parse_xmllint_output, parse_yamllint_parsable,
+    parse_zizmor_sarif, resolve_node_tool, resolve_python_tool, resolve_python_tool_with_uv,
 };
 pub use agents::{
     FileSyncAction, SyncOptions, SyncReport, collect_installed_skill_entries,

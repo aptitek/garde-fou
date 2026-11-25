@@ -17,7 +17,7 @@ pub use crate::policies::{
     ScannersConfig,
 };
 use crate::skills_catalog::AgentsConfig;
-use crate::tool_ingest::ToolsConfig;
+use crate::tools_config::ToolsConfig;
 
 /// Explicit `[project]` overrides merged with automatic workspace context detection.
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
@@ -208,7 +208,7 @@ impl Config {
         let cov = self.coverage.canonical_fragment();
         let mut_f = self.mutation.canonical_fragment();
         format!(
-            "v14|fl={}|fnl={}|p={}|cyc={}|cog={}|nest={}|imp={}|meth={}|sb={}|cll={}|cln={}|csim={}|{dom}|{fort}|sec={sec}|vul={vul}|{cov}|{mut_f}|i={}|e={}|l={}|ft={}|fw={}",
+            "v15|fl={}|fnl={}|p={}|cyc={}|cog={}|nest={}|imp={}|meth={}|sb={}|cll={}|cln={}|csim={}|{dom}|{fort}|sec={sec}|vul={vul}|{cov}|{mut_f}|i={}|e={}|l={}|ft={}|fw={}",
             l.max_file_lines,
             l.max_function_lines,
             l.max_parameters,

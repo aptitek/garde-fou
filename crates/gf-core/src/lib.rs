@@ -23,6 +23,8 @@ pub mod diagnostic;
 pub mod docker;
 pub mod domain_summaries;
 pub mod domains;
+pub mod format_tools;
+pub mod format_violations;
 pub mod framework_id;
 pub mod gitignore;
 pub mod glob;
@@ -40,6 +42,7 @@ pub mod shell_ps_violations;
 pub mod skills_catalog;
 pub mod tool_config_violations;
 pub mod tool_ingest;
+pub mod tools_config;
 pub mod ts_violations;
 pub mod uast;
 pub mod validation;
@@ -58,8 +61,9 @@ pub use docker::{
 };
 pub use domain_summaries::{
     AssetDocument, AssetHazard, AssetHazardKind, ContenusDocument, ContenusIssue,
-    ContenusIssueKind, FormeDocument, FormeFinding, FormeFindingKind, StyleLeakFinding,
-    StyleLeakKind, TexteDocument, TexteIssue, UiCheckFinding, UiCheckKind,
+    ContenusIssueKind, FormeDocument, FormeFinding, FormeFindingKind, MarkdownLinkTarget,
+    StyleLeakFinding, StyleLeakKind, TexteDocument, TexteIssue, TomlManifestSummary,
+    UiCheckFinding, UiCheckKind,
 };
 pub use domains::{
     DEFAULT_MAX_ASSET_BYTES, DomainKind, DomainLayoutConfig, classify_path, is_asset_extension,
@@ -90,6 +94,12 @@ pub use {
         KissYagniKind, TddConfig, TddParityGate, TestCaseSummary, YagniRule,
     },
     commit_msg::{CommitConfig, validate_commit_message},
+    format_tools::{
+        CssToolsConfig, FormatConfigIssue, MarkdownConfigIssue, MarkdownToolsConfig,
+        StylelintConfigIssue, SvgoConfigIssue, TaploConfigIssue, TomlToolsConfig, XmlToolsConfig,
+        is_format_tool_config_file,
+    },
+    format_violations::{CssViolation, MarkdownViolation, TomlViolation, XmlSvgViolation},
     lang_rule_violation::LangRuleViolation,
     language_meta::{
         TsconfigStrictState, TsconfigSummary, is_known_strict_preset, is_ts_declaration_path,
@@ -112,9 +122,10 @@ pub use {
     },
     tool_ingest::{
         ExternalToolFinding, ExternalToolId, ExternalToolKind, LangRuleFinding, PythonToolsConfig,
-        ToolConfigFinding, ToolsConfig, TypeScriptToolsConfig, is_audited_tool_config_file,
+        ToolConfigFinding, TypeScriptToolsConfig, is_audited_tool_config_file,
         is_tsconfig_filename,
     },
+    tools_config::ToolsConfig,
     ts_violations::{AsyncHazardKind, ReactViolation, TsDebugKind, TypescriptViolation},
     yaml_tools::{
         DclintConfigIssue, YamlCiConfigIssue, YamlToolsConfig, YamllintConfigIssue,

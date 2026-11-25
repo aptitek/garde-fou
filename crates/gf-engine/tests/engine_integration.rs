@@ -58,15 +58,15 @@ fn populates_blake3_cache_and_serves_subsequent_hits() -> Result<(), Box<dyn std
     let first = run_check_with_options(&dir, &CheckOptions::new(ScanScope::All, true))?;
     assert_eq!(
         (first.files_checked, first.cache_hits, first.cache_misses),
-        (2, 0, 2)
+        (3, 0, 3)
     );
     assert!(first.is_clean());
-    assert!(dir.join(".garde-fou-cache/v10").is_dir());
+    assert!(dir.join(".garde-fou-cache/v11").is_dir());
 
     let second = run_check_with_options(&dir, &CheckOptions::new(ScanScope::All, false))?;
     assert_eq!(
         (second.files_checked, second.cache_hits, second.cache_misses),
-        (2, 2, 0)
+        (3, 3, 0)
     );
     assert_eq!(first.cache_fingerprint, second.cache_fingerprint);
     fs::remove_dir_all(&dir)?;
@@ -85,7 +85,7 @@ fn invalidates_cache_entry_when_source_file_changes() -> Result<(), Box<dyn std:
     fs::write(dir.join("src/a.rs"), "pub fn broken( {\n")?;
 
     let invalidated = run_check_with_options(&dir, &CheckOptions::new(ScanScope::All, false))?;
-    assert_eq!((invalidated.cache_hits, invalidated.cache_misses), (1, 1));
+    assert_eq!((invalidated.cache_hits, invalidated.cache_misses), (2, 1));
     assert!(!invalidated.is_clean());
     fs::remove_dir_all(&dir)?;
     Ok(())

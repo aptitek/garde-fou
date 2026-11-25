@@ -16,7 +16,7 @@ fn lookup_alias<T: Copy>(table: &[(&str, T)], raw: &str) -> Option<T> {
         .map(|(_, id)| *id)
 }
 
-/// Primary programming and automation languages active in a project.
+/// Primary programming and structured format languages active in a project.
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
 pub enum LanguageId {
     /// Rust ecosystem (`.rs`, `Cargo.toml`).
@@ -31,15 +31,27 @@ pub enum LanguageId {
     PowerShell,
     /// YAML 1.2, Docker Compose, and GitHub Actions workflow ecosystem (`.yml`, `.yaml`).
     Yaml,
+    /// W3C CSS & Design Tokens ecosystem (`.css`, `.scss`).
+    Css,
+    /// XML, SVG security, and XML manifest ecosystem (`.xml`, `.svg`, `.csproj`, `pom.xml`).
+    Xml,
+    /// TOML 1.0/1.1 & manifest ecosystem (`.toml`).
+    Toml,
+    /// `CommonMark`, GFM, and MDX editorial ecosystem (`.md`, `.mdx`).
+    Markdown,
 }
 
-const LANG_NAMES: [&str; 6] = [
+const LANG_NAMES: [&str; 10] = [
     "rust",
     "typescript",
     "python",
     "shell",
     "powershell",
     "yaml",
+    "css",
+    "xml",
+    "toml",
+    "markdown",
 ];
 const LANGUAGE_ALIASES: &[(&str, LanguageId)] = &[
     ("rust", LanguageId::Rust),
@@ -57,6 +69,14 @@ const LANGUAGE_ALIASES: &[(&str, LanguageId)] = &[
     ("ps1", LanguageId::PowerShell),
     ("yaml", LanguageId::Yaml),
     ("yml", LanguageId::Yaml),
+    ("css", LanguageId::Css),
+    ("scss", LanguageId::Css),
+    ("xml", LanguageId::Xml),
+    ("svg", LanguageId::Xml),
+    ("toml", LanguageId::Toml),
+    ("markdown", LanguageId::Markdown),
+    ("md", LanguageId::Markdown),
+    ("mdx", LanguageId::Markdown),
 ];
 
 impl LanguageId {

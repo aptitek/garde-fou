@@ -4,6 +4,7 @@
 use core::fmt;
 use serde::{Deserialize, Serialize};
 
+use crate::format_violations::{TomlViolation, XmlSvgViolation};
 use crate::python_violations::PythonViolation;
 use crate::shell_ps_violations::{PowerShellViolation, ShellViolation};
 use crate::ts_violations::{ReactViolation, TypescriptViolation};
@@ -28,10 +29,14 @@ pub enum LangRuleViolation {
     Compose(ComposeViolation),
     /// Native GitHub Actions workflow security violation (`GHA-*`).
     Workflow(WorkflowViolation),
+    /// Native XML DTD/XXE & package manifest violation (`XML-*`).
+    XmlSvg(XmlSvgViolation),
+    /// Native TOML 1.0/1.1 & manifest supply-chain violation (`TOML-*`).
+    Toml(TomlViolation),
 }
 
 impl LangRuleViolation {
-    /// Canonical ecosystem rule code (`"PY-..."`, `"TS-..."`, `"SH-..."`, `"YAML-..."`, `"COMPOSE-..."`, `"GHA-..."`).
+    /// Canonical ecosystem rule code (`"PY-..."`, `"TS-..."`, `"SH-..."`, `"YAML-..."`, `"XML-..."`, `"TOML-..."`).
     #[must_use]
     pub const fn code(self) -> &'static str {
         match self {
@@ -43,6 +48,8 @@ impl LangRuleViolation {
             Self::Yaml(v) => v.code(),
             Self::Compose(v) => v.code(),
             Self::Workflow(v) => v.code(),
+            Self::XmlSvg(v) => v.code(),
+            Self::Toml(v) => v.code(),
         }
     }
 
@@ -58,6 +65,8 @@ impl LangRuleViolation {
             Self::Yaml(v) => v.remediation(),
             Self::Compose(v) => v.remediation(),
             Self::Workflow(v) => v.remediation(),
+            Self::XmlSvg(v) => v.remediation(),
+            Self::Toml(v) => v.remediation(),
         }
     }
 
@@ -72,7 +81,9 @@ impl LangRuleViolation {
             | Self::PowerShell(_)
             | Self::Yaml(_)
             | Self::Compose(_)
-            | Self::Workflow(_) => false,
+            | Self::Workflow(_)
+            | Self::XmlSvg(_)
+            | Self::Toml(_) => false,
         }
     }
 }
@@ -128,5 +139,17 @@ impl From<ComposeViolation> for LangRuleViolation {
 impl From<WorkflowViolation> for LangRuleViolation {
     fn from(v: WorkflowViolation) -> Self {
         Self::Workflow(v)
+    }
+}
+
+impl From<XmlSvgViolation> for LangRuleViolation {
+    fn from(v: XmlSvgViolation) -> Self {
+        Self::XmlSvg(v)
+    }
+}
+
+impl From<TomlViolation> for LangRuleViolation {
+    fn from(v: TomlViolation) -> Self {
+        Self::Toml(v)
     }
 }

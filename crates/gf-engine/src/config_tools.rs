@@ -1,8 +1,10 @@
-//! Strict `serde` TOML `[tools]` (`python`, `typescript`, `shell`, `powershell`, `docker`) parser.
+//! Strict `serde` TOML `[tools]` (`python`, `typescript`, `shell`, `powershell`, `docker`,
+//! `yaml`, `css`, `markdown`, `toml`, `xml`) parser.
 
 use gf_core::{
-    DockerToolsConfig, PowerShellToolsConfig, PythonToolsConfig, ScannerPolicy, ShellToolsConfig,
-    ToolsConfig, TypeScriptToolsConfig, YamlToolsConfig,
+    CssToolsConfig, DockerToolsConfig, MarkdownToolsConfig, PowerShellToolsConfig,
+    PythonToolsConfig, ScannerPolicy, ShellToolsConfig, TomlToolsConfig, ToolsConfig,
+    TypeScriptToolsConfig, XmlToolsConfig, YamlToolsConfig,
 };
 use serde::Deserialize;
 
@@ -53,6 +55,31 @@ struct YamlToolsSection {
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
+struct CssToolsSection {
+    stylelint: Option<String>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct MarkdownToolsSection {
+    rumdl: Option<String>,
+    markdownlint: Option<String>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct TomlToolsSection {
+    taplo: Option<String>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct XmlToolsSection {
+    xmllint: Option<String>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ToolsSection {
     python: Option<PythonToolsSection>,
     typescript: Option<TypeScriptToolsSection>,
@@ -60,6 +87,10 @@ pub struct ToolsSection {
     powershell: Option<PowerShellToolsSection>,
     docker: Option<DockerToolsSection>,
     yaml: Option<YamlToolsSection>,
+    css: Option<CssToolsSection>,
+    markdown: Option<MarkdownToolsSection>,
+    toml: Option<TomlToolsSection>,
+    xml: Option<XmlToolsSection>,
 }
 
 fn parse_opt_tool_policy(
@@ -123,50 +154,70 @@ fn merge_yaml_tools(
     })
 }
 
-pub fn merge_tools(raw: Option<ToolsSection>) -> Result<ToolsConfig, EngineError> {
-    let base = ToolsConfig::defaults();
-    let Some(section) = raw else {
+fn merge_md_tools(
+    raw: Option<MarkdownToolsSection>,
+    base: MarkdownToolsConfig,
+) -> Result<MarkdownToolsConfig, EngineError> {
+    let Some(md) = raw else {
         return Ok(base);
     };
-    let shell = if let Some(sh) = section.shell {
-        ShellToolsConfig {
-            shellcheck: parse_opt_tool_policy(
-                sh.shellcheck,
-                base.shell.shellcheck,
-                "tools.shell.shellcheck",
-            )?,
-        }
-    } else {
-        base.shell
+    Ok(MarkdownToolsConfig {
+        rumdl: parse_opt_tool_policy(md.rumdl, base.rumdl, "tools.markdown.rumdl")?,
+        markdownlint: parse_opt_tool_policy(
+            md.markdownlint,
+            base.markdownlint,
+            "tools.markdown.markdownlint",
+        )?,
+    })
+}
+
+pub fn merge_tools(raw: Option<ToolsSection>) -> Result<ToolsConfig, EngineError> {
+    let base = ToolsConfig::defaults();
+    let Some(s) = raw else {
+        return Ok(base);
     };
-    let powershell = if let Some(ps) = section.powershell {
-        PowerShellToolsConfig {
-            psscriptanalyzer: parse_opt_tool_policy(
-                ps.psscriptanalyzer,
-                base.powershell.psscriptanalyzer,
-                "tools.powershell.psscriptanalyzer",
-            )?,
-        }
-    } else {
-        base.powershell
-    };
-    let docker = if let Some(dk) = section.docker {
-        DockerToolsConfig {
-            hadolint: parse_opt_tool_policy(
-                dk.hadolint,
-                base.docker.hadolint,
-                "tools.docker.hadolint",
-            )?,
-        }
-    } else {
-        base.docker
-    };
+    let sh = parse_opt_tool_policy(
+        s.shell.and_then(|x| x.shellcheck),
+        base.shell.shellcheck,
+        "tools.shell.shellcheck",
+    )?;
+    let ps = parse_opt_tool_policy(
+        s.powershell.and_then(|x| x.psscriptanalyzer),
+        base.powershell.psscriptanalyzer,
+        "tools.powershell.psscriptanalyzer",
+    )?;
+    let dk = parse_opt_tool_policy(
+        s.docker.and_then(|x| x.hadolint),
+        base.docker.hadolint,
+        "tools.docker.hadolint",
+    )?;
+    let cs = parse_opt_tool_policy(
+        s.css.and_then(|x| x.stylelint),
+        base.css.stylelint,
+        "tools.css.stylelint",
+    )?;
+    let tm = parse_opt_tool_policy(
+        s.toml.and_then(|x| x.taplo),
+        base.toml.taplo,
+        "tools.toml.taplo",
+    )?;
+    let xm = parse_opt_tool_policy(
+        s.xml.and_then(|x| x.xmllint),
+        base.xml.xmllint,
+        "tools.xml.xmllint",
+    )?;
     Ok(ToolsConfig {
-        python: merge_py_tools(section.python, base.python)?,
-        typescript: merge_ts_tools(section.typescript, base.typescript)?,
-        shell,
-        powershell,
-        docker,
-        yaml: merge_yaml_tools(section.yaml, base.yaml)?,
+        python: merge_py_tools(s.python, base.python)?,
+        typescript: merge_ts_tools(s.typescript, base.typescript)?,
+        shell: ShellToolsConfig { shellcheck: sh },
+        powershell: PowerShellToolsConfig {
+            psscriptanalyzer: ps,
+        },
+        docker: DockerToolsConfig { hadolint: dk },
+        yaml: merge_yaml_tools(s.yaml, base.yaml)?,
+        css: CssToolsConfig { stylelint: cs },
+        markdown: merge_md_tools(s.markdown, base.markdown)?,
+        toml: TomlToolsConfig { taplo: tm },
+        xml: XmlToolsConfig { xmllint: xm },
     })
 }

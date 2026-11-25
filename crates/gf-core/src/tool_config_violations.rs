@@ -3,6 +3,7 @@
 use core::fmt;
 use serde::{Deserialize, Serialize};
 
+use crate::format_tools::FormatConfigIssue;
 use crate::language_meta::ExternalToolKind;
 pub use crate::mutation_config_issues::{MutantsConfigIssue, StrykerConfigIssue};
 use crate::shell_ps_tools::ShellInfraConfigIssue;
@@ -156,6 +157,8 @@ pub enum ToolConfigViolation {
     ShellInfra(ShellInfraConfigIssue),
     /// `.yamllint*`, `.dclintrc*`, or `zizmor.yml` weakened.
     YamlCi(YamlCiConfigIssue),
+    /// `.stylelintrc*`, `.markdownlint*`/`rumdl.toml`, `taplo.toml`, or `svgo.config.*` weakened.
+    Formats(FormatConfigIssue),
 }
 
 impl ToolConfigViolation {
@@ -172,6 +175,7 @@ impl ToolConfigViolation {
             Self::BiomeLinterDisabled => ExternalToolKind::Biome,
             Self::ShellInfra(k) => k.tool(),
             Self::YamlCi(k) => k.tool(),
+            Self::Formats(k) => k.tool(),
         }
     }
 
@@ -188,6 +192,7 @@ impl ToolConfigViolation {
             Self::BiomeLinterDisabled => "linter.enabled",
             Self::ShellInfra(k) => k.key(),
             Self::YamlCi(k) => k.key(),
+            Self::Formats(k) => k.key(),
         }
     }
 
@@ -204,6 +209,7 @@ impl ToolConfigViolation {
             Self::BiomeLinterDisabled => REM_CFG_BIOME,
             Self::ShellInfra(k) => k.remediation(),
             Self::YamlCi(k) => k.remediation(),
+            Self::Formats(k) => k.remediation(),
         }
     }
 }

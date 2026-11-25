@@ -9,6 +9,17 @@ authors.workspace = true
 repository.workspace = true
 publish.workspace = true
 
+[package.metadata.binstall]
+pkg-url = "{ repo }/releases/download/v{ version }/garde-{ target }{ archive-suffix }"
+bin-dir = "{ bin }{ binary-ext }"
+pkg-fmt = "tgz"
+
+[package.metadata.binstall.overrides.x86_64-pc-windows-msvc]
+pkg-fmt = "zip"
+
+[package.metadata.binstall.overrides.aarch64-pc-windows-msvc]
+pkg-fmt = "zip"
+
 [[bin]]
 name = "garde"
 path = "src/main.rs"
@@ -24,17 +35,6 @@ path = "../../tests/architecture.rs"
 [[test]]
 name = "cli_smoke"
 path = "../../tests/cli_smoke.rs"
-
-[package.metadata.binstall]
-pkg-url = "{ repo }/releases/download/v{ version }/garde-{ target }{ archive-suffix }"
-bin-dir = "{ bin }{ binary-ext }"
-pkg-fmt = "tgz"
-
-[package.metadata.binstall.overrides.x86_64-pc-windows-msvc]
-pkg-fmt = "zip"
-
-[package.metadata.binstall.overrides.aarch64-pc-windows-msvc]
-pkg-fmt = "zip"
 
 [dependencies]
 clap = { workspace = true }

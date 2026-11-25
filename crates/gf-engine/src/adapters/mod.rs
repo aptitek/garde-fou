@@ -16,7 +16,8 @@ use gf_core::{
 pub use gf_parsers::{
     ToolParseError, parse_actionlint_json, parse_biome_json, parse_dclint_json,
     parse_hadolint_json, parse_mypy_ndjson, parse_oxlint_json, parse_psscriptanalyzer_json,
-    parse_pyright_json, parse_ruff_json, parse_shellcheck_json, parse_tsc_output,
+    parse_pyright_json, parse_ruff_json, parse_rumdl_or_markdownlint_json, parse_shellcheck_json,
+    parse_stylelint_json, parse_taplo_output, parse_tsc_output, parse_xmllint_output,
     parse_yamllint_parsable, parse_zizmor_sarif,
 };
 use gf_rules::convert_external_tool_findings;
@@ -31,7 +32,7 @@ use tool_resolvers::{
     is_ts_config_name, resolve_explicit_doc_targets, resolve_staged_targets,
 };
 pub use ts_runners::resolve_node_tool;
-use yaml_targets::push_yaml_compose_ci_jobs;
+use yaml_targets::{push_format_jobs, push_yaml_compose_ci_jobs};
 
 use crate::scanners::gitleaks::missing_tool_diagnostic;
 use crate::types::{CheckOptions, EngineError};
@@ -114,9 +115,13 @@ fn run_single_adapter(
     let args = adapter.build_args(targets);
     let output = launcher.execute(ctx.root, &args)?;
     let stdout = String::from_utf8_lossy(&output.stdout);
-    if stdout.trim().is_empty() {
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    let payload: &str = if !stdout.trim().is_empty() {
+        &stdout
+    } else if adapter.reads_stderr_when_stdout_empty() && !stderr.trim().is_empty() {
+        &stderr
+    } else {
         if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr);
             let stderr_summary = stderr
                 .lines()
                 .find(|l| !l.trim().is_empty())
@@ -128,9 +133,9 @@ fn run_single_adapter(
             )));
         }
         return Ok(Vec::new());
-    }
+    };
     let findings = adapter
-        .parse_output(&stdout, ctx.root)
+        .parse_output(payload, ctx.root)
         .map_err(|e| EngineError::InvalidConfig(e.to_string()))?;
     Ok(convert_external_tool_findings(&findings))
 }
@@ -198,6 +203,7 @@ pub fn run_language_tool_adapters(ctx: &AdapterCtx<'_>) -> Result<Vec<Diagnostic
     if ctx.context.languages.contains(&LanguageId::Yaml) {
         push_yaml_compose_ci_jobs(ctx.docs, ctx.staged_filter, &mut active_jobs);
     }
+    push_format_jobs(ctx.docs, ctx.staged_filter, &mut active_jobs);
     if active_jobs.is_empty() {
         return Ok(Vec::new());
     }

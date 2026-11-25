@@ -159,12 +159,9 @@ pub fn extract_i18n_dictionary(
             }),
         }
     } else {
-        match toml::from_str::<toml::Value>(source) {
-            Ok(root) => acc.flatten("", &root),
-            Err(err) => doc.syntax_errors.push(SyntaxErrorNode {
-                message: format!("invalid i18n TOML: {err}"),
-                span: Span::FIRST,
-            }),
+        super::toml_lang::analyze_toml_into_document(path, source, &mut doc);
+        if let Ok(root) = toml::from_str::<toml::Value>(source) {
+            acc.flatten("", &root);
         }
     }
 

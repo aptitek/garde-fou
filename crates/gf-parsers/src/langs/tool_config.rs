@@ -4,13 +4,18 @@
 //! `mutants.toml`, and `stryker.config.json` without I/O.
 
 use gf_core::{
-    CoverageFailUnder, Language, MutantsConfigIssue, PytestCoverageIssue, RepoPath, Span,
-    SyntaxErrorNode, ToolConfigFinding, ToolConfigViolation, UastDocument, is_tsconfig_filename,
+    CoverageFailUnder, Language, MutantsConfigIssue, PytestCoverageIssue, RepoPath,
+    ToolConfigFinding, ToolConfigViolation, UastDocument, is_tsconfig_filename,
 };
 
+use super::format_tool_config::{
+    audit_markdownlint_config, audit_stylelint_config, audit_svgo_config,
+};
+use super::format_tool_toml::{audit_rumdl_toml, audit_taplo_toml};
 use super::jsonc::{audit_stryker_json, line_span_containing, push_cfg_violation};
 use super::powershell::psd1_config::audit_psscriptanalyzer_psd1;
 use super::shell_docker_config::{audit_hadolint_yaml, audit_shellcheckrc};
+use super::toml_lang::analyze_toml_into_document;
 use super::tool_config_py::{audit_mypy_table, audit_ruff_tables, section_key_span};
 use super::ts::tsconfig_jsonc::{audit_biome_jsonc, audit_tsconfig_jsonc};
 use super::yaml::yaml_tool_config::{
@@ -133,16 +138,10 @@ fn audit_mutants_toml(
     }
 }
 
-fn audit_toml_tool_config(file_name: &str, source: &str, doc: &mut UastDocument) {
-    let parsed: toml::Value = match toml::from_str(source) {
-        Ok(v) => v,
-        Err(err) => {
-            doc.syntax_errors.push(SyntaxErrorNode {
-                message: format!("invalid TOML in `{file_name}`: {err}"),
-                span: Span::FIRST,
-            });
-            return;
-        }
+fn audit_toml_tool_config(path: &RepoPath, file_name: &str, source: &str, doc: &mut UastDocument) {
+    analyze_toml_into_document(path, source, doc);
+    let Ok(parsed) = toml::from_str::<toml::Value>(source) else {
+        return;
     };
     let Some(root) = parsed.as_table() else {
         return;
@@ -167,6 +166,23 @@ fn audit_toml_tool_config(file_name: &str, source: &str, doc: &mut UastDocument)
     audit_pytest_and_coverage(tool, source, doc);
 }
 
+fn try_audit_format_or_yaml_config(path: &RepoPath, source: &str, doc: &mut UastDocument) -> bool {
+    let name = path.file_name();
+    let low = name.to_ascii_lowercase();
+    match low.as_str() {
+        ".yamllint" | ".yamllint.yml" | ".yamllint.yaml" => audit_yamllint_config(source, doc),
+        "zizmor.yml" => audit_zizmor_config(source, doc),
+        "rumdl.toml" | ".rumdl.toml" => audit_rumdl_toml(path, source, doc),
+        "taplo.toml" | ".taplo.toml" => audit_taplo_toml(path, source, doc),
+        _ if low.starts_with(".dclintrc") => audit_dclint_config(name, source, doc),
+        _ if low.starts_with(".stylelintrc") => audit_stylelint_config(name, source, doc),
+        _ if low.starts_with(".markdownlint.") => audit_markdownlint_config(name, source, doc),
+        _ if low.starts_with("svgo.config.") => audit_svgo_config(source, doc),
+        _ => return false,
+    }
+    true
+}
+
 /// Extracts Tier 2 ecosystem configuration findings (`GF081`) into a [`UastDocument`].
 ///
 /// # Errors
@@ -179,6 +195,9 @@ pub fn extract_tool_config(
 ) -> Result<UastDocument, ParseError> {
     let (total_lines, effective_lines) = line_metrics(source);
     let mut doc = UastDocument::new(path.clone(), lang, total_lines, effective_lines)?;
+    if try_audit_format_or_yaml_config(path, source, &mut doc) {
+        return Ok(doc);
+    }
     match path.file_name() {
         name if is_tsconfig_filename(name) => audit_tsconfig_jsonc(name, source, &mut doc),
         name if name.eq_ignore_ascii_case("psscriptanalyzersettings.psd1") => {
@@ -190,24 +209,11 @@ pub fn extract_tool_config(
         ".hadolint.yaml" | ".hadolint.yml" | "hadolint.yaml" | "hadolint.yml" => {
             audit_hadolint_yaml(source, &mut doc.tool_config_findings);
         }
-        name if matches!(
-            name.to_ascii_lowercase().as_str(),
-            ".yamllint" | ".yamllint.yml" | ".yamllint.yaml"
-        ) =>
-        {
-            audit_yamllint_config(source, &mut doc);
-        }
-        name if name.to_ascii_lowercase().starts_with(".dclintrc") => {
-            audit_dclint_config(name, source, &mut doc);
-        }
-        name if name.eq_ignore_ascii_case("zizmor.yml") => {
-            audit_zizmor_config(source, &mut doc);
-        }
         name @ ("biome.json" | "biome.jsonc") => audit_biome_jsonc(name, source, &mut doc),
         name @ ("stryker.config.json" | "stryker.conf.json") => {
             audit_stryker_json(name, source, &mut doc);
         }
-        name => audit_toml_tool_config(name, source, &mut doc),
+        name => audit_toml_tool_config(path, name, source, &mut doc),
     }
     Ok(doc)
 }

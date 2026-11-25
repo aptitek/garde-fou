@@ -9,10 +9,8 @@ use crate::lang_rule_violation::LangRuleViolation;
 pub use crate::language_meta::ExternalToolKind;
 use crate::path::RepoPath;
 use crate::policies::ScannerPolicy;
-use crate::shell_ps_tools::{DockerToolsConfig, PowerShellToolsConfig, ShellToolsConfig};
 pub use crate::shell_ps_tools::{is_audited_tool_config_file, is_tsconfig_filename};
 use crate::tool_config_violations::ToolConfigViolation;
-use crate::yaml_tools::YamlToolsConfig;
 
 /// Type alias preserving compatibility with [`ExternalToolKind`].
 pub type ExternalToolId = ExternalToolKind;
@@ -185,57 +183,5 @@ impl TypeScriptToolsConfig {
 impl Default for TypeScriptToolsConfig {
     fn default() -> Self {
         Self::defaults()
-    }
-}
-
-/// Top-level `[tools]` language tool adapter configuration.
-#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct ToolsConfig {
-    /// Python linter and type-checker policies (`[tools.python]`).
-    pub python: PythonToolsConfig,
-    /// TypeScript/React linter and type-checker policies (`[tools.typescript]`).
-    #[serde(default)]
-    pub typescript: TypeScriptToolsConfig,
-    /// POSIX/Bash `ShellCheck` policy (`[tools.shell]`).
-    #[serde(default)]
-    pub shell: ShellToolsConfig,
-    /// PowerShell `PSScriptAnalyzer` policy (`[tools.powershell]`).
-    #[serde(default)]
-    pub powershell: PowerShellToolsConfig,
-    /// Docker `hadolint` policy (`[tools.docker]`).
-    #[serde(default)]
-    pub docker: DockerToolsConfig,
-    /// YAML, Docker Compose, and GitHub Actions policies (`[tools.yaml]`).
-    #[serde(default)]
-    pub yaml: YamlToolsConfig,
-}
-
-impl ToolsConfig {
-    /// Returns strict default `[tools]` policies.
-    #[must_use]
-    pub const fn defaults() -> Self {
-        Self {
-            python: PythonToolsConfig::defaults(),
-            typescript: TypeScriptToolsConfig::defaults(),
-            shell: ShellToolsConfig::defaults(),
-            powershell: PowerShellToolsConfig::defaults(),
-            docker: DockerToolsConfig::defaults(),
-            yaml: YamlToolsConfig::defaults(),
-        }
-    }
-
-    /// Deterministic fragment for `BLAKE3` cache keys.
-    #[must_use]
-    pub fn canonical_fragment(self) -> String {
-        format!(
-            "tl({},{},{},{},{},{})",
-            self.python.canonical_fragment(),
-            self.typescript.canonical_fragment(),
-            self.shell.canonical_fragment(),
-            self.powershell.canonical_fragment(),
-            self.docker.canonical_fragment(),
-            self.yaml.canonical_fragment(),
-        )
     }
 }

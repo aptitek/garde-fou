@@ -48,9 +48,19 @@ pub enum ExternalToolKind {
     Actionlint,
     /// `zizmor` GitHub Actions security scanner (`zizmor --format sarif`).
     Zizmor,
+    /// `stylelint` W3C CSS & Design Token linter (`stylelint --formatter json`).
+    Stylelint,
+    /// `rumdl` Rust-native `CommonMark`/GFM linter (`rumdl check --output-format json`).
+    Rumdl,
+    /// `markdownlint-cli2` / `markdownlint` Markdown linter (`--json`).
+    Markdownlint,
+    /// `taplo` TOML 1.0/1.1 & JSON-Schema verifier (`taplo check`).
+    Taplo,
+    /// `xmllint` XML 1.0 well-formedness & DTD verifier (`xmllint --noout --nonet`).
+    Xmllint,
 }
 
-const TOOL_NAMES: [&str; 18] = [
+const TOOL_NAMES: [&str; 23] = [
     "ruff",
     "mypy",
     "pyright",
@@ -69,11 +79,16 @@ const TOOL_NAMES: [&str; 18] = [
     "dclint",
     "actionlint",
     "zizmor",
+    "stylelint",
+    "rumdl",
+    "markdownlint",
+    "taplo",
+    "xmllint",
 ];
 
 impl ExternalToolKind {
     /// All known ecosystem tool identifiers in deterministic order.
-    pub const ALL: [Self; 18] = [
+    pub const ALL: [Self; 23] = [
         Self::Ruff,
         Self::Mypy,
         Self::Pyright,
@@ -92,6 +107,11 @@ impl ExternalToolKind {
         Self::Dclint,
         Self::Actionlint,
         Self::Zizmor,
+        Self::Stylelint,
+        Self::Rumdl,
+        Self::Markdownlint,
+        Self::Taplo,
+        Self::Xmllint,
     ];
 
     /// Canonical lowercase CLI/config name of the tool.
@@ -142,6 +162,8 @@ pub enum Language {
     PowerShell,
     /// Scalable Vector Graphics XML asset (`.svg`).
     Svg,
+    /// XML document or package manifest (`.xml`, `.csproj`, `.props`, `pom.xml`).
+    Xml,
     /// Non-text binary media or font asset (`.png`, `.woff2`, `.pdf`, etc.).
     BinaryAsset,
     /// Unclassified text or source file.
@@ -172,7 +194,13 @@ impl Language {
         self.is_code_analyzed()
             || matches!(
                 self,
-                Self::Yaml | Self::Css | Self::Markdown | Self::Svg | Self::BinaryAsset
+                Self::Yaml
+                    | Self::Css
+                    | Self::Markdown
+                    | Self::Toml
+                    | Self::Xml
+                    | Self::Svg
+                    | Self::BinaryAsset
             )
     }
 }
@@ -204,20 +232,4 @@ pub struct TsconfigSummary {
     pub strict_span: Span,
 }
 
-/// Returns `true` if `spec` names a well-known external TypeScript preset with `"strict": true`.
-#[must_use]
-pub fn is_known_strict_preset(spec: &str) -> bool {
-    let s = spec.trim();
-    s.starts_with("@tsconfig/") || s.contains("tsconfig/strict") || s.contains("tsconfigs/strict")
-}
-
-/// Returns `true` for ambient TypeScript declaration files (`*.d.ts`, `*.d.mts`, `*.d.cts`).
-#[must_use]
-pub fn is_ts_declaration_path(path: &str) -> bool {
-    let lower = path.to_ascii_lowercase();
-    let Some((stem, ext)) = lower.rsplit_once('.') else {
-        return false;
-    };
-    let ends_with_d = stem.rsplit_once('.').is_some_and(|(_, sub)| sub == "d");
-    matches!(ext, "ts" | "mts" | "cts") && (ends_with_d || stem.contains(".d."))
-}
+pub use crate::ts_violations::{is_known_strict_preset, is_ts_declaration_path};

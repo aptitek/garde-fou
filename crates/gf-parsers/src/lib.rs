@@ -16,9 +16,11 @@ mod test_inspector;
 mod test_inspector_py;
 mod test_inspector_script;
 pub mod tool_output;
+pub mod tool_output_formats;
 mod tool_output_gha;
 mod tool_output_pssa;
 pub mod tool_output_shell;
+mod tool_output_taplo_xml;
 pub mod tool_output_ts;
 pub mod tool_output_yaml;
 pub mod types;
@@ -40,11 +42,17 @@ use langs::{
     python::PythonExtractor,
     rust::RustExtractor,
     shell::ShellExtractor,
+    toml_lang::TomlExtractor,
     tool_config::extract_tool_config,
     ts::{TsDialect, TypeScriptExtractor},
+    xml::XmlExtractor,
     yaml::YamlExtractor,
 };
 pub use tool_output::{ToolParseError, parse_mypy_ndjson, parse_pyright_json, parse_ruff_json};
+pub use tool_output_formats::{
+    parse_rumdl_or_markdownlint_json, parse_stylelint_json, parse_taplo_output,
+    parse_xmllint_output,
+};
 pub use tool_output_shell::{
     parse_hadolint_json, parse_psscriptanalyzer_json, parse_shellcheck_json,
 };
@@ -86,6 +94,8 @@ fn dispatch_non_code_domain(
         Language::Json | Language::Toml if domain == DomainKind::Texte => {
             extract_i18n_dictionary(path, lang, source)
         }
+        Language::Toml => TomlExtractor.extract(path, source),
+        Language::Xml => XmlExtractor.extract(path, source),
         other => {
             let (total_lines, effective_lines) = cst::line_metrics(source);
             Ok(UastDocument::new(

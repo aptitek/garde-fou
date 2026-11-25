@@ -117,12 +117,12 @@ fn stream_hashed_binary_assets_invalidate_v6_cache_on_same_size_byte_mutation()
     let key_a = CacheKey::from_file_stream(&asset_path)?;
     let first = run_check_with_options(&dir, &CheckOptions::new(ScanScope::All, false))?;
     assert!(first.is_clean());
-    assert_eq!(first.cache_misses, 2);
+    assert_eq!(first.cache_misses, 3);
 
     write_rel(&dir, "assets/hero.png", &png_b)?;
     assert_ne!(key_a, CacheKey::from_file_stream(&asset_path)?);
     let second = run_check_with_options(&dir, &CheckOptions::new(ScanScope::All, false))?;
-    assert_eq!((second.cache_hits, second.cache_misses), (1, 1));
+    assert_eq!((second.cache_hits, second.cache_misses), (2, 1));
     assert_ne!(first.cache_fingerprint, second.cache_fingerprint);
 
     fs::remove_dir_all(&dir)?;

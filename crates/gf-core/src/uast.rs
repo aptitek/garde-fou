@@ -11,7 +11,8 @@ use crate::clean_code::{
 use crate::diagnostic::{Span, SpanError};
 use crate::docker::DockerDocument;
 use crate::domain_summaries::{
-    AssetDocument, ContenusDocument, FormeDocument, StyleLeakFinding, TexteDocument, UiCheckFinding,
+    AssetDocument, ContenusDocument, FormeDocument, StyleLeakFinding, TexteDocument,
+    TomlManifestSummary, UiCheckFinding,
 };
 pub use crate::language_meta::Language;
 use crate::language_meta::TsconfigSummary;
@@ -136,6 +137,9 @@ pub struct UastDocument {
     pub contenus: Option<ContenusDocument>,
     /// Optional `Asset` metadata & SVG security summary (`GF064`).
     pub asset: Option<AssetDocument>,
+    /// Optional `Cargo.toml` workspace dependency summary (`GF080` `TOML-WORKSPACE-BYPASS`).
+    #[serde(default)]
+    pub toml_manifest: Option<TomlManifestSummary>,
     /// Root `UAST` node (typically [`UastKind::File`]).
     pub root: UastNode,
 }
@@ -185,6 +189,7 @@ impl UastDocument {
             texte: None,
             contenus: None,
             asset: None,
+            toml_manifest: None,
             root: UastNode::leaf(UastKind::File, root_span),
         })
     }

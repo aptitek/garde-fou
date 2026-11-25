@@ -7,7 +7,8 @@ use gf_core::{Config, ExternalToolFinding, ExternalToolKind, ScannerPolicy};
 use gf_parsers::{
     ToolParseError, parse_actionlint_json, parse_biome_json, parse_dclint_json,
     parse_hadolint_json, parse_mypy_ndjson, parse_oxlint_json, parse_psscriptanalyzer_json,
-    parse_pyright_json, parse_ruff_json, parse_shellcheck_json, parse_tsc_output,
+    parse_pyright_json, parse_ruff_json, parse_rumdl_or_markdownlint_json, parse_shellcheck_json,
+    parse_stylelint_json, parse_taplo_output, parse_tsc_output, parse_xmllint_output,
     parse_yamllint_parsable, parse_zizmor_sarif,
 };
 
@@ -27,7 +28,7 @@ pub(super) struct AdapterTableEntry {
     pub install_hint: &'static str,
 }
 
-pub(super) const ADAPTER_TABLE: [AdapterTableEntry; 13] = [
+pub(super) const ADAPTER_TABLE: [AdapterTableEntry; 18] = [
     AdapterTableEntry {
         tool: ExternalToolKind::Ruff,
         prefix_args: &["check", "--output-format", "json", "--no-fix", "--"],
@@ -151,5 +152,50 @@ pub(super) const ADAPTER_TABLE: [AdapterTableEntry; 13] = [
         get_policy: |c| c.tools.yaml.zizmor,
         parse_fn: parse_zizmor_sarif,
         install_hint: "Install `zizmor` (`cargo install zizmor` / `uv tool install zizmor`) on system PATH.",
+    },
+    AdapterTableEntry {
+        tool: ExternalToolKind::Stylelint,
+        prefix_args: &["--formatter", "json", "--"],
+        accepts_file_targets: true,
+        dot_when_empty: false,
+        get_policy: |c| c.tools.css.stylelint,
+        parse_fn: parse_stylelint_json,
+        install_hint: "Install `stylelint` (`pnpm add -D stylelint`) in `node_modules/.bin` or system PATH.",
+    },
+    AdapterTableEntry {
+        tool: ExternalToolKind::Rumdl,
+        prefix_args: &["check", "--output-format", "json"],
+        accepts_file_targets: true,
+        dot_when_empty: false,
+        get_policy: |c| c.tools.markdown.rumdl,
+        parse_fn: parse_rumdl_or_markdownlint_json,
+        install_hint: "Install `rumdl` (`cargo install rumdl` / `uv tool install rumdl`) on system PATH.",
+    },
+    AdapterTableEntry {
+        tool: ExternalToolKind::Markdownlint,
+        prefix_args: &["--json"],
+        accepts_file_targets: true,
+        dot_when_empty: false,
+        get_policy: |c| c.tools.markdown.markdownlint,
+        parse_fn: parse_rumdl_or_markdownlint_json,
+        install_hint: "Install `markdownlint` (`pnpm add -D markdownlint-cli`) in `node_modules/.bin` or PATH.",
+    },
+    AdapterTableEntry {
+        tool: ExternalToolKind::Taplo,
+        prefix_args: &["check", "--colors", "never"],
+        accepts_file_targets: true,
+        dot_when_empty: false,
+        get_policy: |c| c.tools.toml.taplo,
+        parse_fn: parse_taplo_output,
+        install_hint: "Install `taplo` (`cargo install taplo-cli`) on system PATH.",
+    },
+    AdapterTableEntry {
+        tool: ExternalToolKind::Xmllint,
+        prefix_args: &["--noout", "--nonet", "--"],
+        accepts_file_targets: true,
+        dot_when_empty: false,
+        get_policy: |c| c.tools.xml.xmllint,
+        parse_fn: parse_xmllint_output,
+        install_hint: "Install `xmllint` (`libxml2-utils` / `libxml2`) on system PATH.",
     },
 ];

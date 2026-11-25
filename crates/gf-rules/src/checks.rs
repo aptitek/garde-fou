@@ -95,6 +95,7 @@ pub fn check_file_metrics(doc: &UastDocument, config: &Config) -> Validation<(),
             | Language::Markdown
             | Language::Json
             | Language::Toml
+            | Language::Xml
             | Language::Svg
             | Language::BinaryAsset
     );

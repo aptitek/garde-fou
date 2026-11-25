@@ -6,6 +6,7 @@ use alloc::vec::Vec;
 use serde::{Deserialize, Serialize};
 
 use crate::diagnostic::Span;
+use crate::format_violations::{CssViolation, MarkdownViolation, XmlSvgViolation};
 
 /// Category of style or asset leak detected inside `DomainKind::Code`.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -76,6 +77,8 @@ pub enum FormeFindingKind {
     TranslatedContentText,
     /// Embedded `url(data:...)` URI inside CSS (`GF061` / `GF064`).
     DataUri,
+    /// Specification-grade CSS Color 4, token fallback, unit/z-index, or specificity violation (`GF061`).
+    CssSpec(CssViolation),
 }
 
 /// Single finding extracted from a `Forme` CSS/SCSS file.
@@ -133,6 +136,8 @@ pub enum ContenusIssueKind {
     MissingImageAlt,
     /// Embedded `data:` URI inside Markdown (`GF064`).
     DataUri,
+    /// Specification-grade `CommonMark`/GFM/MDX violation (`GF063`).
+    MarkdownSpec(MarkdownViolation),
 }
 
 /// Single editorial purity finding in a `.md` or `.mdx` document.
@@ -151,6 +156,12 @@ pub struct ContenusIssue {
 pub struct ContenusDocument {
     /// Purity and heading-hierarchy issues found outside fenced/inline code.
     pub issues: Vec<ContenusIssue>,
+    /// GitHub-slugged heading anchors declared in this document.
+    #[serde(default)]
+    pub heading_slugs: BTreeSet<String>,
+    /// Relative cross-document `.md`/`.mdx` links extracted from this document.
+    #[serde(default)]
+    pub doc_links: Vec<MarkdownLinkTarget>,
 }
 
 /// Security hazard detected inside a static `.svg` asset (`GF064`).
@@ -162,6 +173,8 @@ pub enum AssetHazardKind {
     SvgEventHandler,
     /// Embedded `data:` URI inside SVG (`GF064`).
     SvgEmbeddedDataUri,
+    /// Specification-grade XXE/DTD, SMIL XSS, `<foreignObject>`, `<use>`, or `<style>` hazard (`GF064`).
+    XmlSvgSpec(XmlSvgViolation),
 }
 
 /// Single security hazard found in an `.svg` asset.
@@ -184,4 +197,26 @@ pub struct AssetDocument {
     pub extension: String,
     /// Security hazards detected when `extension == "svg"`.
     pub hazards: Vec<AssetHazard>,
+}
+
+/// Serializable `Cargo.toml` workspace dependency summary for `TOML-WORKSPACE-BYPASS` (`GF080`).
+#[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+pub struct TomlManifestSummary {
+    /// `true` when this `Cargo.toml` declares a `[workspace]` table.
+    pub is_workspace_root: bool,
+    /// Dependency keys declared under `[workspace.dependencies]`.
+    pub workspace_deps: BTreeSet<String>,
+    /// `(dep_key, span)` entries in a member `Cargo.toml` lacking `workspace = true`.
+    pub hardcoded_member_deps: Vec<(String, Span)>,
+}
+
+/// Relative cross-document Markdown link extracted for workspace `#anchor` verification (`GF063`).
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct MarkdownLinkTarget {
+    /// Relative target `.md` / `.mdx` path (without `#fragment` or `?query`).
+    pub target_path: String,
+    /// Optional `#fragment` anchor (without leading `#`).
+    pub fragment: Option<String>,
+    /// 1-based line span of the Markdown link.
+    pub span: Span,
 }
