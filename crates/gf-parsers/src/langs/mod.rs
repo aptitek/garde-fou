@@ -2,6 +2,7 @@
 
 pub mod asset;
 pub mod astro;
+pub mod csharp;
 pub mod css;
 pub mod dockerfile;
 mod dockerfile_args;
@@ -9,9 +10,11 @@ mod dockerfile_instr;
 mod dockerfile_run_bridge;
 mod format_tool_config;
 mod format_tool_toml;
+pub mod go;
 pub mod html_w3c;
 pub mod i18n_dict;
 pub mod jsonc;
+pub mod kotlin;
 pub mod markdown;
 pub mod notebook;
 pub mod powershell;
@@ -30,6 +33,7 @@ mod shell_docker_config;
 pub mod sql;
 pub mod toml_lang;
 pub mod tool_config;
+pub(crate) mod tool_config_compiled;
 mod tool_config_py;
 pub mod ts;
 pub mod xml;

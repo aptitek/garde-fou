@@ -102,6 +102,12 @@ pub fn collect_all_init_files(
                 context,
             ));
         }
+        super::templates_compiled::push_compiled_lang_templates(
+            project_name,
+            pkg_snake,
+            context,
+            &mut files,
+        );
         files.extend(six_domain_feature_files(project_name, context));
     } else {
         files.extend(templates_archetypes::archetype_starter_files(context));

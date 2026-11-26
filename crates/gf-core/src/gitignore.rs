@@ -60,10 +60,16 @@ fn append_section(out: &mut String, title: &str, entries: &[&str], seen: &mut BT
     }
 }
 
+#[rustfmt::skip]
+const LANG_IGNORES: &[(LanguageId, &str, &[&str])] = &[
+    (LanguageId::Rust, "Rust", &["/target/", "**/*.rs.bk"]),
+    (LanguageId::Python, "Python", &[".venv/", "__pycache__/", "*.py[cod]", ".pytest_cache/", ".mypy_cache/", ".ruff_cache/"]),
+    (LanguageId::Go, "Go", &["bin/", "*.test", "*.out"]),
+    (LanguageId::Kotlin, "Kotlin / Gradle", &[".gradle/", "build/", ".kotlin/"]),
+    (LanguageId::CSharp, "C# / .NET", &["bin/", "obj/", "*.user"]),
+];
+
 fn append_language_sections(out: &mut String, ctx: &ProjectContext, seen: &mut BTreeSet<String>) {
-    if ctx.languages.contains(&LanguageId::Rust) {
-        append_section(out, "Rust", &["/target/", "**/*.rs.bk"], seen);
-    }
     if ctx.languages.contains(&LanguageId::TypeScript) || ctx.languages.contains(&LanguageId::Astro)
     {
         append_section(
@@ -81,20 +87,10 @@ fn append_language_sections(out: &mut String, ctx: &ProjectContext, seen: &mut B
             seen,
         );
     }
-    if ctx.languages.contains(&LanguageId::Python) {
-        append_section(
-            out,
-            "Python",
-            &[
-                ".venv/",
-                "__pycache__/",
-                "*.py[cod]",
-                ".pytest_cache/",
-                ".mypy_cache/",
-                ".ruff_cache/",
-            ],
-            seen,
-        );
+    for (lang, title, entries) in LANG_IGNORES {
+        if ctx.languages.contains(lang) {
+            append_section(out, title, entries, seen);
+        }
     }
 }
 

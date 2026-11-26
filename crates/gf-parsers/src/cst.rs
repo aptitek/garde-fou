@@ -182,3 +182,42 @@ fn walk_errors(node: Node<'_>, out: &mut Vec<SyntaxErrorNode>) {
         walk_errors(child, out);
     }
 }
+
+/// Parses `source` with `ts_lang` and initializes a [`UastDocument`] with line metrics,
+/// syntax errors, and referenced symbols.
+///
+/// # Errors
+///
+/// Returns [`ParseError`] if Tree-sitter parsing or span initialization fails.
+pub fn parse_and_init_document(
+    ts_lang: &TsLanguage,
+    path: &gf_core::RepoPath,
+    lang: gf_core::Language,
+    source: &str,
+) -> Result<(Tree, gf_core::UastDocument), ParseError> {
+    let tree = parse_with_language(ts_lang, source)?;
+    let (total_lines, effective_lines) = line_metrics(source);
+    let mut doc = gf_core::UastDocument::new(path.clone(), lang, total_lines, effective_lines)?;
+    let root = tree.root_node();
+    doc.syntax_errors = collect_syntax_errors(root);
+    doc.referenced_symbols = crate::fingerprint::collect_referenced_symbols(root, source);
+    Ok((tree, doc))
+}
+
+/// Builds a [`gf_core::TestCaseSummary`] by counting assertion `markers` present in `body`.
+#[must_use]
+pub fn make_test_case(
+    name: String,
+    span: Span,
+    body: &str,
+    markers: &[&str],
+) -> gf_core::TestCaseSummary {
+    let count = markers.iter().filter(|m| body.contains(**m)).count();
+    gf_core::TestCaseSummary {
+        name,
+        span,
+        assertion_count: u32::try_from(count).unwrap_or(u32::MAX),
+        has_tautology: false,
+        has_weak_only_assertion: false,
+    }
+}

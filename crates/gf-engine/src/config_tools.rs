@@ -8,6 +8,10 @@ use gf_core::{
 };
 use serde::Deserialize;
 
+use crate::config_tools_compiled::{
+    CSharpToolsSection, GoToolsSection, KotlinToolsSection, merge_csharp_tools, merge_go_tools,
+    merge_kotlin_tools,
+};
 use crate::types::EngineError;
 
 #[derive(Deserialize)]
@@ -109,6 +113,9 @@ pub struct ToolsSection {
     xml: Option<XmlToolsSection>,
     sql: Option<SqlToolsSection>,
     web: Option<WebToolsSection>,
+    go: Option<GoToolsSection>,
+    kotlin: Option<KotlinToolsSection>,
+    csharp: Option<CSharpToolsSection>,
 }
 
 fn parse_opt_tool_policy(
@@ -193,27 +200,13 @@ fn merge_sql_tools(
     })
 }
 
-fn merge_web_tools(
-    raw: Option<WebToolsSection>,
-    base: WebToolsConfig,
-) -> Result<WebToolsConfig, EngineError> {
+#[rustfmt::skip]
+fn merge_web_tools(raw: Option<WebToolsSection>, base: WebToolsConfig) -> Result<WebToolsConfig, EngineError> {
     let Some(wb) = raw else { return Ok(base) };
     Ok(WebToolsConfig {
-        astro_check: parse_opt_tool_policy(
-            wb.astro_check,
-            base.astro_check,
-            "tools.web.astro_check",
-        )?,
-        html_validate: parse_opt_tool_policy(
-            wb.html_validate,
-            base.html_validate,
-            "tools.web.html_validate",
-        )?,
-        wrangler_types: parse_opt_tool_policy(
-            wb.wrangler_types,
-            base.wrangler_types,
-            "tools.web.wrangler_types",
-        )?,
+        astro_check: parse_opt_tool_policy(wb.astro_check, base.astro_check, "tools.web.astro_check")?,
+        html_validate: parse_opt_tool_policy(wb.html_validate, base.html_validate, "tools.web.html_validate")?,
+        wrangler_types: parse_opt_tool_policy(wb.wrangler_types, base.wrangler_types, "tools.web.wrangler_types")?,
     })
 }
 
@@ -240,5 +233,8 @@ pub fn merge_tools(raw: Option<ToolsSection>) -> Result<ToolsConfig, EngineError
         xml: XmlToolsConfig { xmllint: xm },
         sql: merge_sql_tools(s.sql, base.sql)?,
         web: merge_web_tools(s.web, base.web)?,
+        go: merge_go_tools(s.go, base.go)?,
+        kotlin: merge_kotlin_tools(s.kotlin, base.kotlin)?,
+        csharp: merge_csharp_tools(s.csharp, base.csharp)?,
     })
 }

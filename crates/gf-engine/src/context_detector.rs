@@ -23,6 +23,7 @@ const SOURCE_LANGUAGE_MAP: &[(Language, LanguageId)] = &[
     (Language::Rust, LanguageId::Rust), (Language::TypeScript, LanguageId::TypeScript),
     (Language::Tsx, LanguageId::TypeScript), (Language::JavaScript, LanguageId::TypeScript),
     (Language::Jsx, LanguageId::TypeScript), (Language::Python, LanguageId::Python),
+    (Language::Go, LanguageId::Go), (Language::Kotlin, LanguageId::Kotlin), (Language::CSharp, LanguageId::CSharp),
     (Language::Shell, LanguageId::Shell), (Language::PowerShell, LanguageId::PowerShell),
     (Language::Yaml, LanguageId::Yaml), (Language::Css, LanguageId::Css),
     (Language::Xml, LanguageId::Xml), (Language::Svg, LanguageId::Xml),
@@ -42,22 +43,31 @@ fn any_file(root: &Path, names: &[&str]) -> bool { names.iter().any(|n| root.joi
 #[rustfmt::skip]
 fn has_m3e_markers(raw: &str) -> bool { raw.contains("primaryContainer") || raw.contains("onSurfaceVariant") || raw.contains("md.sys.") }
 
+#[rustfmt::skip]
 fn resolve_file_lang_id(root: &Path, path: &RepoPath) -> Option<LanguageId> {
     let lang = match detect_language(path) {
-        Language::Unknown if path.extension().is_none() => {
-            peek_extensionless_shebang(&root.join(path.as_str())).unwrap_or(Language::Unknown)
-        }
+        Language::Unknown if path.extension().is_none() => peek_extensionless_shebang(&root.join(path.as_str())).unwrap_or(Language::Unknown),
         known => known,
     };
-    if lang == Language::Markdown {
-        return (!ROOT_EXEMPT_MD.contains(&path.as_str())).then_some(LanguageId::Markdown);
-    }
-    SOURCE_LANGUAGE_MAP
-        .iter()
-        .find_map(|&(src, id)| (src == lang).then_some(id))
+    if lang == Language::Markdown { return (!ROOT_EXEMPT_MD.contains(&path.as_str())).then_some(LanguageId::Markdown); }
+    SOURCE_LANGUAGE_MAP.iter().find_map(|&(src, id)| (src == lang).then_some(id))
 }
 
 #[rustfmt::skip]
+fn detect_manifest_languages(root: &Path, files: &[RepoPath], out: &mut BTreeSet<LanguageId>) {
+    for (names, lid) in [
+        (&["Cargo.toml"][..], LanguageId::Rust),
+        (&["package.json", "tsconfig.json"][..], LanguageId::TypeScript),
+        (&["pyproject.toml", "requirements.txt"][..], LanguageId::Python),
+        (&["go.mod", "go.work"][..], LanguageId::Go),
+        (&["build.gradle.kts", "build.gradle", "settings.gradle.kts"][..], LanguageId::Kotlin),
+    ] {
+        if any_file(root, names) { out.insert(lid); }
+    }
+    if files.iter().any(|p| matches!(p.extension(), Some("csproj" | "sln" | "slnx"))) { out.insert(LanguageId::CSharp); }
+    if any_file(root, ASTRO_CONFIGS) { out.insert(LanguageId::Astro); out.insert(LanguageId::TypeScript); }
+}
+
 fn detect_languages_into(root: &Path, files: &[RepoPath], out: &mut BTreeSet<LanguageId>) {
     for path in files {
         if let Some(id) = resolve_file_lang_id(root, path) {
@@ -67,19 +77,7 @@ fn detect_languages_into(root: &Path, files: &[RepoPath], out: &mut BTreeSet<Lan
             }
         }
     }
-    for (names, lid) in [
-        (&["Cargo.toml"][..], LanguageId::Rust),
-        (&["package.json", "tsconfig.json"][..], LanguageId::TypeScript),
-        (&["pyproject.toml", "requirements.txt"][..], LanguageId::Python),
-    ] {
-        if any_file(root, names) {
-            out.insert(lid);
-        }
-    }
-    if any_file(root, ASTRO_CONFIGS) {
-        out.insert(LanguageId::Astro);
-        out.insert(LanguageId::TypeScript);
-    }
+    detect_manifest_languages(root, files, out);
 }
 
 #[rustfmt::skip]

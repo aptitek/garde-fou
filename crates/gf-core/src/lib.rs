@@ -18,6 +18,8 @@ pub mod archetype_policy;
 pub mod boundaries;
 pub mod clean_code;
 pub mod commit_msg;
+pub mod compiled_tools;
+pub mod compiled_violations;
 pub mod config;
 pub mod context;
 pub mod coverage;
@@ -25,6 +27,7 @@ pub mod diagnostic;
 pub mod docker;
 pub mod domain_summaries;
 pub mod domains;
+pub mod external_tool_kind;
 pub mod format_tools;
 pub mod format_violations;
 pub mod framework_id;
@@ -119,6 +122,14 @@ pub use {
         KissYagniKind, TddConfig, TddParityGate, TestCaseSummary, YagniRule,
     },
     commit_msg::{CommitConfig, validate_commit_message},
+    compiled_tools::{
+        CSharpToolsConfig, CompiledConfigIssue, GoToolsConfig, KotlinToolsConfig,
+        is_compiled_tool_config_file,
+    },
+    compiled_violations::{
+        CSharpViolation, CompiledLangViolation, CompiledModuleSummary, ConcreteTypeMethods,
+        GoViolation, KotlinViolation, StructuralInterfaceDecl,
+    },
     format_tools::{
         CssToolsConfig, FormatConfigIssue, MarkdownConfigIssue, MarkdownToolsConfig,
         StylelintConfigIssue, SvgoConfigIssue, TaploConfigIssue, TomlToolsConfig, XmlToolsConfig,

@@ -1,6 +1,7 @@
 //! Tier 3 language ecosystem tool ingestion orchestrator (`GF082` & `GF043`).
 
 mod adapter_table;
+mod compiled_runners;
 pub mod python_runners;
 mod tool_resolvers;
 pub mod ts_runners;
@@ -15,7 +16,8 @@ use gf_core::{
 };
 pub use gf_parsers::{
     ToolParseError, parse_actionlint_json, parse_astro_check_output, parse_biome_json,
-    parse_dclint_json, parse_hadolint_json, parse_html_validate_json, parse_mypy_ndjson,
+    parse_dclint_json, parse_go_vet_json, parse_golangci_lint_json, parse_hadolint_json,
+    parse_html_validate_json, parse_ktlint_json, parse_msbuild_diagnostics, parse_mypy_ndjson,
     parse_oxlint_json, parse_psscriptanalyzer_json, parse_pyright_json, parse_ruff_json,
     parse_rumdl_or_markdownlint_json, parse_shellcheck_json, parse_sqlfluff_json,
     parse_sqruff_json, parse_squawk_json, parse_stylelint_json, parse_taplo_output,
@@ -205,8 +207,9 @@ pub fn run_language_tool_adapters(ctx: &AdapterCtx<'_>) -> Result<Vec<Diagnostic
         push_yaml_compose_ci_jobs(ctx.docs, ctx.staged_filter, &mut active_jobs);
     }
     push_format_jobs(ctx.docs, ctx.staged_filter, &mut active_jobs);
+    let mut all_diags = compiled_runners::run_compiled_language_adapters(ctx)?;
     if active_jobs.is_empty() {
-        return Ok(Vec::new());
+        return Ok(all_diags);
     }
 
     let batches: Vec<Vec<Diagnostic>> = active_jobs
@@ -214,5 +217,6 @@ pub fn run_language_tool_adapters(ctx: &AdapterCtx<'_>) -> Result<Vec<Diagnostic
         .map(|(adapter, targets)| run_single_adapter(*adapter, ctx, targets))
         .collect::<Result<Vec<_>, _>>()?;
 
-    Ok(batches.into_iter().flatten().collect())
+    all_diags.extend(batches.into_iter().flatten());
+    Ok(all_diags)
 }

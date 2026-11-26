@@ -6,6 +6,7 @@ use alloc::vec::Vec;
 use serde::{Deserialize, Serialize};
 
 pub use crate::academic_violations::AcademicSummary;
+pub use crate::compiled_violations::CompiledModuleSummary;
 use crate::diagnostic::Span;
 use crate::format_violations::{CssViolation, MarkdownViolation, XmlSvgViolation};
 

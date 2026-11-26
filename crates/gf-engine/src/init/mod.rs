@@ -1,6 +1,7 @@
 //! Non-destructive `uv init`-style project bootstrapper (`garde-fou init`).
 
 mod templates_archetypes;
+mod templates_compiled;
 mod templates_domains;
 mod templates_infra;
 mod templates_python;

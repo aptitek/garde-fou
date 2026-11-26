@@ -156,6 +156,7 @@ fn build_contract_impl_counts(docs: &[UastDocument]) -> BTreeMap<&str, BTreeSet<
                 .insert(binding.implementor.as_str());
         }
     }
+    crate::compiled_import_resolver::augment_go_structural_impls(docs, &mut impl_counts);
     impl_counts
 }
 

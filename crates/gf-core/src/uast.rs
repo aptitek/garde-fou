@@ -8,8 +8,8 @@ use crate::clean_code::{
 };
 use crate::diagnostic::{Span, SpanError};
 use crate::domain_summaries::{
-    AcademicSummary, AssetDocument, ContenusDocument, FormeDocument, StyleLeakFinding,
-    TexteDocument, TomlManifestSummary, UiCheckFinding,
+    AcademicSummary, AssetDocument, CompiledModuleSummary, ContenusDocument, FormeDocument,
+    StyleLeakFinding, TexteDocument, TomlManifestSummary, UiCheckFinding,
 };
 pub use crate::language_meta::Language;
 use crate::metrics::{
@@ -144,6 +144,9 @@ pub struct UastDocument {
     /// Optional Jupyter, Quarto, or Obsidian workspace-ref & cell summary (`GF080`).
     #[serde(default)]
     pub academic: Option<AcademicSummary>,
+    /// Optional Go/Kotlin/C# package, namespace, and structural interface metadata (`GF071`/`GF075`).
+    #[serde(default)]
+    pub compiled_meta: Option<CompiledModuleSummary>,
     /// Root `UAST` node (typically [`UastKind::File`]).
     pub root: UastNode,
 }
@@ -197,6 +200,7 @@ impl UastDocument {
             sql_doc: None,
             web_edge: None,
             academic: None,
+            compiled_meta: None,
             root: UastNode::leaf(UastKind::File, root_span),
         })
     }

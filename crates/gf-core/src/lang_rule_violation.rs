@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 use crate::academic_violations::{
     AcademicViolation, NotebookViolation, ObsidianViolation, QuartoViolation,
 };
+use crate::compiled_violations::CompiledLangViolation;
 use crate::format_violations::{TomlViolation, XmlSvgViolation};
 use crate::python_violations::PythonViolation;
 use crate::shell_ps_violations::{PowerShellViolation, ShellViolation};
@@ -49,6 +50,8 @@ pub enum LangRuleViolation {
     WebEdge(WebEdgeViolation),
     /// Native Jupyter, Quarto, or Obsidian violation (`NB-*`, `QUARTO-*`, `OBS-*`).
     Academic(AcademicViolation),
+    /// Native Go, Kotlin, or C# AST violation (`GO-*`, `KT-*`, `CS-*`).
+    Compiled(CompiledLangViolation),
 }
 
 impl LangRuleViolation {
@@ -60,6 +63,7 @@ impl LangRuleViolation {
             Self::XmlSvg(v) => Some((v.code(), v.remediation())),
             Self::Toml(v) => Some((v.code(), v.remediation())),
             Self::Academic(v) => Some((v.code(), v.remediation())),
+            Self::Compiled(v) => Some((v.code(), v.remediation())),
             _ => None,
         }
     }
@@ -82,7 +86,8 @@ impl LangRuleViolation {
             | Self::Workflow(_)
             | Self::XmlSvg(_)
             | Self::Toml(_)
-            | Self::Academic(_) => ("", ""),
+            | Self::Academic(_)
+            | Self::Compiled(_) => ("", ""),
         }
     }
 
@@ -115,7 +120,8 @@ impl LangRuleViolation {
             | Self::Sql(_)
             | Self::Migration(_)
             | Self::WebEdge(_)
-            | Self::Academic(_) => false,
+            | Self::Academic(_)
+            | Self::Compiled(_) => false,
         }
     }
 }
@@ -192,53 +198,38 @@ impl From<SqlViolation> for LangRuleViolation {
     }
 }
 
-impl From<MigrationViolation> for LangRuleViolation {
-    fn from(v: MigrationViolation) -> Self {
-        Self::Migration(v)
-    }
-}
-
-impl From<WebEdgeViolation> for LangRuleViolation {
-    fn from(v: WebEdgeViolation) -> Self {
-        Self::WebEdge(v)
-    }
-}
-
-macro_rules! impl_from_web_edge {
+macro_rules! impl_from_direct {
     ($($ty:ty => $variant:ident),+ $(,)?) => {
-        $(
-            impl From<$ty> for LangRuleViolation {
-                fn from(v: $ty) -> Self {
-                    Self::WebEdge(WebEdgeViolation::$variant(v))
-                }
-            }
-        )+
+        $(impl From<$ty> for LangRuleViolation { fn from(v: $ty) -> Self { Self::$variant(v) } })+
     };
 }
 
-impl_from_web_edge!(
+impl_from_direct!(
+    MigrationViolation => Migration,
+    WebEdgeViolation => WebEdge,
+    AcademicViolation => Academic,
+    CompiledLangViolation => Compiled,
+);
+
+macro_rules! impl_from_nested {
+    ($outer:ident, $inner:ident; $($ty:ty => $variant:ident),+ $(,)?) => {
+        $(impl From<$ty> for LangRuleViolation { fn from(v: $ty) -> Self { Self::$outer($inner::$variant(v)) } })+
+    };
+}
+
+impl_from_nested!(
+    WebEdge, WebEdgeViolation;
     AstroViolation => Astro, ReactRouterViolation => ReactRouter,
     PandaViolation => Panda, M3eViolation => M3e, W3cViolation => W3c,
     A11yViolation => A11y, CloudflareViolation => Cloudflare, DrizzleViolation => Drizzle,
 );
-
-impl From<AcademicViolation> for LangRuleViolation {
-    fn from(v: AcademicViolation) -> Self {
-        Self::Academic(v)
-    }
-}
-impl From<NotebookViolation> for LangRuleViolation {
-    fn from(v: NotebookViolation) -> Self {
-        Self::Academic(AcademicViolation::Notebook(v))
-    }
-}
-impl From<QuartoViolation> for LangRuleViolation {
-    fn from(v: QuartoViolation) -> Self {
-        Self::Academic(AcademicViolation::Quarto(v))
-    }
-}
-impl From<ObsidianViolation> for LangRuleViolation {
-    fn from(v: ObsidianViolation) -> Self {
-        Self::Academic(AcademicViolation::Obsidian(v))
-    }
-}
+impl_from_nested!(
+    Academic, AcademicViolation;
+    NotebookViolation => Notebook, QuartoViolation => Quarto, ObsidianViolation => Obsidian,
+);
+impl_from_nested!(
+    Compiled, CompiledLangViolation;
+    crate::compiled_violations::GoViolation => Go,
+    crate::compiled_violations::KotlinViolation => Kotlin,
+    crate::compiled_violations::CSharpViolation => CSharp,
+);

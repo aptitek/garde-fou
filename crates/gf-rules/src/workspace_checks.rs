@@ -50,6 +50,16 @@ const UNIVERSAL_ENTRYPOINT_GLOBS: &[&str] = &[
     "drizzle.config.*",
     "src/worker.*",
     "worker.*",
+    "cmd/**",
+    "Program.cs",
+    "**/Program.cs",
+    "**/Main.kt",
+    "*.kts",
+    "**/*.kts",
+    "*Test.kt",
+    "**/*Test.kt",
+    "*Tests.cs",
+    "**/*Tests.cs",
 ];
 
 pub fn is_entrypoint_file(path: &RepoPath, ctx: &ProjectContext, config: &Config) -> bool {

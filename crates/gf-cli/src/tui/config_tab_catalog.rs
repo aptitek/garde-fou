@@ -4,11 +4,14 @@ use gf_core::{
     ArchetypeSetting, FeatureId, FrameworkId, GovernanceFlag, LanguageId, WorkspaceArchetype,
 };
 
-/// Ordered list of all 13 languages displayed in the Languages checkbox section.
-pub const ALL_LANGUAGES: [LanguageId; 13] = [
+/// Ordered list of all 16 languages displayed in the Languages checkbox section.
+pub const ALL_LANGUAGES: [LanguageId; 16] = [
     LanguageId::Rust,
     LanguageId::TypeScript,
     LanguageId::Python,
+    LanguageId::Go,
+    LanguageId::Kotlin,
+    LanguageId::CSharp,
     LanguageId::Shell,
     LanguageId::PowerShell,
     LanguageId::Yaml,

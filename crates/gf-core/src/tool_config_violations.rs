@@ -3,6 +3,7 @@
 use core::fmt;
 use serde::{Deserialize, Serialize};
 
+use crate::compiled_tools::CompiledConfigIssue;
 use crate::format_tools::FormatConfigIssue;
 use crate::language_meta::ExternalToolKind;
 pub use crate::mutation_config_issues::{MutantsConfigIssue, StrykerConfigIssue};
@@ -165,6 +166,8 @@ pub enum ToolConfigViolation {
     Sql(SqlToolConfigIssue),
     /// `panda.config.*` or `wrangler.{toml,json,jsonc}` weakened.
     WebEdge(WebEdgeConfigIssue),
+    /// Go (`go.mod`/`.golangci.yml`), Kotlin (`detekt.yml`/`build.gradle.kts`), or C# (`*.csproj`/`.editorconfig`) weakened.
+    Compiled(CompiledConfigIssue),
 }
 
 impl ToolConfigViolation {
@@ -175,6 +178,7 @@ impl ToolConfigViolation {
             Self::Formats(k) => Some((k.tool(), k.key(), k.remediation())),
             Self::Sql(k) => Some((k.tool(), k.key(), k.remediation())),
             Self::WebEdge(k) => Some((k.tool(), k.key(), k.remediation())),
+            Self::Compiled(k) => Some((k.tool(), k.key(), k.remediation())),
             Self::MypyNotStrict(_)
             | Self::RuffWeakened(_)
             | Self::PytestOrCoverageWeakened(_)
@@ -203,7 +207,8 @@ impl ToolConfigViolation {
             | Self::YamlCi(_)
             | Self::Formats(_)
             | Self::Sql(_)
-            | Self::WebEdge(_) => (ExternalToolKind::Biome, "linter.enabled", REM_CFG_BIOME),
+            | Self::WebEdge(_)
+            | Self::Compiled(_) => (ExternalToolKind::Biome, "linter.enabled", REM_CFG_BIOME),
         }
     }
 

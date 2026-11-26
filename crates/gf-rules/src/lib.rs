@@ -15,6 +15,7 @@ mod asset_and_script_checks;
 mod boundary_checks;
 mod checks;
 mod clone_checks;
+mod compiled_import_resolver;
 mod docker_checks;
 mod docker_instr_checks;
 mod domain_checks;

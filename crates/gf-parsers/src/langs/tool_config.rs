@@ -5,8 +5,8 @@
 
 use gf_core::{
     CoverageFailUnder, Language, MutantsConfigIssue, PytestCoverageIssue, RepoPath,
-    ToolConfigFinding, ToolConfigViolation, UastDocument, is_sql_tool_config_file,
-    is_tsconfig_filename, is_web_edge_tool_config_file,
+    ToolConfigFinding, ToolConfigViolation, UastDocument, is_compiled_tool_config_file,
+    is_sql_tool_config_file, is_tsconfig_filename, is_web_edge_tool_config_file,
 };
 
 use super::{
@@ -169,6 +169,10 @@ fn audit_toml_tool_config(path: &RepoPath, file_name: &str, source: &str, doc: &
 }
 
 fn try_audit_sql_or_web_config(path: &RepoPath, source: &str, doc: &mut UastDocument) -> bool {
+    if is_compiled_tool_config_file(path.as_str()) {
+        super::tool_config_compiled::audit_compiled_tool_config(path, source, doc);
+        return true;
+    }
     if is_sql_tool_config_file(path) {
         audit_sql_tool_config(path, source, doc);
         return true;

@@ -103,7 +103,11 @@ fn cache_cli_status_prune_clean_lifecycle() -> Result<(), Box<dyn std::error::Er
     assert_eq!(pr_code, ExitCode::SUCCESS);
     assert!(pr_out.contains("cache prune ok"));
     assert!(!stale_dir.exists());
-    assert!(dir.join(".garde-fou-cache/v14").is_dir());
+    assert!(
+        dir.join(".garde-fou-cache")
+            .join(gf_engine::ACTIVE_CACHE_SCHEMA)
+            .is_dir()
+    );
 
     let cl = Cli::try_parse_from(["garde", "cache", "clean"])?;
     let (cl_out, cl_code) = execute_with_policy(&cl, &dir, ColorPolicy::Plain)?;

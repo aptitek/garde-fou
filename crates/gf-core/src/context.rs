@@ -46,12 +46,18 @@ pub enum LanguageId {
     Astro,
     /// W3C HTML5 document ecosystem (`.html`, `.htm`).
     Html,
+    /// Go ecosystem (`.go`, `go.mod`, `go.work`).
+    Go,
+    /// Kotlin / JVM ecosystem (`.kt`, `.kts`, `build.gradle.kts`).
+    Kotlin,
+    /// C# / .NET ecosystem (`.cs`, `*.csproj`, `*.sln`).
+    CSharp,
 }
 
 #[rustfmt::skip]
-const LANG_NAMES: [&str; 13] = [
+const LANG_NAMES: [&str; 16] = [
     "rust", "typescript", "python", "shell", "powershell", "yaml", "css",
-    "xml", "toml", "markdown", "sql", "astro", "html",
+    "xml", "toml", "markdown", "sql", "astro", "html", "go", "kotlin", "csharp",
 ];
 #[rustfmt::skip]
 const LANGUAGE_ALIASES: &[(&str, LanguageId)] = &[
@@ -68,6 +74,9 @@ const LANGUAGE_ALIASES: &[(&str, LanguageId)] = &[
     ("markdown", LanguageId::Markdown), ("md", LanguageId::Markdown), ("mdx", LanguageId::Markdown),
     ("sql", LanguageId::Sql), ("postgres", LanguageId::Sql), ("sqlite", LanguageId::Sql),
     ("astro", LanguageId::Astro), ("html", LanguageId::Html), ("htm", LanguageId::Html),
+    ("go", LanguageId::Go), ("golang", LanguageId::Go),
+    ("kotlin", LanguageId::Kotlin), ("kt", LanguageId::Kotlin), ("kts", LanguageId::Kotlin),
+    ("csharp", LanguageId::CSharp), ("c#", LanguageId::CSharp), ("cs", LanguageId::CSharp), ("dotnet", LanguageId::CSharp),
 ];
 
 impl LanguageId {
@@ -89,7 +98,7 @@ impl LanguageId {
         LANG_NAMES[self as usize]
     }
 
-    /// Returns `true` for primary code/automation languages (`Rust`, `TypeScript`, `Python`, `Shell`, `PowerShell`, `Astro`).
+    /// Returns `true` for primary code/automation languages (`Rust`, `TypeScript`, `Python`, `Go`, `Kotlin`, `CSharp`, `Shell`, `PowerShell`, `Astro`).
     #[must_use]
     pub const fn is_programming_language(self) -> bool {
         matches!(
@@ -97,6 +106,9 @@ impl LanguageId {
             Self::Rust
                 | Self::TypeScript
                 | Self::Python
+                | Self::Go
+                | Self::Kotlin
+                | Self::CSharp
                 | Self::Shell
                 | Self::PowerShell
                 | Self::Astro

@@ -4,6 +4,7 @@ use alloc::format;
 use alloc::string::String;
 use serde::{Deserialize, Serialize};
 
+use crate::compiled_tools::{CSharpToolsConfig, GoToolsConfig, KotlinToolsConfig};
 use crate::format_tools::{CssToolsConfig, MarkdownToolsConfig, TomlToolsConfig, XmlToolsConfig};
 use crate::shell_ps_tools::{DockerToolsConfig, PowerShellToolsConfig, ShellToolsConfig};
 use crate::sql_tools::SqlToolsConfig;
@@ -51,6 +52,15 @@ pub struct ToolsConfig {
     /// Web & Edge `astro-check`, `html-validate`, and `wrangler-types` policies (`[tools.web]`).
     #[serde(default)]
     pub web: WebToolsConfig,
+    /// Go `golangci-lint` and `go vet` policies (`[tools.go]`).
+    #[serde(default)]
+    pub go: GoToolsConfig,
+    /// Kotlin `detekt` and `ktlint` policies (`[tools.kotlin]`).
+    #[serde(default)]
+    pub kotlin: KotlinToolsConfig,
+    /// C# / .NET `dotnet build` policy (`[tools.csharp]`).
+    #[serde(default)]
+    pub csharp: CSharpToolsConfig,
 }
 
 impl ToolsConfig {
@@ -70,6 +80,9 @@ impl ToolsConfig {
             xml: XmlToolsConfig::defaults(),
             sql: SqlToolsConfig::defaults(),
             web: WebToolsConfig::defaults(),
+            go: GoToolsConfig::defaults(),
+            kotlin: KotlinToolsConfig::defaults(),
+            csharp: CSharpToolsConfig::defaults(),
         }
     }
 
@@ -77,7 +90,7 @@ impl ToolsConfig {
     #[must_use]
     pub fn canonical_fragment(self) -> String {
         format!(
-            "tl({},{},{},{},{},{},{},{},{},{},{},{})",
+            "tl({},{},{},{},{},{},{},{},{},{},{},{},{},{},{})",
             self.python.canonical_fragment(),
             self.typescript.canonical_fragment(),
             self.shell.canonical_fragment(),
@@ -90,6 +103,9 @@ impl ToolsConfig {
             self.xml.canonical_fragment(),
             self.sql.canonical_fragment(),
             self.web.canonical_fragment(),
+            self.go.canonical_fragment(),
+            self.kotlin.canonical_fragment(),
+            self.csharp.canonical_fragment(),
         )
     }
 }

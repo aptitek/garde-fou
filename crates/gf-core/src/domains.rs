@@ -99,7 +99,16 @@ impl DomainLayoutConfig {
     #[must_use]
     pub fn strict_defaults() -> Self {
         Self {
-            code_globs: owned_strs(&["src/**", "crates/**", "app/**", "lib/**", "packages/**"]),
+            code_globs: owned_strs(&[
+                "src/**",
+                "crates/**",
+                "app/**",
+                "lib/**",
+                "packages/**",
+                "internal/**",
+                "pkg/**",
+                "cmd/**",
+            ]),
             scripts_globs: owned_strs(&["scripts/**", "tools/**"]),
             forme_globs: owned_strs(&[
                 "styles/**",

@@ -11,6 +11,7 @@ pub mod config_loader;
 pub mod config_patcher;
 mod config_schema;
 mod config_tools;
+mod config_tools_compiled;
 pub mod context_detector;
 pub mod discovery;
 mod file_loader;
@@ -31,8 +32,9 @@ use gf_core::{Config, LockStatus, ScannerPolicy};
 pub use crate::{
     adapters::{
         AdapterCtx, ExternalAdapter, ResolvedPythonTool, ToolParseError, parse_actionlint_json,
-        parse_astro_check_output, parse_biome_json, parse_dclint_json, parse_hadolint_json,
-        parse_html_validate_json, parse_mypy_ndjson, parse_oxlint_json,
+        parse_astro_check_output, parse_biome_json, parse_dclint_json, parse_go_vet_json,
+        parse_golangci_lint_json, parse_hadolint_json, parse_html_validate_json, parse_ktlint_json,
+        parse_msbuild_diagnostics, parse_mypy_ndjson, parse_oxlint_json,
         parse_psscriptanalyzer_json, parse_pyright_json, parse_ruff_json,
         parse_rumdl_or_markdownlint_json, parse_shellcheck_json, parse_sqlfluff_json,
         parse_sqruff_json, parse_squawk_json, parse_stylelint_json, parse_taplo_output,

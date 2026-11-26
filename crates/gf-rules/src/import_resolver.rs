@@ -8,14 +8,16 @@ use alloc::vec::Vec;
 
 use gf_core::{ImportDecl, Language, RepoPath, UastDocument};
 
+use crate::compiled_import_resolver::CompiledWorkspaceIndex;
 pub use crate::rust_import_resolver::normalize_join;
 use crate::rust_import_resolver::{dir_of, push_known, resolve_rust_import};
 use crate::ts_import_resolver::TsWorkspaceAliases;
 
-/// Pre-indexed workspace import resolution table (`path -> doc_idx` + `tsconfig` aliases).
+/// Pre-indexed workspace import resolution table (`path -> doc_idx` + `tsconfig` + Go/Kotlin/C# indices).
 pub struct WorkspaceImportResolver<'a> {
     path_index: BTreeMap<&'a str, usize>,
     ts_aliases: TsWorkspaceAliases,
+    compiled: CompiledWorkspaceIndex,
 }
 
 impl<'a> WorkspaceImportResolver<'a> {
@@ -28,9 +30,11 @@ impl<'a> WorkspaceImportResolver<'a> {
             .map(|(idx, d)| (d.path.as_str(), idx))
             .collect();
         let ts_aliases = TsWorkspaceAliases::from_docs(docs);
+        let compiled = CompiledWorkspaceIndex::from_docs(docs);
         Self {
             path_index,
             ts_aliases,
+            compiled,
         }
     }
 
@@ -49,6 +53,9 @@ impl<'a> WorkspaceImportResolver<'a> {
             Language::Rust => {
                 resolve_rust_import(raw_from, &imp.module_source, &self.path_index, &mut out);
             }
+            Language::Go => self.compiled.resolve_go(&imp.module_source, &mut out),
+            Language::Kotlin => self.compiled.resolve_kotlin(&imp.module_source, &mut out),
+            Language::CSharp => self.compiled.resolve_csharp(&imp.module_source, &mut out),
             _ => {}
         }
         out.retain(|&idx| self.path_index.get(raw_from) != Some(&idx));

@@ -73,7 +73,7 @@ Les frontières entre crates sont vérifiées par le compilateur et par les test
 
 | Domain | Configured Globs |
 | :--- | :--- |
-| `Code` | `src/**, crates/**, app/**, lib/**, packages/**` |
+| `Code` | `src/**, crates/**, app/**, lib/**, packages/**, internal/**, pkg/**, cmd/**` |
 | `Scripts` | `scripts/**, tools/**` |
 | `Forme` (Tokens) | `styles/**, tokens/**, theme/**, design-system/**, src/styles/**, src/tokens/**, **/recipes/**, **/tokens/**, panda.config.*` (`tokens/**, styles/tokens/**, src/tokens/**, **/tokens/**, **/tokens.*, **/variables.css, panda.config.*`) |
 | `Texte` | `locales/**, i18n/**, messages/**, src/locales/**` |

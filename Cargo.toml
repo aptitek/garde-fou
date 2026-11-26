@@ -39,6 +39,9 @@ toml = { version = "0.8", default-features = false, features = ["parse"] }
 toml_edit = { version = "0.22", default-features = false, features = ["parse", "display"] }
 tree-sitter = { version = "0.26" }
 tree-sitter-bash = { version = "0.25" }
+tree-sitter-c-sharp = { version = "0.24" }
+tree-sitter-go = { version = "0.25" }
+tree-sitter-kotlin-ng = { version = "1.1" }
 tree-sitter-powershell = { version = "0.26" }
 tree-sitter-python = { version = "0.25" }
 tree-sitter-rust = { version = "0.24" }

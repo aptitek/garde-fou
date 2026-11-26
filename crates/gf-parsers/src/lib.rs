@@ -16,6 +16,7 @@ mod test_inspector;
 mod test_inspector_py;
 mod test_inspector_script;
 pub mod tool_output;
+pub mod tool_output_compiled;
 pub mod tool_output_formats;
 mod tool_output_gha;
 mod tool_output_pssa;
@@ -37,10 +38,13 @@ pub use langs::ts::is_hook_identifier;
 use langs::{
     asset::{collect_script_mentions, extract_svg_asset},
     astro::AstroExtractor,
+    csharp::CSharpExtractor,
     css::CssExtractor,
     dockerfile::DockerfileExtractor,
+    go::GoExtractor,
     html_w3c::HtmlExtractor,
     i18n_dict::extract_i18n_dictionary,
+    kotlin::KotlinExtractor,
     markdown::{MarkdownExtractor, obsidian::JsonCanvasExtractor},
     notebook::NotebookExtractor,
     powershell::PowerShellExtractor,
@@ -57,6 +61,9 @@ use langs::{
 };
 pub use {
     tool_output::{ToolParseError, parse_mypy_ndjson, parse_pyright_json, parse_ruff_json},
+    tool_output_compiled::{
+        parse_go_vet_json, parse_golangci_lint_json, parse_ktlint_json, parse_msbuild_diagnostics,
+    },
     tool_output_formats::{
         parse_rumdl_or_markdownlint_json, parse_stylelint_json, parse_taplo_output,
         parse_xmllint_output,
@@ -144,6 +151,25 @@ fn dispatch_non_code_domain(
     }
 }
 
+fn dispatch_script_or_compiled(
+    lang: Language,
+    path: &RepoPath,
+    source: &str,
+    ctx: DispatchCtx<'_>,
+) -> Result<UastDocument, ParseError> {
+    match lang {
+        Language::Go => GoExtractor.extract(path, source),
+        Language::Kotlin => KotlinExtractor.extract(path, source),
+        Language::CSharp => CSharpExtractor.extract(path, source),
+        Language::Shell => ShellExtractor.extract(path, source),
+        Language::PowerShell => PowerShellExtractor.extract(path, source),
+        Language::Dockerfile => DockerfileExtractor.extract(path, source),
+        Language::Yaml => YamlExtractor.extract(path, source),
+        Language::Astro => AstroExtractor.extract(path, source),
+        other => dispatch_non_code_domain(other, path, source, ctx),
+    }
+}
+
 fn dispatch_language_extractor(
     lang: Language,
     path: &RepoPath,
@@ -151,6 +177,11 @@ fn dispatch_language_extractor(
     ctx: DispatchCtx<'_>,
 ) -> Result<UastDocument, ParseError> {
     if is_audited_tool_config_file(path) {
+        if lang == Language::Xml {
+            let mut doc = XmlExtractor.extract(path, source)?;
+            langs::tool_config_compiled::audit_compiled_tool_config(path, source, &mut doc);
+            return Ok(doc);
+        }
         return extract_tool_config(path, lang, source);
     }
     let domain = classify_path(path, ctx.domains);
@@ -162,12 +193,7 @@ fn dispatch_language_extractor(
     match lang {
         Language::Rust => RustExtractor.extract(path, source),
         Language::Python => PythonExtractor::extract_in_domain(path, source, domain),
-        Language::Shell => ShellExtractor.extract(path, source),
-        Language::PowerShell => PowerShellExtractor.extract(path, source),
-        Language::Dockerfile => DockerfileExtractor.extract(path, source),
-        Language::Yaml => YamlExtractor.extract(path, source),
-        Language::Astro => AstroExtractor.extract(path, source),
-        other => dispatch_non_code_domain(other, path, source, ctx),
+        other => dispatch_script_or_compiled(other, path, source, ctx),
     }
 }
 

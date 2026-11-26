@@ -23,28 +23,51 @@ fn any_root_file(root: &Path, names: &[&str]) -> bool {
     names.iter().any(|n| root.join(n).is_file())
 }
 
+const PRIMARY_MANIFESTS: &[&str] = &[
+    "Cargo.toml",
+    "package.json",
+    "go.mod",
+    "go.work",
+    "build.gradle.kts",
+    "build.gradle",
+    "settings.gradle.kts",
+];
+
+fn is_primary_source_file(p: &RepoPath) -> bool {
+    let is_dotnet = p.extension().is_some_and(|e| {
+        e.eq_ignore_ascii_case("csproj")
+            || e.eq_ignore_ascii_case("sln")
+            || e.eq_ignore_ascii_case("slnx")
+    });
+    is_dotnet
+        || matches!(
+            detect_language(p),
+            Language::Rust
+                | Language::TypeScript
+                | Language::Tsx
+                | Language::JavaScript
+                | Language::Jsx
+                | Language::Astro
+                | Language::Go
+                | Language::Kotlin
+                | Language::CSharp
+        )
+}
+
+fn has_python_app_layout(root: &Path, files: &[RepoPath]) -> bool {
+    root.join("pyproject.toml").is_file()
+        && (root.join("src").is_dir()
+            || root.join("app").is_dir()
+            || files
+                .iter()
+                .any(|p| p.as_str().starts_with("src/") || p.as_str().starts_with("app/")))
+}
+
 fn has_primary_app_source(root: &Path, files: &[RepoPath]) -> bool {
-    root.join("Cargo.toml").is_file()
-        || root.join("package.json").is_file()
+    any_root_file(root, PRIMARY_MANIFESTS)
         || root.join("crates").is_dir()
-        || files.iter().any(|p| {
-            matches!(
-                detect_language(p),
-                Language::Rust
-                    | Language::TypeScript
-                    | Language::Tsx
-                    | Language::JavaScript
-                    | Language::Jsx
-                    | Language::Astro
-                    | Language::Go
-            )
-        })
-        || (root.join("pyproject.toml").is_file()
-            && (root.join("src").is_dir()
-                || root.join("app").is_dir()
-                || files
-                    .iter()
-                    .any(|p| p.as_str().starts_with("src/") || p.as_str().starts_with("app/"))))
+        || files.iter().any(is_primary_source_file)
+        || has_python_app_layout(root, files)
 }
 
 /// Detects `Quarto`, `Jupyter`, `Obsidian`, and `DockerCompose` frameworks from workspace files.
