@@ -22,13 +22,16 @@ use gf_engine::EngineError;
 pub use crate::{
     args::{
         CheckArgs, CheckExecutionFlags, Cli, ColorChoice, Commands, CommitMsgArgs, InitArgs,
-        InitModeFlags, LockArgs, OutputFormat, SyncArgs, TuiArgs,
+        InitModeFlags, LocaleChoice, LockArgs, OutputFormat, SyncArgs, TuiArgs,
     },
     args_ops::{
         CacheArgs, CacheSubcommand, CheckModeFlags, ConfigArgs, EjectArgs, UninstallArgs,
         UninstallBehaviorFlags, UninstallScopeFlags,
     },
-    reporter::{render_check_report, render_init_report, render_sync_report},
+    reporter::{
+        render_check_report, render_init_report, render_localized_check_banner,
+        render_localized_cli_label, render_sync_report,
+    },
 };
 use crate::{
     cache_cmd::execute_cache,

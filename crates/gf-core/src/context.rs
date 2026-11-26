@@ -54,12 +54,17 @@ pub enum LanguageId {
     CSharp,
     /// Oracle PL/SQL procedural database ecosystem (`.pls`, `.plb`, `.pks`, `.pkb`, `.prc`, `.fnc`, `.trg`, `.tps`, `.tpb`).
     PlSql,
+    /// Mermaid v11 diagrams-as-code (`.mmd`, `.mermaid`).
+    Mermaid,
+    /// `PlantUML` diagrams-as-code (`.puml`, `.plantuml`, `.iuml`, `.pu`).
+    PlantUml,
 }
 
 #[rustfmt::skip]
-const LANG_NAMES: [&str; 17] = [
+const LANG_NAMES: [&str; 19] = [
     "rust", "typescript", "python", "shell", "powershell", "yaml", "css",
     "xml", "toml", "markdown", "sql", "astro", "html", "go", "kotlin", "csharp", "plsql",
+    "mermaid", "plantuml",
 ];
 #[rustfmt::skip]
 const LANGUAGE_ALIASES: &[(&str, LanguageId)] = &[
@@ -80,6 +85,8 @@ const LANGUAGE_ALIASES: &[(&str, LanguageId)] = &[
     ("kotlin", LanguageId::Kotlin), ("kt", LanguageId::Kotlin), ("kts", LanguageId::Kotlin),
     ("csharp", LanguageId::CSharp), ("c#", LanguageId::CSharp), ("cs", LanguageId::CSharp), ("dotnet", LanguageId::CSharp),
     ("plsql", LanguageId::PlSql), ("oracle", LanguageId::PlSql), ("pl-sql", LanguageId::PlSql),
+    ("mermaid", LanguageId::Mermaid), ("mmd", LanguageId::Mermaid),
+    ("plantuml", LanguageId::PlantUml), ("puml", LanguageId::PlantUml),
 ];
 
 impl LanguageId {
@@ -155,12 +162,14 @@ pub enum FeatureId {
     W3c,
     /// AI, Machine Learning, Deep Learning & LLM Agent governance (`ML-*`, `LLM-*`).
     AiMl,
+    /// Diagrams-as-Code (`Mermaid` v11 & `PlantUML`).
+    Diagrams,
 }
 
 #[rustfmt::skip]
-const FEATURE_NAMES: [&str; 13] = [
+const FEATURE_NAMES: [&str; 14] = [
     "docker", "git-hooks", "ci-github", "task-runner", "ui", "i18n",
-    "content", "tdd", "storybook", "panda-css", "m3e", "w3c", "ai-ml",
+    "content", "tdd", "storybook", "panda-css", "m3e", "w3c", "ai-ml", "diagrams",
 ];
 
 #[rustfmt::skip]
@@ -177,6 +186,7 @@ const FEATURE_ALIASES: &[(&str, FeatureId)] = &[
     ("material-3-expressive", FeatureId::Material3Expressive), ("md3", FeatureId::Material3Expressive),
     ("w3c", FeatureId::W3c), ("wcag", FeatureId::W3c), ("wcag22", FeatureId::W3c), ("html5", FeatureId::W3c),
     ("ai-ml", FeatureId::AiMl), ("ai", FeatureId::AiMl), ("ml", FeatureId::AiMl), ("llm", FeatureId::AiMl),
+    ("diagrams", FeatureId::Diagrams), ("mermaid", FeatureId::Diagrams), ("plantuml", FeatureId::Diagrams),
 ];
 
 impl FeatureId {

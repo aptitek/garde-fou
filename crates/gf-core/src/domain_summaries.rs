@@ -1,6 +1,6 @@
 //! Serializable `#![no_std]` domain findings attached to [`crate::UastDocument`] in cache `v6`.
 
-use alloc::collections::BTreeSet;
+use alloc::collections::{BTreeMap, BTreeSet};
 use alloc::string::String;
 use alloc::vec::Vec;
 use serde::{Deserialize, Serialize};
@@ -122,6 +122,12 @@ pub struct TexteDocument {
     pub keys: BTreeSet<String>,
     /// Values containing forbidden HTML, inline styles, or `data:` URIs.
     pub forbidden_values: Vec<TexteIssue>,
+    /// Optional translation domain (e.g. `"messages"`, `"validators"`).
+    #[serde(default)]
+    pub domain: String,
+    /// Canonical placeholder variable set per flattened key for cross-locale parity (`I18N-PLACEHOLDER-MISMATCH`).
+    #[serde(default)]
+    pub placeholders_by_key: BTreeMap<String, BTreeSet<String>>,
 }
 
 /// Category of editorial purity issue in a Markdown/MDX document (`GF063` / `GF064`).

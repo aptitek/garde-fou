@@ -1,0 +1,9 @@
+[report]
+pass_title = "Garde-fou : contrôle réussi ({files} fichiers, {violations} violation)"
+fail_title = "Garde-fou : échec ({files} fichiers, {violations} violations)"
+cache_summary = "Cache : {hits} hits, {misses} misses"
+
+[cli]
+sync_ok = "Synchronisation terminée ({files} artefacts)"
+lock_ok = "Empreinte garde.lock vérifiée"
+commit_ok = "Message de commit conforme"

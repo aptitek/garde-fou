@@ -127,6 +127,7 @@ fn mk_loc(
         locale: loc.into(),
         keys: keys.iter().copied().map(String::from).collect(),
         forbidden_values: Vec::new(),
+        ..TexteDocument::default()
     });
     Ok(d)
 }

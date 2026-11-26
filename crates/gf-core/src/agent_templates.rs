@@ -14,7 +14,7 @@ pub const CORE_FRAGMENT: &str = include_str!("../../../content/agent-fragments/c
 /// Six-domain segregation fragment (`GF060`–`GF066`).
 pub const DOMAINS_FRAGMENT: &str = include_str!("../../../content/agent-fragments/domains.md");
 
-const LANGUAGE_FRAGMENTS: [&str; 17] = [
+const LANGUAGE_FRAGMENTS: [&str; 19] = [
     include_str!("../../../content/agent-fragments/lang-rust.md"),
     include_str!("../../../content/agent-fragments/lang-typescript.md"),
     include_str!("../../../content/agent-fragments/lang-python.md"),
@@ -32,9 +32,11 @@ const LANGUAGE_FRAGMENTS: [&str; 17] = [
     include_str!("../../../content/agent-fragments/lang-kotlin.md"),
     include_str!("../../../content/agent-fragments/lang-csharp.md"),
     include_str!("../../../content/agent-fragments/lang-plsql.md"),
+    include_str!("../../../content/agent-fragments/feat-diagrams.md"),
+    include_str!("../../../content/agent-fragments/feat-diagrams.md"),
 ];
 
-const FEATURE_FRAGMENTS: [&str; 13] = [
+const FEATURE_FRAGMENTS: [&str; 14] = [
     include_str!("../../../content/agent-fragments/feat-docker.md"),
     include_str!("../../../content/agent-fragments/feat-git-hooks.md"),
     include_str!("../../../content/agent-fragments/feat-ci-github.md"),
@@ -48,6 +50,7 @@ const FEATURE_FRAGMENTS: [&str; 13] = [
     include_str!("../../../content/agent-fragments/feat-m3e.md"),
     include_str!("../../../content/agent-fragments/feat-w3c-a11y.md"),
     include_str!("../../../content/agent-fragments/feat-ai-ml.md"),
+    include_str!("../../../content/agent-fragments/feat-diagrams.md"),
 ];
 
 const FRAMEWORK_FRAGMENTS: [&str; 22] = [

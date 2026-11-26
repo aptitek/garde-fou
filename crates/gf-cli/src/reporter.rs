@@ -4,7 +4,7 @@
 use std::collections::BTreeMap;
 use std::fmt::Write as _;
 
-use gf_core::Diagnostic;
+use gf_core::{Diagnostic, UiLocale, ui_tr, ui_tr_fmt};
 use gf_engine::{CheckReport, InitReport, ScanScope, SyncReport};
 use serde_json::json;
 
@@ -18,6 +18,45 @@ const fn scope_label(scope: ScanScope) -> &'static str {
     match scope {
         ScanScope::All => "workspace",
         ScanScope::StagedOnly => "staged",
+    }
+}
+
+/// Renders a localized one-line status banner using embedded `locales/{fr,en}.toml`.
+#[must_use]
+pub fn render_localized_check_banner(report: &CheckReport, locale: UiLocale) -> String {
+    let files = report.files_checked.to_string();
+    let violations = report.diagnostics.len().to_string();
+    let hits = report.cache_hits.to_string();
+    let misses = report.cache_misses.to_string();
+    let title = if report.is_clean() {
+        ui_tr_fmt(
+            locale,
+            "report.pass_title",
+            &[("files", &files), ("violations", &violations)],
+        )
+    } else {
+        ui_tr_fmt(
+            locale,
+            "report.fail_title",
+            &[("files", &files), ("violations", &violations)],
+        )
+    };
+    let cache = ui_tr_fmt(
+        locale,
+        "report.cache_summary",
+        &[("hits", &hits), ("misses", &misses)],
+    );
+    format!("{title} | {cache}")
+}
+
+/// Renders localized CLI confirmation labels for `sync`, `lock`, and `commit-msg`.
+#[must_use]
+pub fn render_localized_cli_label(locale: UiLocale, kind: &str, count: usize) -> String {
+    let n = count.to_string();
+    match kind {
+        "sync" => ui_tr_fmt(locale, "cli.sync_ok", &[("files", &n)]),
+        "lock" => String::from(ui_tr(locale, "cli.lock_ok")),
+        _ => String::from(ui_tr(locale, "cli.commit_ok")),
     }
 }
 

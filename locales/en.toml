@@ -1,0 +1,9 @@
+[report]
+pass_title = "Garde-fou: check passed ({files} files, {violations} violations)"
+fail_title = "Garde-fou: check failed ({files} files, {violations} violations)"
+cache_summary = "Cache: {hits} hits, {misses} misses"
+
+[cli]
+sync_ok = "Synchronization complete ({files} artifacts)"
+lock_ok = "Fingerprint garde.lock verified"
+commit_ok = "Commit message valid"

@@ -63,6 +63,14 @@ pub enum Language {
     Quarto,
     /// Obsidian JSON Canvas document (`.canvas`).
     JsonCanvas,
+    /// Mermaid v11 diagram source (`.mmd`, `.mermaid`).
+    Mermaid,
+    /// `PlantUML` diagram source (`.puml`, `.plantuml`, `.iuml`, `.pu`).
+    PlantUml,
+    /// GNU Gettext translation catalog (`.po`, `.pot`).
+    GettextPo,
+    /// Project Fluent translation catalog (`.ftl`).
+    FluentFtl,
     /// Non-text binary media or font asset (`.png`, `.woff2`, `.pdf`, etc.).
     BinaryAsset,
     /// Unclassified text or source file.
@@ -109,6 +117,10 @@ impl Language {
                     | Self::Notebook
                     | Self::Quarto
                     | Self::JsonCanvas
+                    | Self::Mermaid
+                    | Self::PlantUml
+                    | Self::GettextPo
+                    | Self::FluentFtl
                     | Self::BinaryAsset
             )
     }

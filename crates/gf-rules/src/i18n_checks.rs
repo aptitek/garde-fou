@@ -1,13 +1,13 @@
 //! Pure `#![no_std]` workspace `Texte` / `i18n` synchronization and hardcoded UI checks (`GF062`).
 
-use alloc::collections::BTreeSet;
+use alloc::collections::{BTreeMap, BTreeSet};
 use alloc::format;
 use alloc::string::String;
 use alloc::vec::Vec;
 
 use gf_core::{
-    Config, Diagnostic, DomainKind, FeatureId, ProjectContext, Span, TexteDocument, UastDocument,
-    UiCheckKind, Validation, classify_path,
+    Config, Diagnostic, DomainKind, FeatureId, I18nViolation, ProjectContext, Span, TexteDocument,
+    UastDocument, UiCheckKind, Validation, classify_path,
 };
 
 use crate::checks::{SourceLoc, rule_error as domain_diag};
@@ -141,7 +141,44 @@ fn check_code_and_dead_keys(
     }
 }
 
-/// Evaluates cross-file `Texte` / `i18n` symmetry, key coverage, and JSX string purity (`GF062`).
+fn check_entry_placeholders<'a>(
+    entry: LocaleEntry<'a>,
+    ref_vars: &mut BTreeMap<(&'a str, &'a str), (&'a str, &'a BTreeSet<String>)>,
+    out: &mut Vec<Diagnostic>,
+) {
+    let v = I18nViolation::PlaceholderMismatch;
+    for (key, vars) in &entry.texte.placeholders_by_key {
+        let group = (entry.texte.domain.as_str(), key.as_str());
+        let Some(&(ref_loc, expected)) = ref_vars.get(&group) else {
+            ref_vars.insert(group, (entry.texte.locale.as_str(), vars));
+            continue;
+        };
+        if expected != vars {
+            out.push(domain_diag(
+                "GF062",
+                format!(
+                    "[{}] key `{key}` in locale `{}` has placeholders `{vars:?}` vs `{expected:?}` in `{ref_loc}`",
+                    v.code(),
+                    entry.texte.locale
+                ),
+                v.remediation(),
+                SourceLoc::new(&entry.doc.path, Span::FIRST),
+            ));
+        }
+    }
+}
+
+fn check_placeholder_parity(locale_docs: &[LocaleEntry<'_>], out: &mut Vec<Diagnostic>) {
+    if locale_docs.len() < 2 {
+        return;
+    }
+    let mut ref_vars = BTreeMap::new();
+    for &entry in locale_docs {
+        check_entry_placeholders(entry, &mut ref_vars, out);
+    }
+}
+
+/// Evaluates cross-file `Texte` / `i18n` symmetry, placeholder parity, key coverage, and JSX string purity (`GF062`).
 pub fn check_workspace_i18n(
     docs: &[UastDocument],
     ctx: &ProjectContext,
@@ -161,6 +198,7 @@ pub fn check_workspace_i18n(
     let mut diags = Vec::new();
     check_untranslated_jsx_strings(docs, config, &mut diags);
     check_locale_symmetry(&locale_docs, &all_keys, &mut diags);
+    check_placeholder_parity(&locale_docs, &mut diags);
     let mut sink = I18nSink {
         config,
         diags: &mut diags,

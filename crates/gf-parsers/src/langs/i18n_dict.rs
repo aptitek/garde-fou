@@ -1,9 +1,13 @@
 //! Pure `i18n` dictionary extractor (`locales/**/*.json` / `.toml`) for `DomainKind::Texte` (`GF062`).
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
-use gf_core::{Language, RepoPath, Span, SyntaxErrorNode, TexteDocument, TexteIssue, UastDocument};
+use gf_core::{
+    LangRuleFinding, Language, RepoPath, Span, SyntaxErrorNode, TexteDocument, TexteIssue,
+    UastDocument,
+};
 
+use super::i18n_icu::audit_translation_value;
 use crate::cst::line_metrics;
 use crate::types::ParseError;
 
@@ -89,53 +93,65 @@ impl DictTree for toml::Value {
 
 struct DictAccumulator<'a> {
     source: &'a str,
+    is_arb: bool,
     keys: BTreeSet<String>,
+    placeholders: BTreeMap<String, BTreeSet<String>>,
     forbidden_values: Vec<TexteIssue>,
+    lang_findings: Vec<LangRuleFinding>,
 }
 
 impl<'a> DictAccumulator<'a> {
-    const fn new(source: &'a str) -> Self {
+    const fn new(source: &'a str, is_arb: bool) -> Self {
         Self {
             source,
+            is_arb,
             keys: BTreeSet::new(),
+            placeholders: BTreeMap::new(),
             forbidden_values: Vec::new(),
+            lang_findings: Vec::new(),
         }
     }
 
     fn record_leaf(&mut self, prefix: &str, str_val: Option<&str>) {
-        if prefix.is_empty() {
+        if prefix.is_empty() || (self.is_arb && prefix.starts_with('@')) {
             return;
         }
         self.keys.insert(String::from(prefix));
-        if let Some(s) = str_val
-            && let Some(reason) = value_violation(s)
-        {
+        if let Some(s) = str_val {
             let leaf = prefix.rsplit('.').next().unwrap_or(prefix);
-            self.forbidden_values.push(TexteIssue {
-                key: String::from(prefix),
-                detail: String::from(reason),
-                span: find_key_span(self.source, leaf),
-            });
+            let sp = find_key_span(self.source, leaf);
+            if let Some(reason) = value_violation(s) {
+                self.forbidden_values.push(TexteIssue {
+                    key: String::from(prefix),
+                    detail: String::from(reason),
+                    span: sp,
+                });
+            }
+            let vars = audit_translation_value(prefix, s, sp, &mut self.lang_findings);
+            self.placeholders.insert(String::from(prefix), vars);
         }
     }
 
     fn flatten<T: DictTree>(&mut self, prefix: &str, node: &T) {
-        if let Some(entries) = node.as_entries() {
-            for (k, child) in entries {
-                let next = if prefix.is_empty() {
-                    String::from(k)
-                } else {
-                    format!("{prefix}.{k}")
-                };
-                self.flatten(&next, child);
-            }
-        } else {
+        let Some(entries) = node.as_entries() else {
             self.record_leaf(prefix, node.as_str_leaf());
+            return;
+        };
+        for (k, child) in entries {
+            if self.is_arb && prefix.is_empty() && k.starts_with('@') {
+                continue;
+            }
+            let next = if prefix.is_empty() {
+                String::from(k)
+            } else {
+                format!("{prefix}.{k}")
+            };
+            self.flatten(&next, child);
         }
     }
 }
 
-/// Parses a JSON or TOML `Texte` dictionary into a [`UastDocument`] with [`TexteDocument`].
+/// Parses a JSON, ARB, or TOML `Texte` dictionary into a [`UastDocument`] with [`TexteDocument`].
 ///
 /// # Errors
 ///
@@ -148,7 +164,10 @@ pub fn extract_i18n_dictionary(
     let (total_lines, effective_lines) = line_metrics(source);
     let mut doc = UastDocument::new(path.clone(), lang, total_lines, effective_lines)?;
     let locale = infer_locale_from_path(path);
-    let mut acc = DictAccumulator::new(source);
+    let is_arb = path
+        .extension()
+        .is_some_and(|e| e.eq_ignore_ascii_case("arb"));
+    let mut acc = DictAccumulator::new(source, is_arb);
 
     if lang == Language::Json {
         match serde_json::from_str::<serde_json::Value>(source) {
@@ -165,10 +184,13 @@ pub fn extract_i18n_dictionary(
         }
     }
 
+    doc.lang_rule_findings.extend(acc.lang_findings);
     doc.texte = Some(TexteDocument {
         locale,
         keys: acc.keys,
         forbidden_values: acc.forbidden_values,
+        domain: String::new(),
+        placeholders_by_key: acc.placeholders,
     });
     Ok(doc)
 }

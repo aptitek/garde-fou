@@ -33,6 +33,18 @@ pub enum ColorChoice {
     Never,
 }
 
+/// UI language selector flag (`--locale`).
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, ValueEnum)]
+pub enum LocaleChoice {
+    /// Detect from `GARDE_LOCALE` / `LC_ALL` / `LANG`, defaulting to `en`.
+    #[default]
+    Auto,
+    /// Render human-facing output in French (`locales/fr.toml`).
+    Fr,
+    /// Render human-facing output in English (`locales/en.toml`).
+    En,
+}
+
 /// Scope and cache flags shared by `garde check` and `garde tui`.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Args)]
 pub struct CheckExecutionFlags {
@@ -196,6 +208,9 @@ pub struct Cli {
     /// Control ANSI color output (`auto`, `always`, `never`).
     #[arg(long, global = true, value_enum, default_value_t = ColorChoice::Auto)]
     pub color: ColorChoice,
+    /// Select human-facing UI language (`auto`, `fr`, `en`).
+    #[arg(long, global = true, value_enum, default_value_t = LocaleChoice::Auto)]
+    pub locale: LocaleChoice,
     /// Subcommand to execute.
     #[command(subcommand)]
     pub command: Commands,

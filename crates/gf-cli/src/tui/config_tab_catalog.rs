@@ -4,8 +4,8 @@ use gf_core::{
     ArchetypeSetting, FeatureId, FrameworkId, GovernanceFlag, LanguageId, WorkspaceArchetype,
 };
 
-/// Ordered list of all 17 languages displayed in the Languages checkbox section.
-pub const ALL_LANGUAGES: [LanguageId; 17] = [
+/// Ordered list of all 19 languages displayed in the Languages checkbox section.
+pub const ALL_LANGUAGES: [LanguageId; 19] = [
     LanguageId::Rust,
     LanguageId::TypeScript,
     LanguageId::Python,
@@ -19,6 +19,8 @@ pub const ALL_LANGUAGES: [LanguageId; 17] = [
     LanguageId::PlSql,
     LanguageId::Toml,
     LanguageId::Markdown,
+    LanguageId::Mermaid,
+    LanguageId::PlantUml,
     LanguageId::Css,
     LanguageId::Xml,
     LanguageId::Astro,
@@ -51,8 +53,8 @@ pub const ALL_FRAMEWORKS: [FrameworkId; 22] = [
     FrameworkId::Jupyter,
 ];
 
-/// Ordered list of all 13 features displayed in the Features checkbox section.
-pub const ALL_FEATURES: [FeatureId; 13] = [
+/// Ordered list of all 14 features displayed in the Features checkbox section.
+pub const ALL_FEATURES: [FeatureId; 14] = [
     FeatureId::Docker,
     FeatureId::GitHooks,
     FeatureId::TaskRunner,
@@ -66,6 +68,7 @@ pub const ALL_FEATURES: [FeatureId; 13] = [
     FeatureId::Tdd,
     FeatureId::Storybook,
     FeatureId::AiMl,
+    FeatureId::Diagrams,
 ];
 
 /// Ordered list of all 7 archetype radio choices (`Auto` + 6 explicit archetypes).

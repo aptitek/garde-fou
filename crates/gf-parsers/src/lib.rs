@@ -6,6 +6,7 @@
 mod anti_cheat;
 mod complexity;
 mod cst;
+mod dispatch;
 mod fingerprint;
 mod kiss_contracts;
 mod kiss_yagni;
@@ -22,44 +23,22 @@ mod tool_output_gha;
 mod tool_output_pssa;
 pub mod tool_output_shell;
 pub mod tool_output_sql;
-mod tool_output_taplo_xml;
+pub mod tool_output_taplo_xml;
 pub mod tool_output_ts;
 pub mod tool_output_web;
 pub mod tool_output_yaml;
 pub mod tool_output_zpa;
 pub mod types;
 
+use dispatch::{DispatchCtx, dispatch_language_extractor};
 use gf_core::{
     AssetDocument, DomainKind, DomainLayoutConfig, Language, RepoPath, SqlDialectKind,
-    UastDocument, classify_path, is_audited_tool_config_file,
+    UastDocument, classify_path,
 };
 pub use lang_detect::{detect_language, detect_language_or_shebang, detect_project_marker};
 pub use langs::shell::dialect::detect_shebang_language;
 pub use langs::ts::is_hook_identifier;
-use langs::{
-    asset::{collect_script_mentions, extract_svg_asset},
-    astro::AstroExtractor,
-    csharp::CSharpExtractor,
-    css::CssExtractor,
-    dockerfile::DockerfileExtractor,
-    go::GoExtractor,
-    html_w3c::HtmlExtractor,
-    i18n_dict::extract_i18n_dictionary,
-    kotlin::KotlinExtractor,
-    markdown::{MarkdownExtractor, obsidian::JsonCanvasExtractor},
-    notebook::NotebookExtractor,
-    powershell::PowerShellExtractor,
-    python::PythonExtractor,
-    quarto::QuartoExtractor,
-    rust::RustExtractor,
-    shell::ShellExtractor,
-    sql::{extract_plsql, extract_sql_with_dialect_hint},
-    toml_lang::TomlExtractor,
-    tool_config::extract_tool_config,
-    ts::{TsDialect, TypeScriptExtractor},
-    xml::XmlExtractor,
-    yaml::YamlExtractor,
-};
+use langs::{asset::collect_script_mentions, ts::TsDialect};
 pub use {
     tool_output::{ToolParseError, parse_mypy_ndjson, parse_pyright_json, parse_ruff_json},
     tool_output_compiled::{
@@ -97,107 +76,6 @@ pub fn build_binary_asset_document(
         hazards: Vec::new(),
     });
     Ok(doc)
-}
-
-#[derive(Clone, Copy)]
-struct DispatchCtx<'a> {
-    domains: &'a DomainLayoutConfig,
-    sql_dialect_hint: Option<SqlDialectKind>,
-}
-
-fn dispatch_academic_or_text(
-    lang: Language,
-    path: &RepoPath,
-    source: &str,
-    ctx: DispatchCtx<'_>,
-) -> Result<UastDocument, ParseError> {
-    match lang {
-        Language::Notebook => {
-            NotebookExtractor::extract_with_sql_dialect(path, source, ctx.sql_dialect_hint)
-        }
-        Language::Quarto => {
-            QuartoExtractor::extract_with_sql_dialect(path, source, ctx.sql_dialect_hint)
-        }
-        Language::JsonCanvas => JsonCanvasExtractor.extract(path, source),
-        Language::Sql => extract_sql_with_dialect_hint(path, source, ctx.sql_dialect_hint),
-        other => {
-            let (total_lines, effective_lines) = cst::line_metrics(source);
-            Ok(UastDocument::new(
-                path.clone(),
-                other,
-                total_lines,
-                effective_lines,
-            )?)
-        }
-    }
-}
-
-fn dispatch_non_code_domain(
-    lang: Language,
-    path: &RepoPath,
-    source: &str,
-    ctx: DispatchCtx<'_>,
-) -> Result<UastDocument, ParseError> {
-    let domain = classify_path(path, ctx.domains);
-    match lang {
-        Language::Css => CssExtractor.extract(path, source),
-        Language::Html => HtmlExtractor.extract(path, source),
-        Language::Markdown => MarkdownExtractor.extract(path, source),
-        Language::Svg => extract_svg_asset(path, source),
-        Language::Json | Language::Toml if domain == DomainKind::Texte => {
-            extract_i18n_dictionary(path, lang, source)
-        }
-        Language::Toml => TomlExtractor.extract(path, source),
-        Language::Xml => XmlExtractor.extract(path, source),
-        other => dispatch_academic_or_text(other, path, source, ctx),
-    }
-}
-
-fn dispatch_script_or_compiled(
-    lang: Language,
-    path: &RepoPath,
-    source: &str,
-    ctx: DispatchCtx<'_>,
-) -> Result<UastDocument, ParseError> {
-    match lang {
-        Language::Go => GoExtractor.extract(path, source),
-        Language::Kotlin => KotlinExtractor.extract(path, source),
-        Language::CSharp => CSharpExtractor.extract(path, source),
-        Language::Shell => ShellExtractor.extract(path, source),
-        Language::PowerShell => PowerShellExtractor.extract(path, source),
-        Language::Dockerfile => DockerfileExtractor.extract(path, source),
-        Language::Yaml => YamlExtractor.extract(path, source),
-        Language::Astro => AstroExtractor.extract(path, source),
-        Language::PlSql => extract_plsql(path, source),
-        other => dispatch_non_code_domain(other, path, source, ctx),
-    }
-}
-
-fn dispatch_language_extractor(
-    lang: Language,
-    path: &RepoPath,
-    source: &str,
-    ctx: DispatchCtx<'_>,
-) -> Result<UastDocument, ParseError> {
-    if is_audited_tool_config_file(path) {
-        if lang == Language::Xml {
-            let mut doc = XmlExtractor.extract(path, source)?;
-            langs::tool_config_compiled::audit_compiled_tool_config(path, source, &mut doc);
-            return Ok(doc);
-        }
-        return extract_tool_config(path, lang, source);
-    }
-    let domain = classify_path(path, ctx.domains);
-    if let Some(dialect) = TsDialect::from_path_and_lang(path, lang) {
-        return TypeScriptExtractor::new(dialect)
-            .with_sql_dialect(ctx.sql_dialect_hint)
-            .extract_in_domain(path, source, domain);
-    }
-    match lang {
-        Language::Rust => RustExtractor.extract(path, source),
-        Language::Python => PythonExtractor::extract_in_domain(path, source, domain),
-        other => dispatch_script_or_compiled(other, path, source, ctx),
-    }
 }
 
 /// Parses `source` with explicit [`DomainLayoutConfig`] and optional workspace [`SqlDialectKind`] hint.

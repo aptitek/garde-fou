@@ -183,9 +183,33 @@ fn record_rust_type_node(node: Node<'_>, source: &str, in_cfg_test: bool, doc: &
     doc.types.push(ty);
 }
 
+fn record_rust_ui_tr(node: Node<'_>, source: &str, doc: &mut UastDocument) {
+    let Some(func) = node.child_by_field_name("function") else {
+        return;
+    };
+    let ftxt = node_text(func, source).trim();
+    if !(ftxt.ends_with("ui_tr") || ftxt.ends_with("ui_tr_fmt")) {
+        return;
+    }
+    let Some(args) = node.child_by_field_name("arguments") else {
+        return;
+    };
+    let mut ac = args.walk();
+    for ch in args.named_children(&mut ac) {
+        if ch.kind() == "string_literal" {
+            let k = node_text(ch, source).trim_matches('"');
+            if !k.is_empty() {
+                doc.translation_keys_used.insert(String::from(k));
+                return;
+            }
+        }
+    }
+}
+
 fn record_rust_node(node: Node<'_>, source: &str, in_cfg_test: bool, doc: &mut UastDocument) {
     inspect_rust_guardrail_node(node, source, in_cfg_test, doc);
     match node.kind() {
+        "call_expression" => record_rust_ui_tr(node, source, doc),
         "use_declaration" => doc.imports.push(extract_use(node, source)),
         "function_item" => {
             let callable = extract_fn(node, source);

@@ -25,6 +25,7 @@ pub mod context;
 pub mod coverage;
 pub mod db_procedural_violations;
 pub mod diagnostic;
+pub mod diagrams_i18n_violations;
 pub mod docker;
 pub mod domain_summaries;
 pub mod domains;
@@ -58,6 +59,7 @@ pub mod toolchain_mern_violations;
 pub mod tools_config;
 pub mod ts_violations;
 pub mod uast;
+pub mod ui_i18n;
 pub mod validation;
 pub mod web_edge_summary;
 pub mod web_edge_tools;
@@ -193,6 +195,9 @@ pub use {
     db_procedural_violations::{
         DbProceduralViolation, MariaDbViolation, PostgresAdvViolation, ProceduralSqlViolation,
     },
+    diagrams_i18n_violations::{
+        DiagramI18nViolation, I18nViolation, MermaidViolation, PlantUmlViolation,
+    },
     py_ecosystems_violations::{
         DjangoViolation, LlmAgentViolation, MlDlViolation, NiceGuiViolation, PyEcosystemViolation,
         is_django_migration_path,
@@ -202,4 +207,5 @@ pub use {
         is_toolchain_audited_file,
     },
     uast::{Language, UastDocument, UastKind, UastNode},
+    ui_i18n::{UiLocale, UiLocalePolicy, ui_tr, ui_tr_fmt},
 };

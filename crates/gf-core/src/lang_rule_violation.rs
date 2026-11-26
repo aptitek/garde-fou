@@ -1,7 +1,6 @@
 //! Unified closed algebraic sum type [`LangRuleViolation`] across all Tier 1 AST & schema
 //! analyzers (`GF080`).
 
-use core::fmt;
 use serde::{Deserialize, Serialize};
 
 use crate::academic_violations::{
@@ -9,6 +8,7 @@ use crate::academic_violations::{
 };
 use crate::compiled_violations::CompiledLangViolation;
 use crate::db_procedural_violations::DbProceduralViolation;
+use crate::diagrams_i18n_violations::DiagramI18nViolation;
 use crate::format_violations::{TomlViolation, XmlSvgViolation};
 use crate::py_ecosystems_violations::PyEcosystemViolation;
 use crate::python_violations::PythonViolation;
@@ -63,6 +63,8 @@ pub enum LangRuleViolation {
     PyEcosystem(PyEcosystemViolation),
     /// Native MariaDB, advanced `PostgreSQL`/PL/pgSQL, or Oracle PL/SQL violation.
     DbProcedural(DbProceduralViolation),
+    /// Native Mermaid v11, `PlantUML`, or `i18n` v2 violation (`MERMAID-*`, `PLANTUML-*`, `I18N-*`).
+    DiagramI18n(DiagramI18nViolation),
 }
 
 impl LangRuleViolation {
@@ -88,6 +90,7 @@ impl LangRuleViolation {
             Self::Mern(v) => Some((v.code(), v.remediation())),
             Self::PyEcosystem(v) => Some((v.code(), v.remediation())),
             Self::DbProcedural(v) => Some((v.code(), v.remediation())),
+            Self::DiagramI18n(v) => Some((v.code(), v.remediation())),
             _ => None,
         }
     }
@@ -143,13 +146,14 @@ impl LangRuleViolation {
             | Self::Node(_)
             | Self::Mern(_)
             | Self::PyEcosystem(_)
-            | Self::DbProcedural(_) => false,
+            | Self::DbProcedural(_)
+            | Self::DiagramI18n(_) => false,
         }
     }
 }
 
-impl fmt::Display for LangRuleViolation {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl core::fmt::Display for LangRuleViolation {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.write_str(self.code())
     }
 }
@@ -180,6 +184,7 @@ impl_from_direct!(
     MernViolation => Mern,
     PyEcosystemViolation => PyEcosystem,
     DbProceduralViolation => DbProcedural,
+    DiagramI18nViolation => DiagramI18n,
 );
 
 macro_rules! impl_from_nested {
@@ -216,4 +221,10 @@ impl_from_nested!(
     crate::db_procedural_violations::MariaDbViolation => MariaDb,
     crate::db_procedural_violations::PostgresAdvViolation => PostgresAdv,
     crate::db_procedural_violations::ProceduralSqlViolation => ProceduralSql,
+);
+impl_from_nested!(
+    DiagramI18n, DiagramI18nViolation;
+    crate::diagrams_i18n_violations::MermaidViolation => Mermaid,
+    crate::diagrams_i18n_violations::PlantUmlViolation => PlantUml,
+    crate::diagrams_i18n_violations::I18nViolation => I18n,
 );

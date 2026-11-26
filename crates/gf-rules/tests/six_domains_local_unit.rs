@@ -87,6 +87,7 @@ fn contenus_and_texte_enforce_markdown_and_i18n_purity() -> Res {
             detail: "<b>".into(),
             span: Span::FIRST,
         }],
+        ..TexteDocument::default()
     });
     assert_eq!(evaluate_document(&locale, &cfg)[0].rule_id, "GF062");
 
