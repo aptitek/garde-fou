@@ -20,6 +20,7 @@ pub mod jsonc;
 pub mod kotlin;
 pub mod markdown;
 pub mod notebook;
+pub mod php;
 pub mod powershell;
 pub mod py_eco;
 pub mod python;

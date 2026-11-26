@@ -238,5 +238,6 @@ pub fn merge_tools(raw: Option<ToolsSection>) -> Result<ToolsConfig, EngineError
         go: merge_go_tools(s.go, base.go)?,
         kotlin: merge_kotlin_tools(s.kotlin, base.kotlin)?,
         csharp: merge_csharp_tools(s.csharp, base.csharp)?,
+        php: base.php,
     })
 }

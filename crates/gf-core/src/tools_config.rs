@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::compiled_tools::{CSharpToolsConfig, GoToolsConfig, KotlinToolsConfig};
 use crate::format_tools::{CssToolsConfig, MarkdownToolsConfig, TomlToolsConfig, XmlToolsConfig};
+use crate::php_tools::PhpToolsConfig;
 use crate::shell_ps_tools::{DockerToolsConfig, PowerShellToolsConfig, ShellToolsConfig};
 use crate::sql_tools::SqlToolsConfig;
 use crate::tool_ingest::{PythonToolsConfig, TypeScriptToolsConfig};
@@ -61,6 +62,9 @@ pub struct ToolsConfig {
     /// C# / .NET `dotnet build` policy (`[tools.csharp]`).
     #[serde(default)]
     pub csharp: CSharpToolsConfig,
+    /// PHP `PHPStan` and `Psalm` policies (`[tools.php]`).
+    #[serde(default)]
+    pub php: PhpToolsConfig,
 }
 
 impl ToolsConfig {
@@ -83,6 +87,7 @@ impl ToolsConfig {
             go: GoToolsConfig::defaults(),
             kotlin: KotlinToolsConfig::defaults(),
             csharp: CSharpToolsConfig::defaults(),
+            php: PhpToolsConfig::defaults(),
         }
     }
 
@@ -90,7 +95,7 @@ impl ToolsConfig {
     #[must_use]
     pub fn canonical_fragment(self) -> String {
         format!(
-            "tl({},{},{},{},{},{},{},{},{},{},{},{},{},{},{})",
+            "tl({},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{})",
             self.python.canonical_fragment(),
             self.typescript.canonical_fragment(),
             self.shell.canonical_fragment(),
@@ -106,6 +111,7 @@ impl ToolsConfig {
             self.go.canonical_fragment(),
             self.kotlin.canonical_fragment(),
             self.csharp.canonical_fragment(),
+            self.php.canonical_fragment(),
         )
     }
 }

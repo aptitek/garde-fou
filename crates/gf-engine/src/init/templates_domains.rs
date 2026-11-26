@@ -208,30 +208,33 @@ fn infer_init_archetype(ctx: &ProjectContext) -> WorkspaceArchetype {
 }
 
 #[rustfmt::skip]
+const fn implied_lang_and_feat(fw: FrameworkId) -> (LanguageId, Option<FeatureId>) {
+    match fw {
+        FrameworkId::CargoWorkspace => (LanguageId::Rust, None),
+        FrameworkId::FastApi | FrameworkId::Django | FrameworkId::Jupyter => (LanguageId::Python, None),
+        FrameworkId::NiceGui => (LanguageId::Python, Some(FeatureId::Ui)),
+        FrameworkId::PyTorch | FrameworkId::TensorFlow | FrameworkId::LangChain => (LanguageId::Python, Some(FeatureId::AiMl)),
+        FrameworkId::DockerCompose => (LanguageId::Yaml, Some(FeatureId::Docker)),
+        FrameworkId::Quarto | FrameworkId::Obsidian => (LanguageId::Markdown, None),
+        FrameworkId::PostgreSql | FrameworkId::MariaDb => (LanguageId::Sql, None),
+        FrameworkId::Symfony | FrameworkId::Doctrine => (LanguageId::Php, None),
+        _ => (LanguageId::TypeScript, None),
+    }
+}
+
+#[rustfmt::skip]
 fn apply_framework_implied_deps(ctx: &mut ProjectContext) {
-    let fws: Vec<FrameworkId> = ctx.frameworks.iter().copied().collect();
-    for fw in fws {
-        match fw {
-            FrameworkId::CargoWorkspace => { ctx.languages.insert(LanguageId::Rust); }
-            FrameworkId::React | FrameworkId::Astro | FrameworkId::NextJs | FrameworkId::ReactRouter | FrameworkId::CloudflareWorkers | FrameworkId::Drizzle | FrameworkId::NodeJs | FrameworkId::Express | FrameworkId::Mongoose => {
-                ctx.languages.insert(LanguageId::TypeScript);
-            }
-            FrameworkId::FastApi | FrameworkId::Django | FrameworkId::Jupyter => { ctx.languages.insert(LanguageId::Python); }
-            FrameworkId::NiceGui => { ctx.languages.insert(LanguageId::Python); ctx.features.insert(FeatureId::Ui); }
-            FrameworkId::PyTorch | FrameworkId::TensorFlow | FrameworkId::LangChain => { ctx.languages.insert(LanguageId::Python); ctx.features.insert(FeatureId::AiMl); }
-            FrameworkId::DockerCompose => { ctx.features.insert(FeatureId::Docker); ctx.languages.insert(LanguageId::Yaml); }
-            FrameworkId::Quarto => { ctx.languages.insert(LanguageId::Yaml); ctx.languages.insert(LanguageId::Markdown); }
-            FrameworkId::Obsidian => { ctx.languages.insert(LanguageId::Markdown); }
-            FrameworkId::PostgreSql | FrameworkId::MariaDb => { ctx.languages.insert(LanguageId::Sql); }
-        }
+    for &fw in &ctx.frameworks {
+        let (lang, feat) = implied_lang_and_feat(fw);
+        ctx.languages.insert(lang);
+        if fw == FrameworkId::Quarto { ctx.languages.insert(LanguageId::Yaml); }
+        if let Some(f) = feat { ctx.features.insert(f); }
     }
 }
 
 /// Applies proportional framework-to-language inference and archetype resolution on `ctx`.
-pub fn finalize_init_context(
-    ctx: &mut ProjectContext,
-    explicit_archetype: Option<WorkspaceArchetype>,
-) {
+#[rustfmt::skip]
+pub fn finalize_init_context(ctx: &mut ProjectContext, explicit_archetype: Option<WorkspaceArchetype>) {
     apply_framework_implied_deps(ctx);
     ctx.features.insert(FeatureId::GitHooks);
     ctx.archetype = explicit_archetype.unwrap_or_else(|| infer_init_archetype(ctx));
@@ -242,7 +245,5 @@ pub fn finalize_init_context(
         ctx.features.insert(FeatureId::Docker);
         ctx.frameworks.insert(FrameworkId::DockerCompose);
     }
-    if ctx.archetype != WorkspaceArchetype::Minimal {
-        infer_feature_languages(ctx);
-    }
+    if ctx.archetype != WorkspaceArchetype::Minimal { infer_feature_languages(ctx); }
 }

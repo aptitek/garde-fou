@@ -89,8 +89,33 @@ fn dispatch_non_code_domain(
             extract_i18n_dictionary(path, lang, source)
         }
         Language::Toml => TomlExtractor.extract(path, source),
+        Language::Xml
+            if matches!(
+                path.extension().map(str::to_ascii_lowercase).as_deref(),
+                Some("xlf" | "xliff")
+            ) =>
+        {
+            langs::php::xliff_i18n::extract_xliff(path, source)
+        }
         Language::Xml => XmlExtractor.extract(path, source),
         other => dispatch_academic_or_text(other, path, source, ctx),
+    }
+}
+
+fn dispatch_script_or_infra(
+    lang: Language,
+    path: &RepoPath,
+    source: &str,
+    ctx: DispatchCtx<'_>,
+) -> Result<UastDocument, ParseError> {
+    match lang {
+        Language::Shell => ShellExtractor.extract(path, source),
+        Language::PowerShell => PowerShellExtractor.extract(path, source),
+        Language::Dockerfile => DockerfileExtractor.extract(path, source),
+        Language::Yaml => YamlExtractor.extract(path, source),
+        Language::Astro => AstroExtractor.extract(path, source),
+        Language::PlSql => extract_plsql(path, source),
+        other => dispatch_non_code_domain(other, path, source, ctx),
     }
 }
 
@@ -104,13 +129,9 @@ fn dispatch_script_or_compiled(
         Language::Go => GoExtractor.extract(path, source),
         Language::Kotlin => KotlinExtractor.extract(path, source),
         Language::CSharp => CSharpExtractor.extract(path, source),
-        Language::Shell => ShellExtractor.extract(path, source),
-        Language::PowerShell => PowerShellExtractor.extract(path, source),
-        Language::Dockerfile => DockerfileExtractor.extract(path, source),
-        Language::Yaml => YamlExtractor.extract(path, source),
-        Language::Astro => AstroExtractor.extract(path, source),
-        Language::PlSql => extract_plsql(path, source),
-        other => dispatch_non_code_domain(other, path, source, ctx),
+        Language::Php => langs::php::PhpExtractor.extract(path, source),
+        Language::Twig => langs::php::TwigExtractor.extract(path, source),
+        other => dispatch_script_or_infra(other, path, source, ctx),
     }
 }
 
@@ -121,6 +142,12 @@ pub fn dispatch_language_extractor(
     ctx: DispatchCtx<'_>,
 ) -> Result<UastDocument, ParseError> {
     if is_audited_tool_config_file(path) {
+        if gf_core::is_php_tool_config_file(path.as_str()) {
+            let (total, effective) = cst::line_metrics(source);
+            let mut doc = UastDocument::new(path.clone(), lang, total, effective)?;
+            langs::php::tool_configs::audit_php_tool_config(path, source, &mut doc);
+            return Ok(doc);
+        }
         if lang == Language::Xml {
             let mut doc = XmlExtractor.extract(path, source)?;
             langs::tool_config_compiled::audit_compiled_tool_config(path, source, &mut doc);

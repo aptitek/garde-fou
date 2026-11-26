@@ -71,6 +71,10 @@ pub enum Language {
     GettextPo,
     /// Project Fluent translation catalog (`.ftl`).
     FluentFtl,
+    /// PHP 8.4 source file (`.php`).
+    Php,
+    /// Twig 3 template (`.twig`, `.html.twig`).
+    Twig,
     /// Non-text binary media or font asset (`.png`, `.woff2`, `.pdf`, etc.).
     BinaryAsset,
     /// Unclassified text or source file.
@@ -92,6 +96,7 @@ impl Language {
                 | Self::Go
                 | Self::Kotlin
                 | Self::CSharp
+                | Self::Php
                 | Self::Astro
                 | Self::Shell
                 | Self::PowerShell

@@ -29,12 +29,14 @@ pub mod diagrams_i18n_violations;
 pub mod docker;
 pub mod domain_summaries;
 pub mod domains;
+pub mod extended_violations;
 pub mod external_tool_kind;
 pub mod format_tools;
 pub mod format_violations;
 pub mod framework_id;
 pub mod gitignore;
 pub mod glob;
+mod lang_rule_from;
 pub mod lang_rule_violation;
 pub mod language_meta;
 pub mod lcov;
@@ -43,6 +45,8 @@ pub mod metrics;
 pub mod mutation;
 pub mod mutation_config_issues;
 pub mod path;
+pub mod php_symfony_violations;
+pub mod php_tools;
 pub mod policies;
 pub mod project_settings;
 pub mod py_ecosystems_violations;
@@ -198,6 +202,8 @@ pub use {
     diagrams_i18n_violations::{
         DiagramI18nViolation, I18nViolation, MermaidViolation, PlantUmlViolation,
     },
+    php_symfony_violations::{PhpSymfonyViolation, PhpViolation, SymfonyViolation, TwigViolation},
+    php_tools::{PhpConfigIssue, PhpToolsConfig, is_php_tool_config_file},
     py_ecosystems_violations::{
         DjangoViolation, LlmAgentViolation, MlDlViolation, NiceGuiViolation, PyEcosystemViolation,
         is_django_migration_path,

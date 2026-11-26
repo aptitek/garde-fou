@@ -6,15 +6,11 @@ use serde::{Deserialize, Serialize};
 use crate::academic_violations::{
     AcademicViolation, NotebookViolation, ObsidianViolation, QuartoViolation,
 };
-use crate::compiled_violations::CompiledLangViolation;
-use crate::db_procedural_violations::DbProceduralViolation;
-use crate::diagrams_i18n_violations::DiagramI18nViolation;
+use crate::extended_violations::ExtendedLangViolation;
 use crate::format_violations::{TomlViolation, XmlSvgViolation};
-use crate::py_ecosystems_violations::PyEcosystemViolation;
 use crate::python_violations::PythonViolation;
 use crate::shell_ps_violations::{PowerShellViolation, ShellViolation};
 use crate::sql_violations::{MigrationViolation, SqlViolation};
-use crate::toolchain_mern_violations::{MernViolation, NodeViolation};
 use crate::ts_violations::{ReactViolation, TypescriptViolation};
 use crate::web_edge_tools::{CloudflareViolation, DrizzleViolation, WebEdgeViolation};
 use crate::web_edge_violations::{
@@ -54,17 +50,13 @@ pub enum LangRuleViolation {
     /// Native Jupyter, Quarto, or Obsidian violation (`NB-*`, `QUARTO-*`, `OBS-*`).
     Academic(AcademicViolation),
     /// Native Go, Kotlin, or C# AST violation (`GO-*`, `KT-*`, `CS-*`).
-    Compiled(CompiledLangViolation),
+    Compiled(crate::compiled_violations::CompiledLangViolation),
     /// Native modern Node.js runtime violation (`NODE-*`).
-    Node(NodeViolation),
+    Node(crate::toolchain_mern_violations::NodeViolation),
     /// Native MERN TypeScript (`EXPRESS-*`, `MONGO-*`) violation.
-    Mern(MernViolation),
-    /// Native Python ecosystem (`DJ-*`, `NICEGUI-*`, `ML-*`, `LLM-*`) violation.
-    PyEcosystem(PyEcosystemViolation),
-    /// Native MariaDB, advanced `PostgreSQL`/PL/pgSQL, or Oracle PL/SQL violation.
-    DbProcedural(DbProceduralViolation),
-    /// Native Mermaid v11, `PlantUML`, or `i18n` v2 violation (`MERMAID-*`, `PLANTUML-*`, `I18N-*`).
-    DiagramI18n(DiagramI18nViolation),
+    Mern(crate::toolchain_mern_violations::MernViolation),
+    /// Extended ecosystems (`DJ-*`, `NICEGUI-*`, `ML-*`, `LLM-*`, `MARIADB-*`, `PG-*`, `PLSQL-*`, `MERMAID-*`, `PLANTUML-*`, `I18N-*`, `PHP-*`, `SYMFONY-*`, `TWIG-*`).
+    Extended(ExtendedLangViolation),
 }
 
 impl LangRuleViolation {
@@ -88,9 +80,7 @@ impl LangRuleViolation {
             Self::Compiled(v) => Some((v.code(), v.remediation())),
             Self::Node(v) => Some((v.code(), v.remediation())),
             Self::Mern(v) => Some((v.code(), v.remediation())),
-            Self::PyEcosystem(v) => Some((v.code(), v.remediation())),
-            Self::DbProcedural(v) => Some((v.code(), v.remediation())),
-            Self::DiagramI18n(v) => Some((v.code(), v.remediation())),
+            Self::Extended(v) => Some((v.code(), v.remediation())),
             _ => None,
         }
     }
@@ -145,9 +135,7 @@ impl LangRuleViolation {
             | Self::Compiled(_)
             | Self::Node(_)
             | Self::Mern(_)
-            | Self::PyEcosystem(_)
-            | Self::DbProcedural(_)
-            | Self::DiagramI18n(_) => false,
+            | Self::Extended(_) => false,
         }
     }
 }
@@ -179,17 +167,15 @@ impl_from_direct!(
     MigrationViolation => Migration,
     WebEdgeViolation => WebEdge,
     AcademicViolation => Academic,
-    CompiledLangViolation => Compiled,
-    NodeViolation => Node,
-    MernViolation => Mern,
-    PyEcosystemViolation => PyEcosystem,
-    DbProceduralViolation => DbProcedural,
-    DiagramI18nViolation => DiagramI18n,
+    crate::compiled_violations::CompiledLangViolation => Compiled,
+    crate::toolchain_mern_violations::NodeViolation => Node,
+    crate::toolchain_mern_violations::MernViolation => Mern,
+    ExtendedLangViolation => Extended,
 );
 
 macro_rules! impl_from_nested {
-    ($outer:ident, $inner:ident; $($ty:ty => $variant:ident),+ $(,)?) => {
-        $(impl From<$ty> for LangRuleViolation { fn from(v: $ty) -> Self { Self::$outer($inner::$variant(v)) } })+
+    ($outer:ident, $inner:ty; $($ty:ty => $variant:ident),+ $(,)?) => {
+        $(impl From<$ty> for LangRuleViolation { fn from(v: $ty) -> Self { Self::$outer(<$inner>::$variant(v)) } })+
     };
 }
 
@@ -204,27 +190,8 @@ impl_from_nested!(
     NotebookViolation => Notebook, QuartoViolation => Quarto, ObsidianViolation => Obsidian,
 );
 impl_from_nested!(
-    Compiled, CompiledLangViolation;
+    Compiled, crate::compiled_violations::CompiledLangViolation;
     crate::compiled_violations::GoViolation => Go,
     crate::compiled_violations::KotlinViolation => Kotlin,
     crate::compiled_violations::CSharpViolation => CSharp,
-);
-impl_from_nested!(
-    PyEcosystem, PyEcosystemViolation;
-    crate::py_ecosystems_violations::DjangoViolation => Django,
-    crate::py_ecosystems_violations::NiceGuiViolation => NiceGui,
-    crate::py_ecosystems_violations::MlDlViolation => MlDl,
-    crate::py_ecosystems_violations::LlmAgentViolation => LlmAgent,
-);
-impl_from_nested!(
-    DbProcedural, DbProceduralViolation;
-    crate::db_procedural_violations::MariaDbViolation => MariaDb,
-    crate::db_procedural_violations::PostgresAdvViolation => PostgresAdv,
-    crate::db_procedural_violations::ProceduralSqlViolation => ProceduralSql,
-);
-impl_from_nested!(
-    DiagramI18n, DiagramI18nViolation;
-    crate::diagrams_i18n_violations::MermaidViolation => Mermaid,
-    crate::diagrams_i18n_violations::PlantUmlViolation => PlantUml,
-    crate::diagrams_i18n_violations::I18nViolation => I18n,
 );

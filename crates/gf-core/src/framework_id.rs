@@ -50,14 +50,18 @@ pub enum FrameworkId {
     PostgreSql,
     /// `MariaDB` 10.11 / 11.4 database (`InnoDB`, `utf8mb4`, Online DDL).
     MariaDb,
+    /// `Symfony` 7.x PHP web framework (`src/Controller/**`, `src/Kernel.php`, `templates/**`).
+    Symfony,
+    /// `Doctrine` ORM 3 / DBAL 4 (`src/Entity/**`, `src/Repository/**`, `migrations/**`).
+    Doctrine,
 }
 
 #[rustfmt::skip]
-const FRAMEWORK_NAMES: [&str; 22] = [
+const FRAMEWORK_NAMES: [&str; 24] = [
     "cargo-workspace", "react", "astro", "nextjs", "fastapi", "django", "react-router",
     "cloudflare-workers", "drizzle", "docker-compose", "obsidian", "quarto", "jupyter",
     "nodejs", "express", "mongoose", "nicegui", "pytorch", "tensorflow", "langchain",
-    "postgresql", "mariadb",
+    "postgresql", "mariadb", "symfony", "doctrine",
 ];
 
 #[rustfmt::skip]
@@ -80,6 +84,7 @@ const FRAMEWORK_ALIASES: &[(&str, FrameworkId)] = &[
     ("langchain", FrameworkId::LangChain), ("langgraph", FrameworkId::LangChain),
     ("postgresql", FrameworkId::PostgreSql), ("postgres", FrameworkId::PostgreSql), ("pg", FrameworkId::PostgreSql),
     ("mariadb", FrameworkId::MariaDb),
+    ("symfony", FrameworkId::Symfony), ("doctrine", FrameworkId::Doctrine), ("doctrine-orm", FrameworkId::Doctrine),
 ];
 
 const CARGO_ENTRIES: &[&str] = &[
@@ -167,12 +172,20 @@ const NODE_ENTRIES: &[&str] = &[
     "packages/*/src/index.*",
 ];
 
+const SYMFONY_ENTRIES: &[&str] = &[
+    "src/Kernel.php",
+    "public/index.php",
+    "src/Controller/**",
+    "src/Command/**",
+    "migrations/**",
+];
+
 #[rustfmt::skip]
-const FRAMEWORK_ENTRIES: [&[&str]; 22] = [
+const FRAMEWORK_ENTRIES: [&[&str]; 24] = [
     CARGO_ENTRIES, REACT_ENTRIES, ASTRO_ENTRIES, NEXT_ENTRIES, FASTAPI_ENTRIES,
     DJANGO_ENTRIES, REACT_ROUTER_ENTRIES, CLOUDFLARE_ENTRIES, DRIZZLE_ENTRIES,
     &[], &[], &[], &[], NODE_ENTRIES, NODE_ENTRIES, &[], NICEGUI_ENTRIES,
-    &[], &[], &[], &[], &[],
+    &[], &[], &[], &[], &[], SYMFONY_ENTRIES, &[],
 ];
 
 impl FrameworkId {

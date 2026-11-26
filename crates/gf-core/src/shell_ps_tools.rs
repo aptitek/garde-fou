@@ -227,6 +227,7 @@ pub fn is_audited_tool_config_file(path: &RepoPath) -> bool {
         || crate::web_edge_summary::is_web_edge_tool_config_file(path)
         || crate::compiled_tools::is_compiled_tool_config_file(path.as_str())
         || crate::toolchain_mern_violations::is_toolchain_audited_file(path.as_str())
+        || crate::php_tools::is_php_tool_config_file(path.as_str())
         || name.eq_ignore_ascii_case("psscriptanalyzersettings.psd1")
         || matches!(
             name,

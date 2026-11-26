@@ -58,13 +58,17 @@ pub enum LanguageId {
     Mermaid,
     /// `PlantUML` diagrams-as-code (`.puml`, `.plantuml`, `.iuml`, `.pu`).
     PlantUml,
+    /// PHP 8.4 ecosystem (`.php`, `composer.json`, `phpstan.neon`).
+    Php,
+    /// Twig 3 template ecosystem (`.twig`, `.html.twig`).
+    Twig,
 }
 
 #[rustfmt::skip]
-const LANG_NAMES: [&str; 19] = [
+const LANG_NAMES: [&str; 21] = [
     "rust", "typescript", "python", "shell", "powershell", "yaml", "css",
     "xml", "toml", "markdown", "sql", "astro", "html", "go", "kotlin", "csharp", "plsql",
-    "mermaid", "plantuml",
+    "mermaid", "plantuml", "php", "twig",
 ];
 #[rustfmt::skip]
 const LANGUAGE_ALIASES: &[(&str, LanguageId)] = &[
@@ -87,6 +91,7 @@ const LANGUAGE_ALIASES: &[(&str, LanguageId)] = &[
     ("plsql", LanguageId::PlSql), ("oracle", LanguageId::PlSql), ("pl-sql", LanguageId::PlSql),
     ("mermaid", LanguageId::Mermaid), ("mmd", LanguageId::Mermaid),
     ("plantuml", LanguageId::PlantUml), ("puml", LanguageId::PlantUml),
+    ("php", LanguageId::Php), ("twig", LanguageId::Twig),
 ];
 
 impl LanguageId {
@@ -119,6 +124,7 @@ impl LanguageId {
                 | Self::Go
                 | Self::Kotlin
                 | Self::CSharp
+                | Self::Php
                 | Self::Shell
                 | Self::PowerShell
                 | Self::Astro

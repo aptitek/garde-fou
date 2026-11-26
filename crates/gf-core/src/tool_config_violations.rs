@@ -171,6 +171,8 @@ pub enum ToolConfigViolation {
     Compiled(CompiledConfigIssue),
     /// Modern exclusive toolchain violation (`pnpm`, `uv`, Gradle `.kts`, Node ESM `"type": "module"`).
     Toolchain(ToolchainViolation),
+    /// PHP (`composer.json`, `phpstan.neon`, `psalm.xml`) configuration weakened.
+    Php(crate::php_tools::PhpConfigIssue),
 }
 
 impl ToolConfigViolation {
@@ -183,6 +185,7 @@ impl ToolConfigViolation {
             Self::WebEdge(k) => Some((k.tool(), k.key(), k.remediation())),
             Self::Compiled(k) => Some((k.tool(), k.key(), k.remediation())),
             Self::Toolchain(k) => Some((k.tool(), k.code(), k.remediation())),
+            Self::Php(k) => Some((k.tool(), k.key(), k.remediation())),
             Self::MypyNotStrict(_)
             | Self::RuffWeakened(_)
             | Self::PytestOrCoverageWeakened(_)
@@ -206,14 +209,7 @@ impl ToolConfigViolation {
                 (ExternalToolKind::CargoMutants, k.key(), REM_CFG_MUTANTS)
             }
             Self::StrykerWeakened(k) => (ExternalToolKind::Stryker, k.key(), REM_CFG_STRYKER),
-            Self::BiomeLinterDisabled
-            | Self::ShellInfra(_)
-            | Self::YamlCi(_)
-            | Self::Formats(_)
-            | Self::Sql(_)
-            | Self::WebEdge(_)
-            | Self::Compiled(_)
-            | Self::Toolchain(_) => (ExternalToolKind::Biome, "linter.enabled", REM_CFG_BIOME),
+            _ => (ExternalToolKind::Biome, "linter.enabled", REM_CFG_BIOME),
         }
     }
 

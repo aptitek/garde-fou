@@ -4,14 +4,16 @@ use gf_core::{
     ArchetypeSetting, FeatureId, FrameworkId, GovernanceFlag, LanguageId, WorkspaceArchetype,
 };
 
-/// Ordered list of all 19 languages displayed in the Languages checkbox section.
-pub const ALL_LANGUAGES: [LanguageId; 19] = [
+/// Ordered list of all 21 languages displayed in the Languages checkbox section.
+pub const ALL_LANGUAGES: [LanguageId; 21] = [
     LanguageId::Rust,
     LanguageId::TypeScript,
     LanguageId::Python,
     LanguageId::Go,
     LanguageId::Kotlin,
     LanguageId::CSharp,
+    LanguageId::Php,
+    LanguageId::Twig,
     LanguageId::Shell,
     LanguageId::PowerShell,
     LanguageId::Yaml,
@@ -27,8 +29,8 @@ pub const ALL_LANGUAGES: [LanguageId; 19] = [
     LanguageId::Html,
 ];
 
-/// Ordered list of all 22 frameworks displayed in the Frameworks checkbox section.
-pub const ALL_FRAMEWORKS: [FrameworkId; 22] = [
+/// Ordered list of all 24 frameworks displayed in the Frameworks checkbox section.
+pub const ALL_FRAMEWORKS: [FrameworkId; 24] = [
     FrameworkId::CargoWorkspace,
     FrameworkId::DockerCompose,
     FrameworkId::PostgreSql,
@@ -48,6 +50,8 @@ pub const ALL_FRAMEWORKS: [FrameworkId; 22] = [
     FrameworkId::PyTorch,
     FrameworkId::TensorFlow,
     FrameworkId::LangChain,
+    FrameworkId::Symfony,
+    FrameworkId::Doctrine,
     FrameworkId::Obsidian,
     FrameworkId::Quarto,
     FrameworkId::Jupyter,

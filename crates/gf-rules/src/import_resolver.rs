@@ -56,6 +56,9 @@ impl<'a> WorkspaceImportResolver<'a> {
             Language::Go => self.compiled.resolve_go(&imp.module_source, &mut out),
             Language::Kotlin => self.compiled.resolve_kotlin(&imp.module_source, &mut out),
             Language::CSharp => self.compiled.resolve_csharp(&imp.module_source, &mut out),
+            Language::Php => {
+                resolve_php_psr4_import(&imp.module_source, &self.path_index, &mut out);
+            }
             _ => {}
         }
         out.retain(|&idx| self.path_index.get(raw_from) != Some(&idx));
@@ -128,4 +131,16 @@ fn resolve_py_import(
             push_known(&format!("{pfx}/__init__.py"), path_index, out);
         }
     }
+}
+
+fn resolve_php_psr4_import(spec: &str, path_index: &BTreeMap<&str, usize>, out: &mut Vec<usize>) {
+    let rel = spec.trim().trim_start_matches('\\').replace('\\', "/");
+    if rel.is_empty() {
+        return;
+    }
+    if let Some(after_app) = rel.strip_prefix("App/") {
+        push_known(&format!("src/{after_app}.php"), path_index, out);
+    }
+    push_known(&format!("{rel}.php"), path_index, out);
+    push_known(&format!("src/{rel}.php"), path_index, out);
 }
