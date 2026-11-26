@@ -169,6 +169,7 @@ fn scaffold_and_check_python_variant(
     run_init(&InitRequest {
         root: dir.clone(),
         project_name: Some(String::from(slug)),
+        archetype: None,
         languages: BTreeSet::from([LanguageId::Python]),
         features,
         frameworks,

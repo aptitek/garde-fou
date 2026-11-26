@@ -41,6 +41,9 @@ const EXT_LANGUAGES: &[(&str, Language)] = &[
     ("astro", Language::Astro),
     ("html", Language::Html),
     ("htm", Language::Html),
+    ("ipynb", Language::Notebook),
+    ("qmd", Language::Quarto),
+    ("canvas", Language::JsonCanvas),
 ];
 
 fn is_dockerfile_name(file_name: &str) -> bool {

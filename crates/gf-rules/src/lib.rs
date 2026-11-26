@@ -10,6 +10,7 @@ extern crate alloc;
 #[cfg(test)]
 extern crate std;
 
+mod academic_workspace_checks;
 mod asset_and_script_checks;
 mod boundary_checks;
 mod checks;
@@ -39,6 +40,7 @@ use alloc::vec::Vec;
 use gf_core::{Config, Diagnostic, ProjectContext, UastDocument, Validation};
 
 use {
+    academic_workspace_checks::{check_local_notebook_rules, check_workspace_academic},
     asset_and_script_checks::check_workspace_assets_and_scripts,
     boundary_checks::check_architecture_boundaries,
     checks::{check_callables, check_file_metrics, check_syntax_errors},
@@ -89,6 +91,7 @@ fn check_local_domains_and_fortress(
         check_local_kiss_yagni_and_bypass(doc, config),
         check_local_test_assertions(doc, config),
         check_local_tool_and_lang_rules(doc, config),
+        check_local_notebook_rules(doc, config),
         check_local_sql_destructive_ddl(doc, config),
     ])
 }
@@ -134,7 +137,7 @@ pub fn evaluate_workspace(
         check_dead_exports(docs, ctx, config),
         check_docker_feature(docs, ctx),
         check_workspace_i18n(docs, ctx, config),
-        check_workspace_assets_and_scripts(docs, config),
+        check_workspace_assets_and_scripts(docs, ctx, config),
         check_dependency_cycles(docs),
         check_architecture_boundaries(docs, ctx, config),
         check_single_impl_contracts(docs, ctx, config),
@@ -143,6 +146,7 @@ pub fn evaluate_workspace(
         check_workspace_formats(docs),
         check_workspace_sql_migrations(docs),
         check_workspace_web_edge(docs, config),
+        check_workspace_academic(docs),
         check_architecture_purity(docs, config),
     ])
 }

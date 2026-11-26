@@ -41,9 +41,11 @@ use langs::{
     dockerfile::DockerfileExtractor,
     html_w3c::HtmlExtractor,
     i18n_dict::extract_i18n_dictionary,
-    markdown::MarkdownExtractor,
+    markdown::{MarkdownExtractor, obsidian::JsonCanvasExtractor},
+    notebook::NotebookExtractor,
     powershell::PowerShellExtractor,
     python::PythonExtractor,
+    quarto::QuartoExtractor,
     rust::RustExtractor,
     shell::ShellExtractor,
     sql::extract_sql_with_dialect_hint,
@@ -94,6 +96,33 @@ struct DispatchCtx<'a> {
     sql_dialect_hint: Option<SqlDialectKind>,
 }
 
+fn dispatch_academic_or_text(
+    lang: Language,
+    path: &RepoPath,
+    source: &str,
+    ctx: DispatchCtx<'_>,
+) -> Result<UastDocument, ParseError> {
+    match lang {
+        Language::Notebook => {
+            NotebookExtractor::extract_with_sql_dialect(path, source, ctx.sql_dialect_hint)
+        }
+        Language::Quarto => {
+            QuartoExtractor::extract_with_sql_dialect(path, source, ctx.sql_dialect_hint)
+        }
+        Language::JsonCanvas => JsonCanvasExtractor.extract(path, source),
+        Language::Sql => extract_sql_with_dialect_hint(path, source, ctx.sql_dialect_hint),
+        other => {
+            let (total_lines, effective_lines) = cst::line_metrics(source);
+            Ok(UastDocument::new(
+                path.clone(),
+                other,
+                total_lines,
+                effective_lines,
+            )?)
+        }
+    }
+}
+
 fn dispatch_non_code_domain(
     lang: Language,
     path: &RepoPath,
@@ -111,16 +140,7 @@ fn dispatch_non_code_domain(
         }
         Language::Toml => TomlExtractor.extract(path, source),
         Language::Xml => XmlExtractor.extract(path, source),
-        Language::Sql => extract_sql_with_dialect_hint(path, source, ctx.sql_dialect_hint),
-        other => {
-            let (total_lines, effective_lines) = cst::line_metrics(source);
-            Ok(UastDocument::new(
-                path.clone(),
-                other,
-                total_lines,
-                effective_lines,
-            )?)
-        }
+        other => dispatch_academic_or_text(other, path, source, ctx),
     }
 }
 

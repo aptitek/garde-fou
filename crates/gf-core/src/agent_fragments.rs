@@ -5,8 +5,10 @@ use alloc::string::String;
 use alloc::vec::Vec;
 
 use crate::agent_templates::{
-    CORE_FRAGMENT, DOMAINS_FRAGMENT, feature_fragment, framework_fragment, language_fragment,
+    CORE_FRAGMENT, DOMAINS_FRAGMENT, archetype_fragment, feature_fragment, framework_fragment,
+    language_fragment,
 };
+use crate::archetype_policy::WorkspaceArchetype;
 use crate::config::Config;
 use crate::context::ProjectContext;
 use crate::skills_catalog::SkillEntry;
@@ -172,9 +174,17 @@ pub fn compose_agents_managed_block(
         ctx.summary_inline()
     );
     buf.push_str(&render_thresholds_table(config));
-    buf.push_str(&render_domains_table(config));
+    if ctx.archetype == WorkspaceArchetype::Software {
+        buf.push_str(&render_domains_table(config));
+    }
 
-    let mut fragments: Vec<&str> = alloc::vec![CORE_FRAGMENT, DOMAINS_FRAGMENT];
+    let mut fragments: Vec<&str> = alloc::vec![CORE_FRAGMENT];
+    if ctx.archetype == WorkspaceArchetype::Software {
+        fragments.push(DOMAINS_FRAGMENT);
+    }
+    if let Some(arch_frag) = archetype_fragment(ctx.archetype) {
+        fragments.push(arch_frag);
+    }
     for &lang in &ctx.languages {
         fragments.push(language_fragment(lang));
     }

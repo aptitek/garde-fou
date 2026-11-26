@@ -188,7 +188,7 @@ fn v9_policies_rules_architecture_and_clean_code_cover_all_variants() {
     assert!(
         Config::strict_defaults()
             .canonical_string()
-            .starts_with("v17|")
+            .starts_with("v18|")
     );
 }
 

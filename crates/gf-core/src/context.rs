@@ -7,6 +7,7 @@ use alloc::vec::Vec;
 use core::fmt;
 use serde::{Deserialize, Serialize};
 
+pub use crate::archetype_policy::{ArchetypeSetting, WorkspaceArchetype};
 pub use crate::framework_id::FrameworkId;
 
 fn lookup_alias<T: Copy>(table: &[(&str, T)], raw: &str) -> Option<T> {
@@ -47,58 +48,39 @@ pub enum LanguageId {
     Html,
 }
 
+#[rustfmt::skip]
 const LANG_NAMES: [&str; 13] = [
-    "rust",
-    "typescript",
-    "python",
-    "shell",
-    "powershell",
-    "yaml",
-    "css",
-    "xml",
-    "toml",
-    "markdown",
-    "sql",
-    "astro",
-    "html",
+    "rust", "typescript", "python", "shell", "powershell", "yaml", "css",
+    "xml", "toml", "markdown", "sql", "astro", "html",
 ];
+#[rustfmt::skip]
 const LANGUAGE_ALIASES: &[(&str, LanguageId)] = &[
-    ("rust", LanguageId::Rust),
-    ("typescript", LanguageId::TypeScript),
-    ("javascript", LanguageId::TypeScript),
-    ("ts", LanguageId::TypeScript),
-    ("js", LanguageId::TypeScript),
-    ("python", LanguageId::Python),
-    ("py", LanguageId::Python),
-    ("shell", LanguageId::Shell),
-    ("sh", LanguageId::Shell),
-    ("bash", LanguageId::Shell),
-    ("powershell", LanguageId::PowerShell),
-    ("pwsh", LanguageId::PowerShell),
-    ("ps1", LanguageId::PowerShell),
-    ("yaml", LanguageId::Yaml),
-    ("yml", LanguageId::Yaml),
-    ("css", LanguageId::Css),
-    ("scss", LanguageId::Css),
-    ("xml", LanguageId::Xml),
-    ("svg", LanguageId::Xml),
+    ("rust", LanguageId::Rust), ("rs", LanguageId::Rust),
+    ("typescript", LanguageId::TypeScript), ("javascript", LanguageId::TypeScript),
+    ("ts", LanguageId::TypeScript), ("js", LanguageId::TypeScript),
+    ("python", LanguageId::Python), ("py", LanguageId::Python),
+    ("shell", LanguageId::Shell), ("sh", LanguageId::Shell), ("bash", LanguageId::Shell),
+    ("powershell", LanguageId::PowerShell), ("pwsh", LanguageId::PowerShell), ("ps1", LanguageId::PowerShell),
+    ("yaml", LanguageId::Yaml), ("yml", LanguageId::Yaml),
+    ("css", LanguageId::Css), ("scss", LanguageId::Css),
+    ("xml", LanguageId::Xml), ("svg", LanguageId::Xml),
     ("toml", LanguageId::Toml),
-    ("markdown", LanguageId::Markdown),
-    ("md", LanguageId::Markdown),
-    ("mdx", LanguageId::Markdown),
-    ("sql", LanguageId::Sql),
-    ("postgres", LanguageId::Sql),
-    ("sqlite", LanguageId::Sql),
-    ("astro", LanguageId::Astro),
-    ("html", LanguageId::Html),
-    ("htm", LanguageId::Html),
+    ("markdown", LanguageId::Markdown), ("md", LanguageId::Markdown), ("mdx", LanguageId::Markdown),
+    ("sql", LanguageId::Sql), ("postgres", LanguageId::Sql), ("sqlite", LanguageId::Sql),
+    ("astro", LanguageId::Astro), ("html", LanguageId::Html), ("htm", LanguageId::Html),
 ];
 
 impl LanguageId {
+    /// Parses a case-insensitive language slug (`rust`/`rs`, `shell`/`sh`/`bash`, `powershell`/`ps1`/`pwsh`, etc.).
+    #[must_use]
+    pub fn from_slug(raw: &str) -> Option<Self> {
+        lookup_alias(LANGUAGE_ALIASES, raw.trim())
+    }
+
     /// Parses a case-insensitive language identifier from configuration.
     #[must_use]
     pub fn from_config_str(raw: &str) -> Option<Self> {
-        lookup_alias(LANGUAGE_ALIASES, raw)
+        Self::from_slug(raw)
     }
 
     /// Canonical kebab-case identifier.
@@ -220,7 +202,10 @@ impl fmt::Display for FeatureId {
 /// Complete resolved context of the analyzed workspace.
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
 pub struct ProjectContext {
-    /// Active programming languages.
+    /// Resolved proportional workspace archetype (`Minimal` .. `Software`).
+    #[serde(default)]
+    pub archetype: WorkspaceArchetype,
+    /// Active programming languages (may be empty for `Minimal` / `Knowledge` / `Infra`).
     pub languages: BTreeSet<LanguageId>,
     /// Active cross-cutting infrastructure features.
     pub features: BTreeSet<FeatureId>,
@@ -231,14 +216,15 @@ pub struct ProjectContext {
 }
 
 impl ProjectContext {
-    /// Formats a deterministic one-line summary (`langs=[...] features=[...] frameworks=[...]`).
+    /// Formats a deterministic one-line summary (`archetype=... langs=[...] features=[...] frameworks=[...]`).
     #[must_use]
     pub fn summary_inline(&self) -> String {
         let langs: Vec<&str> = self.languages.iter().map(|l| l.as_str()).collect();
         let feats: Vec<&str> = self.features.iter().map(|f| f.as_str()).collect();
         let fws: Vec<&str> = self.frameworks.iter().map(|fw| fw.as_str()).collect();
         format!(
-            "langs=[{}] features=[{}] frameworks=[{}]",
+            "archetype={} langs=[{}] features=[{}] frameworks=[{}]",
+            self.archetype.as_str(),
             langs.join(","),
             feats.join(","),
             fws.join(",")

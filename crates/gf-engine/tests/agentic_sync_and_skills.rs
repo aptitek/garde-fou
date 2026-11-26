@@ -36,6 +36,7 @@ fn setup_drift_fixture(dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
     run_init(&InitRequest {
         root: dir.to_path_buf(),
         project_name: Some(String::from("svc-drift")),
+        archetype: None,
         languages: BTreeSet::from([LanguageId::Rust]),
         features: BTreeSet::new(),
         frameworks: BTreeSet::new(),
@@ -103,6 +104,7 @@ fn composes_only_matching_context_fragments_and_exact_thresholds()
     run_init(&InitRequest {
         root: rust_dir.clone(),
         project_name: Some(String::from("core-rs")),
+        archetype: None,
         languages: BTreeSet::from([LanguageId::Rust]),
         features: BTreeSet::new(),
         frameworks: BTreeSet::new(),
@@ -118,6 +120,7 @@ fn composes_only_matching_context_fragments_and_exact_thresholds()
     run_init(&InitRequest {
         root: web_dir.clone(),
         project_name: Some(String::from("portal-ui")),
+        archetype: None,
         languages: BTreeSet::from([LanguageId::TypeScript]),
         features: BTreeSet::from([FeatureId::Docker, FeatureId::Ui, FeatureId::I18n]),
         frameworks: BTreeSet::from([FrameworkId::Astro]),

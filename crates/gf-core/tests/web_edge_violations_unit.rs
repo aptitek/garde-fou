@@ -193,6 +193,7 @@ fn gitignore_dockerignore_and_skills_cover_web_edge() {
             FrameworkId::Drizzle,
         ]),
         dockerignore_entries: None,
+        ..ProjectContext::default()
     };
     let (gi, di) = (compose_gitignore(&ctx), compose_dockerignore(&ctx));
     for entry in [

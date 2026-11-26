@@ -13,9 +13,12 @@ pub mod yaml_ast;
 pub mod yaml_quirks;
 pub mod yaml_tool_config;
 
-use gf_core::{Language, RepoPath, UastDocument, YamlFlavor, classify_yaml_flavor};
+use gf_core::{
+    AcademicSummary, Language, RepoPath, UastDocument, YamlFlavor, classify_yaml_flavor,
+};
 
 use crate::cst::line_metrics;
+use crate::langs::quarto::config_audit::{collect_quarto_config_refs, is_quarto_config_path};
 use crate::types::{LanguageExtractor, ParseError};
 use anchors_merge::{ResolvedYaml, resolve_yaml_document};
 use compose_extract::analyze_compose_services;
@@ -45,6 +48,15 @@ impl LanguageExtractor for YamlExtractor {
             check_yaml_scalar_quirks(raw_doc, flavor, &mut doc.lang_rule_findings);
             if let Some(resolved) = resolve_yaml_document(raw_doc, &mut doc.lang_rule_findings) {
                 dispatch_resolved_flavor(path, flavor, &resolved, &mut doc.lang_rule_findings);
+                if is_quarto_config_path(path) {
+                    let q_refs = collect_quarto_config_refs(&resolved);
+                    if !q_refs.is_empty() {
+                        doc.academic = Some(AcademicSummary {
+                            quarto_config_refs: q_refs,
+                            ..AcademicSummary::default()
+                        });
+                    }
+                }
             }
         }
         scan_yaml_comment_bypasses(source, &all_block_ranges, &mut doc.bypass_findings);

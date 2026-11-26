@@ -11,8 +11,10 @@ extern crate alloc;
 #[cfg(test)]
 extern crate std;
 
+pub mod academic_violations;
 pub mod agent_fragments;
 pub mod agent_templates;
+pub mod archetype_policy;
 pub mod boundaries;
 pub mod clean_code;
 pub mod commit_msg;
@@ -55,12 +57,6 @@ pub mod web_edge_violations;
 pub mod yaml_tools;
 pub mod yaml_violations;
 
-pub use config::{
-    ArchitectureConfig, Config, CoverageConfig, ForbiddenRuleKind, ForbiddenRulesConfig,
-    LimitsConfig, ProjectConfig, ScannerPolicy, ScannersConfig,
-};
-pub use context::{FeatureId, FrameworkId, LanguageId, ProjectContext};
-pub use diagnostic::{Diagnostic, Severity, Span, SpanError};
 pub use docker::{
     DockerCommandForm, DockerDocument, DockerInstruction, DockerInstructionKind, DockerShellKind,
     DockerStageShell, FromStage,
@@ -88,6 +84,22 @@ pub use mutation::{MutationConfig, MutationSummary, SurvivedMutant, truncate_rep
 pub use path::{RepoPath, RepoPathError};
 pub use uast::{Language, UastDocument, UastKind, UastNode};
 pub use validation::Validation;
+pub use {
+    academic_violations::{
+        AcademicSummary, AcademicViolation, NotebookConfig, NotebookViolation, ObsidianViolation,
+        QuartoViolation, WorkspaceRefItem,
+    },
+    archetype_policy::{
+        ArchetypePolicy, ArchetypeSetting, DeadExportGate, ScriptTestGate, WorkspaceArchetype,
+        classify_path_for_archetype,
+    },
+    config::{
+        ArchitectureConfig, Config, CoverageConfig, ForbiddenRuleKind, ForbiddenRulesConfig,
+        LimitsConfig, ProjectConfig, ScannerPolicy, ScannersConfig,
+    },
+    context::{FeatureId, FrameworkId, LanguageId, ProjectContext},
+    diagnostic::{Diagnostic, Severity, Span, SpanError},
+};
 pub use {
     agent_fragments::{
         AGENTS_MANAGED_END, AGENTS_MANAGED_START, compose_agents_managed_block,

@@ -229,6 +229,7 @@ fn golden_invariant_python_fastapi_docker_passes_all_three_tiers()
     run_init(&InitRequest {
         root: dir.clone(),
         project_name: Some(String::from("payments-api")),
+        archetype: None,
         languages: BTreeSet::from([LanguageId::Python]),
         features: BTreeSet::from([FeatureId::Docker]),
         frameworks: BTreeSet::from([FrameworkId::FastApi]),

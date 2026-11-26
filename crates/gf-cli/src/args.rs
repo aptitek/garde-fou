@@ -56,7 +56,10 @@ pub struct InitArgs {
     /// Explicit project name override (defaults to directory name).
     #[arg(long, value_name = "NAME")]
     pub name: Option<String>,
-    /// Project language(s) (`rust`, `typescript`, `python`).
+    /// Explicit workspace archetype (`minimal`, `scripts`, `infra`, `knowledge`, `academic`, `software`).
+    #[arg(long, value_name = "KIND")]
+    pub archetype: Option<String>,
+    /// Project language(s) (`rust`, `typescript`, `python`, `shell`, `powershell`, `yaml`, `sql`, `toml`, `markdown`, `css`, `xml`).
     #[arg(long = "lang", value_name = "LANG", value_delimiter = ',')]
     pub langs: Vec<String>,
     /// Infrastructure & fortress feature(s) (`docker`, `git-hooks`, `ci-github`, `task-runner`, `ui`, `i18n`, `content`, `tdd`, `storybook`).

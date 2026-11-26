@@ -129,6 +129,7 @@ fn golden_invariant_react_and_astro_six_domains_pass_with_zero_violations()
         let req = InitRequest {
             root: dir.clone(),
             project_name: Some(String::from("clean-portal")),
+            archetype: None,
             languages: BTreeSet::from([LanguageId::TypeScript]),
             features: BTreeSet::from([FeatureId::Ui, FeatureId::I18n, FeatureId::Content]),
             frameworks: BTreeSet::from([fw]),

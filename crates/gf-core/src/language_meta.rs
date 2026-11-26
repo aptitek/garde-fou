@@ -193,6 +193,12 @@ pub enum Language {
     Astro,
     /// W3C HTML5 document (`.html`, `.htm`).
     Html,
+    /// Jupyter Notebook JSON document (`.ipynb`, nbformat v4).
+    Notebook,
+    /// Quarto academic Markdown document (`.qmd`).
+    Quarto,
+    /// Obsidian JSON Canvas document (`.canvas`).
+    JsonCanvas,
     /// Non-text binary media or font asset (`.png`, `.woff2`, `.pdf`, etc.).
     BinaryAsset,
     /// Unclassified text or source file.
@@ -232,6 +238,9 @@ impl Language {
                     | Self::Svg
                     | Self::Sql
                     | Self::Html
+                    | Self::Notebook
+                    | Self::Quarto
+                    | Self::JsonCanvas
                     | Self::BinaryAsset
             )
     }

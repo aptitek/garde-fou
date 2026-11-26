@@ -8,6 +8,7 @@ use tree_sitter::Node;
 
 use super::python_exports::{extract_py_exports, extract_py_imports};
 use super::python_guardrails::extract_python_guardrails;
+use super::python_pep723::check_pep723_metadata;
 use super::python_typing::count_callable_py_params;
 use super::sql::embedded_sql::extract_python_embedded_sql;
 use crate::anti_cheat::populate_cst_fortress;
@@ -65,11 +66,15 @@ impl PythonExtractor {
         walk_python(root, source, false, &mut doc);
         populate_cst_fortress(root, source, &mut doc);
         extract_python_guardrails(root, source, domain, &mut doc);
-        if domain == DomainKind::Code {
+        check_pep723_metadata(source, &mut doc.lang_rule_findings);
+        if matches!(
+            domain,
+            DomainKind::Code | DomainKind::Scripts | DomainKind::Contenus
+        ) {
             extract_python_embedded_sql(root, source, &mut doc.lang_rule_findings);
-            doc.lang_rule_findings
-                .sort_by(|a, b| a.span.cmp(&b.span).then_with(|| a.code().cmp(b.code())));
         }
+        doc.lang_rule_findings
+            .sort_by(|a, b| a.span.cmp(&b.span).then_with(|| a.code().cmp(b.code())));
         Ok(doc)
     }
 }

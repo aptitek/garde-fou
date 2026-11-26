@@ -2,4 +2,4 @@
 schema = 1
 config = "garde-fou.toml"
 blake3 = "a03201e6fd52df430426803f45d27617216e035d371ea7c16f34f235e231ffbb"
-skills_blake3 = "5c1b49bd876e43fb796fd970a05b02bbd5e5353a8756db6c907e683207cabeec"
+skills_blake3 = "555ad2146d6a015a3d830c9f7f01ea1d2991875887d45f9e1b616e72c54e8251"

@@ -6,8 +6,9 @@ use alloc::string::String;
 use alloc::vec::Vec;
 
 use gf_core::{
-    Config, Diagnostic, DomainKind, ExportDecl, Language, ProjectContext, RepoPath, Severity,
-    UastDocument, Validation, classify_path, glob_matches, is_ts_declaration_path,
+    ArchetypePolicy, Config, DeadExportGate, Diagnostic, DomainKind, ExportDecl, Language,
+    ProjectContext, RepoPath, Severity, UastDocument, Validation, classify_path, glob_matches,
+    is_ts_declaration_path,
 };
 
 const UNIVERSAL_ENTRYPOINT_GLOBS: &[&str] = &[
@@ -146,11 +147,17 @@ pub fn check_dead_exports(
     ctx: &ProjectContext,
     config: &Config,
 ) -> Validation<(), Diagnostic> {
+    if ArchetypePolicy::for_archetype(ctx.archetype).dead_export_gate != DeadExportGate::Enforced {
+        return Validation::Valid(());
+    }
     let ref_index = build_reference_index(docs);
     let mut diags = Vec::new();
     for doc in docs {
         if classify_path(&doc.path, &config.domains) == DomainKind::Code
-            && doc.language != Language::Dockerfile
+            && !matches!(
+                doc.language,
+                Language::Dockerfile | Language::Notebook | Language::Quarto
+            )
             && !is_ts_declaration_path(doc.path.as_str())
         {
             let is_entry = is_entrypoint_file(&doc.path, ctx, config);

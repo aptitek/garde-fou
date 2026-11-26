@@ -121,6 +121,10 @@ pub enum PythonViolation {
     MissingPublicTypeAnnotation,
     /// Leftover `print(...)` (`PY-T201`) or `breakpoint()` / `pdb.set_trace()` (`PY-T100`) in `Code`.
     LeftoverDebugArtifact(DebugArtifactKind),
+    /// Malformed TOML inside a PEP 723 `# /// script` metadata block (`PY-PEP723-INVALID`).
+    Pep723Invalid,
+    /// Unbounded or wildcard `"*"` dependency inside a PEP 723 `# /// script` block (`PY-PEP723-UNPINNED`).
+    Pep723Unpinned,
 }
 
 impl PythonViolation {
@@ -134,6 +138,8 @@ impl PythonViolation {
             Self::ForbiddenAny => "PY-ANN401",
             Self::MissingPublicTypeAnnotation => "PY-ANN201",
             Self::LeftoverDebugArtifact(kind) => kind.code(),
+            Self::Pep723Invalid => "PY-PEP723-INVALID",
+            Self::Pep723Unpinned => "PY-PEP723-UNPINNED",
         }
     }
 
@@ -153,6 +159,12 @@ impl PythonViolation {
                 "Add explicit type annotations on all public parameters (excluding `self`/`cls`) and return types (`-> T` or `-> None`)."
             }
             Self::LeftoverDebugArtifact(kind) => kind.remediation(),
+            Self::Pep723Invalid => {
+                "Fix the TOML syntax inside the `# /// script` .. `# ///` PEP 723 inline metadata block."
+            }
+            Self::Pep723Unpinned => {
+                "Constrain every PEP 723 dependency with an explicit version specifier (e.g. `\"httpx>=0.27,<1\"`), never bare names or `\"*\"`."
+            }
         }
     }
 

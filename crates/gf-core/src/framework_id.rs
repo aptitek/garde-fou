@@ -24,9 +24,17 @@ pub enum FrameworkId {
     CloudflareWorkers,
     /// Drizzle ORM typed SQL schema & query builder (`drizzle.config.*`).
     Drizzle,
+    /// Docker Compose infrastructure stack (`compose.yaml`, `docker-compose.yml`).
+    DockerCompose,
+    /// Obsidian Markdown & JSON Canvas knowledge vault (`.obsidian/`, `.canvas`).
+    Obsidian,
+    /// Quarto scientific/academic publishing (`_quarto.yml`, `*.qmd`).
+    Quarto,
+    /// Jupyter Notebook ecosystem (`*.ipynb`).
+    Jupyter,
 }
 
-const FRAMEWORK_NAMES: [&str; 9] = [
+const FRAMEWORK_NAMES: [&str; 13] = [
     "cargo-workspace",
     "react",
     "astro",
@@ -36,6 +44,10 @@ const FRAMEWORK_NAMES: [&str; 9] = [
     "react-router",
     "cloudflare-workers",
     "drizzle",
+    "docker-compose",
+    "obsidian",
+    "quarto",
+    "jupyter",
 ];
 
 const FRAMEWORK_ALIASES: &[(&str, FrameworkId)] = &[
@@ -56,6 +68,12 @@ const FRAMEWORK_ALIASES: &[(&str, FrameworkId)] = &[
     ("cf-workers", FrameworkId::CloudflareWorkers),
     ("drizzle", FrameworkId::Drizzle),
     ("drizzle-orm", FrameworkId::Drizzle),
+    ("docker-compose", FrameworkId::DockerCompose),
+    ("compose", FrameworkId::DockerCompose),
+    ("obsidian", FrameworkId::Obsidian),
+    ("quarto", FrameworkId::Quarto),
+    ("jupyter", FrameworkId::Jupyter),
+    ("ipynb", FrameworkId::Jupyter),
 ];
 
 const CARGO_ENTRIES: &[&str] = &[
@@ -142,6 +160,7 @@ impl FrameworkId {
             Self::ReactRouter => REACT_ROUTER_ENTRIES,
             Self::CloudflareWorkers => CLOUDFLARE_ENTRIES,
             Self::Drizzle => DRIZZLE_ENTRIES,
+            Self::DockerCompose | Self::Obsidian | Self::Quarto | Self::Jupyter => &[],
         }
     }
 }

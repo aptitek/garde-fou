@@ -1,9 +1,10 @@
 //! Automatic workspace context detector (`languages` × `features` × `frameworks`).
 
+use crate::archetype_detector::{detect_extra_frameworks_into, detect_workspace_archetype};
 use crate::discovery::peek_extensionless_shebang;
 use gf_core::{
-    Config, DomainKind, FeatureId, FrameworkId, Language, LanguageId, ProjectContext, RepoPath,
-    YamlFlavor, classify_path, classify_yaml_flavor,
+    ArchetypeSetting, Config, DomainKind, FeatureId, FrameworkId, Language, LanguageId,
+    ProjectContext, RepoPath, YamlFlavor, classify_path, classify_yaml_flavor,
 };
 use gf_parsers::detect_language;
 use std::{collections::BTreeSet, fs, path::Path};
@@ -30,21 +31,16 @@ const SOURCE_LANGUAGE_MAP: &[(Language, LanguageId)] = &[
 ];
 const PANDA_CONFIGS: &[&str] = &["panda.config.ts", "panda.config.mjs", "panda.config.js"];
 const WRANGLER_CONFIGS: &[&str] = &["wrangler.toml", "wrangler.jsonc", "wrangler.json"];
-const DRIZZLE_CONFIGS: &[&str] = &[
-    "drizzle.config.ts",
-    "drizzle.config.js",
-    "drizzle.config.mjs",
-];
+#[rustfmt::skip]
+const DRIZZLE_CONFIGS: &[&str] = &["drizzle.config.ts", "drizzle.config.js", "drizzle.config.mjs"];
 const RR_CONFIGS: &[&str] = &["react-router.config.ts", "react-router.config.js"];
 const ASTRO_CONFIGS: &[&str] = &["astro.config.mjs", "astro.config.ts", "astro.config.js"];
 
-fn any_file(root: &Path, names: &[&str]) -> bool {
-    names.iter().any(|n| root.join(n).is_file())
-}
+#[rustfmt::skip]
+fn any_file(root: &Path, names: &[&str]) -> bool { names.iter().any(|n| root.join(n).is_file()) }
 
-fn has_m3e_markers(raw: &str) -> bool {
-    raw.contains("primaryContainer") || raw.contains("onSurfaceVariant") || raw.contains("md.sys.")
-}
+#[rustfmt::skip]
+fn has_m3e_markers(raw: &str) -> bool { raw.contains("primaryContainer") || raw.contains("onSurfaceVariant") || raw.contains("md.sys.") }
 
 fn resolve_file_lang_id(root: &Path, path: &RepoPath) -> Option<LanguageId> {
     let lang = match detect_language(path) {
@@ -234,17 +230,21 @@ fn detect_domain_features_into(root: &Path, files: &[RepoPath], config: &Config,
 #[must_use]
 #[rustfmt::skip]
 pub fn detect_project_context(root: &Path, discovered_files: &[RepoPath], config: &Config) -> ProjectContext {
-    let mut languages = config.project.languages.clone();
-    let mut features = config.project.features.clone();
-    let mut frameworks = config.project.frameworks.clone();
-    detect_languages_into(root, discovered_files, &mut languages);
-    detect_features_into(root, discovered_files, &mut features);
-    detect_domain_features_into(root, discovered_files, config, &mut features);
-    detect_frameworks_into(root, discovered_files, &mut frameworks);
-    ProjectContext {
-        languages,
-        features,
-        frameworks,
+    let mut ctx = ProjectContext {
+        languages: config.project.languages.clone(),
+        features: config.project.features.clone(),
+        frameworks: config.project.frameworks.clone(),
         dockerignore_entries: read_dockerignore(root),
-    }
+        ..ProjectContext::default()
+    };
+    detect_languages_into(root, discovered_files, &mut ctx.languages);
+    detect_features_into(root, discovered_files, &mut ctx.features);
+    detect_domain_features_into(root, discovered_files, config, &mut ctx.features);
+    detect_frameworks_into(root, discovered_files, &mut ctx.frameworks);
+    detect_extra_frameworks_into(root, discovered_files, &mut ctx.languages, &mut ctx.frameworks);
+    ctx.archetype = match config.project.archetype {
+        ArchetypeSetting::Explicit(arch) => arch,
+        ArchetypeSetting::Auto => detect_workspace_archetype(root, discovered_files, &ctx),
+    };
+    ctx
 }

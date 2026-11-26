@@ -212,6 +212,7 @@ fn scaffold_ts_stack_and_check(
     run_init(&InitRequest {
         root: dir.clone(),
         project_name: Some(String::from(slug)),
+        archetype: None,
         languages: BTreeSet::from([LanguageId::TypeScript]),
         features,
         frameworks,
@@ -219,9 +220,7 @@ fn scaffold_ts_stack_and_check(
     })?;
     let toml_raw = fs::read_to_string(dir.join("garde-fou.toml"))?;
     assert!(toml_raw.contains("[tools.typescript]"));
-    let mut opts = CheckOptions::new(ScanScope::All, true);
-    opts.no_cache = true;
-    let rep = run_check_with_options(&dir, &opts)?;
+    let rep = run_check_with_options(&dir, &CheckOptions::new(ScanScope::All, true))?;
     fs::remove_dir_all(&dir)?;
     Ok(rep.diagnostics)
 }

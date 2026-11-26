@@ -1,6 +1,7 @@
 //! Compile-time embedded Markdown fragments (`content/agent-fragments/*.md`)
 //! keeping the `garde` binary 100% standalone while auditing fragments via `GF063`.
 
+use crate::archetype_policy::WorkspaceArchetype;
 use crate::context::{FeatureId, FrameworkId, LanguageId};
 
 /// Embedded `.agents/skills/garde-fou/SKILL.md` always available offline.
@@ -44,7 +45,7 @@ const FEATURE_FRAGMENTS: [&str; 12] = [
     include_str!("../../../content/agent-fragments/feat-w3c-a11y.md"),
 ];
 
-const FRAMEWORK_FRAGMENTS: [&str; 9] = [
+const FRAMEWORK_FRAGMENTS: [&str; 13] = [
     include_str!("../../../content/agent-fragments/fw-cargo-workspace.md"),
     include_str!("../../../content/agent-fragments/fw-react.md"),
     include_str!("../../../content/agent-fragments/fw-astro.md"),
@@ -54,7 +55,31 @@ const FRAMEWORK_FRAGMENTS: [&str; 9] = [
     include_str!("../../../content/agent-fragments/fw-react-router.md"),
     include_str!("../../../content/agent-fragments/fw-cloudflare-workers.md"),
     include_str!("../../../content/agent-fragments/fw-drizzle.md"),
+    include_str!("../../../content/agent-fragments/fw-docker-compose.md"),
+    include_str!("../../../content/agent-fragments/fw-obsidian.md"),
+    include_str!("../../../content/agent-fragments/fw-quarto.md"),
+    include_str!("../../../content/agent-fragments/fw-jupyter.md"),
 ];
+
+const ARCH_MINIMAL_FRAGMENT: &str =
+    include_str!("../../../content/agent-fragments/arch-minimal.md");
+const ARCH_SCRIPTS_FRAGMENT: &str =
+    include_str!("../../../content/agent-fragments/arch-scripts.md");
+const ARCH_INFRA_FRAGMENT: &str = include_str!("../../../content/agent-fragments/arch-infra.md");
+const ARCH_ACADEMIC_FRAGMENT: &str =
+    include_str!("../../../content/agent-fragments/arch-academic.md");
+
+/// Returns the optional archetype-specific Markdown fragment for `archetype`.
+#[must_use]
+pub const fn archetype_fragment(archetype: WorkspaceArchetype) -> Option<&'static str> {
+    match archetype {
+        WorkspaceArchetype::Minimal => Some(ARCH_MINIMAL_FRAGMENT),
+        WorkspaceArchetype::Scripts => Some(ARCH_SCRIPTS_FRAGMENT),
+        WorkspaceArchetype::Infra => Some(ARCH_INFRA_FRAGMENT),
+        WorkspaceArchetype::Academic => Some(ARCH_ACADEMIC_FRAGMENT),
+        WorkspaceArchetype::Knowledge | WorkspaceArchetype::Software => None,
+    }
+}
 
 /// Returns the embedded Markdown fragment for `lang`.
 #[must_use]

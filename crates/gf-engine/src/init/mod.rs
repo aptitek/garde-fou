@@ -1,5 +1,6 @@
 //! Non-destructive `uv init`-style project bootstrapper (`garde-fou init`).
 
+mod templates_archetypes;
 mod templates_domains;
 mod templates_infra;
 mod templates_python;
@@ -12,8 +13,8 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use gf_core::{
-    Config, FeatureId, FrameworkId, LanguageId, ProjectContext, compose_dockerignore,
-    compose_gitignore, merge_managed_block,
+    Config, FeatureId, FrameworkId, LanguageId, ProjectContext, WorkspaceArchetype,
+    compose_dockerignore, compose_gitignore, merge_managed_block,
 };
 
 use crate::agents::{FileSyncAction, SyncOptions, fetcher::SkillsFetchMode, run_sync};
@@ -28,6 +29,8 @@ pub struct InitRequest {
     pub root: PathBuf,
     /// Optional explicit project name override (defaults to directory name).
     pub project_name: Option<String>,
+    /// Optional explicit workspace archetype override (`--archetype`).
+    pub archetype: Option<WorkspaceArchetype>,
     /// Languages requested on the command line.
     pub languages: BTreeSet<LanguageId>,
     /// Infrastructure features requested on the command line.
@@ -45,6 +48,7 @@ impl InitRequest {
         Self {
             root,
             project_name: None,
+            archetype: None,
             languages: BTreeSet::new(),
             features: BTreeSet::new(),
             frameworks: BTreeSet::new(),
@@ -93,7 +97,7 @@ fn resolve_init_context(req: &InitRequest) -> Result<ProjectContext, EngineError
     ctx.languages.extend(req.languages.iter().copied());
     ctx.features.extend(req.features.iter().copied());
     ctx.frameworks.extend(req.frameworks.iter().copied());
-    templates_domains::finalize_init_context(&mut ctx);
+    templates_domains::finalize_init_context(&mut ctx, req.archetype);
     Ok(ctx)
 }
 

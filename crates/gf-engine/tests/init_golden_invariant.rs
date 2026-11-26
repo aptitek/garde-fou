@@ -54,6 +54,7 @@ fn golden_invariant_rust_stack() -> Result<(), Box<dyn std::error::Error>> {
         &InitRequest {
             root: rust_dir,
             project_name: Some(String::from("billing-core")),
+            archetype: None,
             languages: BTreeSet::from([LanguageId::Rust]),
             features: BTreeSet::from([
                 FeatureId::Docker,
@@ -87,6 +88,7 @@ fn golden_invariant_astro_and_python_stacks() -> Result<(), Box<dyn std::error::
         &InitRequest {
             root: ts_dir,
             project_name: Some(String::from("astro-portal")),
+            archetype: None,
             languages: BTreeSet::from([LanguageId::TypeScript]),
             features: BTreeSet::from([FeatureId::Docker]),
             frameworks: BTreeSet::from([FrameworkId::Astro]),
@@ -102,6 +104,7 @@ fn golden_invariant_astro_and_python_stacks() -> Result<(), Box<dyn std::error::
         &InitRequest {
             root: py_dir,
             project_name: Some(String::from("orders-api")),
+            archetype: None,
             languages: BTreeSet::from([LanguageId::Python]),
             features: BTreeSet::from([FeatureId::Docker, FeatureId::CiGithub]),
             frameworks: BTreeSet::from([FrameworkId::FastApi]),
@@ -122,7 +125,11 @@ fn golden_invariant_astro_and_python_stacks() -> Result<(), Box<dyn std::error::
 fn init_is_idempotent_and_preserves_custom_gitignore_and_sources()
 -> Result<(), Box<dyn std::error::Error>> {
     let dir = fresh_temp_dir("idempotent")?;
-    let first = run_init(&InitRequest::for_path(dir.clone()))?;
+    let first_req = InitRequest {
+        languages: BTreeSet::from([LanguageId::Rust]),
+        ..InitRequest::for_path(dir.clone())
+    };
+    let first = run_init(&first_req)?;
     assert!(first.git_initialized);
 
     let gitignore_path = dir.join(".gitignore");
@@ -133,6 +140,7 @@ fn init_is_idempotent_and_preserves_custom_gitignore_and_sources()
     let upgrade_req = InitRequest {
         root: dir.clone(),
         project_name: None,
+        archetype: None,
         languages: BTreeSet::from([LanguageId::Python]),
         features: BTreeSet::from([FeatureId::Docker]),
         frameworks: BTreeSet::new(),

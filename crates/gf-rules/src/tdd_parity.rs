@@ -6,8 +6,8 @@ use alloc::string::String;
 use alloc::vec::Vec;
 
 use gf_core::{
-    Config, Diagnostic, DomainKind, FeatureId, Language, ProjectContext, Span, UastDocument,
-    Validation, classify_path, glob_matches, is_ts_declaration_path,
+    ArchetypePolicy, Config, Diagnostic, DomainKind, FeatureId, Language, ProjectContext, Span,
+    UastDocument, Validation, classify_path, glob_matches, is_ts_declaration_path,
 };
 
 use crate::checks::{SourceLoc, rule_error};
@@ -164,7 +164,13 @@ pub fn check_workspace_tdd(
     config: &Config,
 ) -> Validation<(), Diagnostic> {
     let mut diags = Vec::new();
-    if config.tdd.require_companion() || ctx.features.contains(&FeatureId::Tdd) {
+    let has_tests = docs
+        .iter()
+        .any(|d| classify_path(&d.path, &config.domains) == DomainKind::Tests);
+    let has_tdd = ctx.features.contains(&FeatureId::Tdd);
+    let companion_allowed =
+        ArchetypePolicy::for_archetype(ctx.archetype).requires_script_test(has_tests || has_tdd);
+    if (config.tdd.require_companion() && companion_allowed) || has_tdd {
         check_companion_tests(docs, ctx, config, &mut diags);
     }
     if config.tdd.require_stories() || ctx.features.contains(&FeatureId::Storybook) {

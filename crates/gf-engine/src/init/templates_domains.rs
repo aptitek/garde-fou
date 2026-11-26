@@ -1,9 +1,11 @@
 //! Exemplary 6-domain starter templates (`Forme` tokens/CSS, `Texte` en/fr,
 //! `Contenus` pure Markdown, and `Asset` sanitized SVG).
 
-use gf_core::{FeatureId, FrameworkId, LanguageId, ProjectContext};
+use gf_core::{FeatureId, FrameworkId, LanguageId, ProjectContext, WorkspaceArchetype};
 
-use super::{templates_infra, templates_python, templates_rust, templates_web};
+use super::{
+    templates_archetypes, templates_infra, templates_python, templates_rust, templates_web,
+};
 use crate::types::DEFAULT_CONFIG_FILENAME;
 
 const TOKENS_CSS: &str = "/* Design Tokens — single source of primitive visual values */\n\
@@ -86,20 +88,24 @@ pub fn collect_all_init_files(
             templates_infra::render_garde_fou_toml(project_name, context),
         ),
     ];
-    if context.languages.contains(&LanguageId::Rust) {
-        files.extend(templates_rust::rust_files(project_name, pkg_snake));
+    if context.archetype == WorkspaceArchetype::Software {
+        if context.languages.contains(&LanguageId::Rust) {
+            files.extend(templates_rust::rust_files(project_name, pkg_snake));
+        }
+        if context.languages.contains(&LanguageId::TypeScript) {
+            files.extend(templates_web::web_files(project_name, context));
+        }
+        if context.languages.contains(&LanguageId::Python) {
+            files.extend(templates_python::python_files(
+                project_name,
+                pkg_snake,
+                context,
+            ));
+        }
+        files.extend(six_domain_feature_files(project_name, context));
+    } else {
+        files.extend(templates_archetypes::archetype_starter_files(context));
     }
-    if context.languages.contains(&LanguageId::TypeScript) {
-        files.extend(templates_web::web_files(project_name, context));
-    }
-    if context.languages.contains(&LanguageId::Python) {
-        files.extend(templates_python::python_files(
-            project_name,
-            pkg_snake,
-            context,
-        ));
-    }
-    files.extend(six_domain_feature_files(project_name, context));
     files.extend(templates_infra::infra_feature_files(project_name, context));
     files
 }
@@ -168,32 +174,66 @@ fn infer_feature_languages(ctx: &mut ProjectContext) {
     }
 }
 
-/// Applies framework-to-language inference and default Rust fallback on `ctx`.
-pub fn finalize_init_context(ctx: &mut ProjectContext) {
-    for fw in &ctx.frameworks {
-        let lang = match fw {
-            FrameworkId::CargoWorkspace => LanguageId::Rust,
-            FrameworkId::React
-            | FrameworkId::Astro
-            | FrameworkId::NextJs
-            | FrameworkId::ReactRouter
-            | FrameworkId::CloudflareWorkers
-            | FrameworkId::Drizzle => LanguageId::TypeScript,
-            FrameworkId::FastApi | FrameworkId::Django => LanguageId::Python,
-        };
-        ctx.languages.insert(lang);
-    }
-    if !ctx
-        .languages
+#[rustfmt::skip]
+fn has_software_lang(ctx: &ProjectContext) -> bool {
+    [LanguageId::Rust, LanguageId::TypeScript, LanguageId::Python, LanguageId::Astro]
         .iter()
-        .copied()
-        .any(LanguageId::is_programming_language)
-    {
-        ctx.languages.insert(LanguageId::Rust);
-        ctx.features.insert(FeatureId::GitHooks);
+        .any(|l| ctx.languages.contains(l))
+}
+
+#[rustfmt::skip]
+fn has_script_only_lang(ctx: &ProjectContext) -> bool {
+    (ctx.languages.contains(&LanguageId::Shell) || ctx.languages.contains(&LanguageId::PowerShell))
+        && !has_software_lang(ctx)
+}
+
+#[rustfmt::skip]
+fn infer_init_archetype(ctx: &ProjectContext) -> WorkspaceArchetype {
+    if ctx.frameworks.contains(&FrameworkId::Quarto) || ctx.frameworks.contains(&FrameworkId::Jupyter) {
+        return WorkspaceArchetype::Academic;
     }
-    if ctx.languages.contains(&LanguageId::Rust) {
+    if ctx.frameworks.contains(&FrameworkId::Obsidian) { return WorkspaceArchetype::Knowledge; }
+    let has_sw = has_software_lang(ctx);
+    if ctx.frameworks.contains(&FrameworkId::DockerCompose) || (ctx.features.contains(&FeatureId::Docker) && !has_sw) {
+        return WorkspaceArchetype::Infra;
+    }
+    if has_script_only_lang(ctx) { return WorkspaceArchetype::Scripts; }
+    if has_sw || !ctx.frameworks.is_empty() { WorkspaceArchetype::Software } else { WorkspaceArchetype::Minimal }
+}
+
+#[rustfmt::skip]
+fn apply_framework_implied_deps(ctx: &mut ProjectContext) {
+    let fws: Vec<FrameworkId> = ctx.frameworks.iter().copied().collect();
+    for fw in fws {
+        match fw {
+            FrameworkId::CargoWorkspace => { ctx.languages.insert(LanguageId::Rust); }
+            FrameworkId::React | FrameworkId::Astro | FrameworkId::NextJs | FrameworkId::ReactRouter | FrameworkId::CloudflareWorkers | FrameworkId::Drizzle => {
+                ctx.languages.insert(LanguageId::TypeScript);
+            }
+            FrameworkId::FastApi | FrameworkId::Django | FrameworkId::Jupyter => { ctx.languages.insert(LanguageId::Python); }
+            FrameworkId::DockerCompose => { ctx.features.insert(FeatureId::Docker); ctx.languages.insert(LanguageId::Yaml); }
+            FrameworkId::Quarto => { ctx.languages.insert(LanguageId::Yaml); ctx.languages.insert(LanguageId::Markdown); }
+            FrameworkId::Obsidian => { ctx.languages.insert(LanguageId::Markdown); }
+        }
+    }
+}
+
+/// Applies proportional framework-to-language inference and archetype resolution on `ctx`.
+pub fn finalize_init_context(
+    ctx: &mut ProjectContext,
+    explicit_archetype: Option<WorkspaceArchetype>,
+) {
+    apply_framework_implied_deps(ctx);
+    ctx.features.insert(FeatureId::GitHooks);
+    ctx.archetype = explicit_archetype.unwrap_or_else(|| infer_init_archetype(ctx));
+    if ctx.archetype == WorkspaceArchetype::Software && ctx.languages.contains(&LanguageId::Rust) {
         ctx.frameworks.insert(FrameworkId::CargoWorkspace);
     }
-    infer_feature_languages(ctx);
+    if ctx.archetype == WorkspaceArchetype::Infra {
+        ctx.features.insert(FeatureId::Docker);
+        ctx.frameworks.insert(FrameworkId::DockerCompose);
+    }
+    if ctx.archetype != WorkspaceArchetype::Minimal {
+        infer_feature_languages(ctx);
+    }
 }

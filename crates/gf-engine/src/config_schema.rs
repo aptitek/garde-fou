@@ -60,6 +60,8 @@ pub struct RawManifest {
     #[serde(default)]
     pub sql: Option<SqlSection>,
     #[serde(default)]
+    pub notebook: Option<NotebookSection>,
+    #[serde(default)]
     paths: Option<PathsSection>,
     #[serde(default)]
     cache: Option<CacheSection>,
@@ -100,11 +102,20 @@ pub struct ProjectSection {
     #[serde(default)]
     pub name: Option<String>,
     #[serde(default)]
+    pub archetype: Option<String>,
+    #[serde(default)]
     pub languages: Vec<String>,
     #[serde(default)]
     pub features: Vec<String>,
     #[serde(default)]
     pub frameworks: Vec<String>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct NotebookSection {
+    #[serde(default)]
+    pub require_clean_outputs: Option<bool>,
 }
 
 #[derive(Deserialize)]
@@ -234,7 +245,6 @@ struct CacheSection {
 const fn default_true() -> bool {
     true
 }
-
 pub fn default_cache_dir() -> String {
     String::from(".garde-fou-cache")
 }

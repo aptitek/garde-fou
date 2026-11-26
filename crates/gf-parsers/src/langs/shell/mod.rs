@@ -1,6 +1,7 @@
 //! Pure `tree-sitter-bash` CST extractor for POSIX `sh` & `bash` scripts and `Dockerfile RUN` layers.
 
 pub mod bashisms;
+mod curl_pipe;
 pub mod dialect;
 mod hazards;
 mod metrics;

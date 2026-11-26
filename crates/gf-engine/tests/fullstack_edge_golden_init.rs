@@ -41,6 +41,7 @@ fn golden_invariant_fullstack_edge_react_router_workers_drizzle_panda_m3e_w3c() 
     let req = InitRequest {
         root: dir.clone(),
         project_name: Some(String::from("edge-commerce")),
+            archetype: None,
         languages: BTreeSet::from([LanguageId::TypeScript, LanguageId::Sql]),
         features: BTreeSet::from([FeatureId::Ui, FeatureId::PandaCss, FeatureId::Material3Expressive, FeatureId::W3c]),
         frameworks: BTreeSet::from([FrameworkId::ReactRouter, FrameworkId::CloudflareWorkers, FrameworkId::Drizzle]),
@@ -73,6 +74,7 @@ fn golden_invariant_astro_ui_w3c_content_stack() -> TestResult {
     let req = InitRequest {
         root: dir.clone(),
         project_name: Some(String::from("astro-docs")),
+        archetype: None,
         languages: BTreeSet::from([LanguageId::Astro, LanguageId::TypeScript]),
         features: BTreeSet::from([FeatureId::Ui, FeatureId::W3c, FeatureId::Content]),
         frameworks: BTreeSet::from([FrameworkId::Astro]),

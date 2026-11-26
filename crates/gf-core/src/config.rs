@@ -1,11 +1,10 @@
 //! Configuration, project overrides, SRP limits, and 6-domain policies.
 
-use alloc::collections::BTreeSet;
-use alloc::format;
-use alloc::string::String;
-use alloc::vec::Vec;
+use alloc::{collections::BTreeSet, format, string::String, vec::Vec};
 use serde::{Deserialize, Serialize};
 
+use crate::academic_violations::NotebookConfig;
+use crate::archetype_policy::{ArchetypeSetting, WorkspaceArchetype};
 use crate::boundaries::{BoundaryRule, IntegrityConfig};
 use crate::clean_code::{CleanCodeConfig, TddConfig};
 use crate::commit_msg::CommitConfig;
@@ -24,6 +23,9 @@ use crate::tools_config::ToolsConfig;
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ProjectConfig {
+    /// Proportional workspace archetype (`"auto"` or explicit `minimal`/`scripts`/`infra`/`knowledge`/`academic`/`software`).
+    #[serde(default)]
+    pub archetype: ArchetypeSetting,
     /// Explicitly configured project languages.
     pub languages: BTreeSet<LanguageId>,
     /// Explicitly configured infrastructure features (e.g. `Docker`, `Ui`, `I18n`).
@@ -37,6 +39,7 @@ impl ProjectConfig {
     #[must_use]
     pub const fn empty() -> Self {
         Self {
+            archetype: ArchetypeSetting::Auto,
             languages: BTreeSet::new(),
             features: BTreeSet::new(),
             frameworks: BTreeSet::new(),
@@ -138,6 +141,9 @@ pub struct Config {
     /// Multi-dialect SQL & zero-downtime migration policy (`[sql]`, `GF080`).
     #[serde(default)]
     pub sql: SqlConfig,
+    /// Jupyter Notebook hygiene policy (`[notebook]`, `GF080`).
+    #[serde(default)]
+    pub notebook: NotebookConfig,
     /// Explicit repository-relative glob patterns excluded from analysis.
     pub ignore_paths: Vec<String>,
     /// Explicit repository-relative glob patterns marking binary/library entrypoints.
@@ -165,9 +171,16 @@ impl Config {
             mutation: MutationConfig::empty(),
             rules: ForbiddenRulesConfig::strict_defaults(),
             sql: SqlConfig::strict_defaults(),
+            notebook: NotebookConfig::default(),
             ignore_paths: Vec::new(),
             entrypoints: Vec::new(),
         }
+    }
+
+    /// Resolves the effective [`WorkspaceArchetype`] for standalone single-file evaluation.
+    #[must_use]
+    pub const fn effective_archetype(&self) -> WorkspaceArchetype {
+        self.project.archetype.resolve_standalone()
     }
 
     fn fortress_fragment(&self) -> String {
@@ -177,7 +190,7 @@ impl Config {
             .map(BoundaryRule::canonical_fragment)
             .collect();
         format!(
-            "lk={}|bnd=[{}]|{}|{}|{}|{}|{}|{}|{}|{}",
+            "lk={}|bnd=[{}]|{}|{}|{}|{}|{}|{}|{}|{}|{}",
             self.integrity.require_lock,
             bnd.join(";"),
             self.architecture.canonical_fragment(),
@@ -188,11 +201,13 @@ impl Config {
             self.tools.canonical_fragment(),
             self.rules.canonical_fragment(),
             self.sql.canonical_fragment(),
+            self.notebook.canonical_fragment(),
         )
     }
 
     /// Produces a deterministic canonical representation suitable for `BLAKE3` cache keys.
     #[must_use]
+    #[rustfmt::skip]
     pub fn canonical_string(&self) -> String {
         let mut ignores = self.ignore_paths.clone();
         ignores.sort();
@@ -200,12 +215,7 @@ impl Config {
         entries.sort();
         let langs: Vec<&str> = self.project.languages.iter().map(|l| l.as_str()).collect();
         let feats: Vec<&str> = self.project.features.iter().map(|f| f.as_str()).collect();
-        let fws: Vec<&str> = self
-            .project
-            .frameworks
-            .iter()
-            .map(|fw| fw.as_str())
-            .collect();
+        let fws: Vec<&str> = self.project.frameworks.iter().map(|fw| fw.as_str()).collect();
         let l = self.limits;
         let dom = self.domains.canonical_fragment();
         let fort = self.fortress_fragment();
@@ -213,25 +223,14 @@ impl Config {
         let vul = self.scanners.vulns.as_str();
         let cov = self.coverage.canonical_fragment();
         let mut_f = self.mutation.canonical_fragment();
+        let arch = self.project.archetype.as_str();
         format!(
-            "v17|fl={}|fnl={}|p={}|cyc={}|cog={}|nest={}|imp={}|meth={}|sb={}|cll={}|cln={}|csim={}|{dom}|{fort}|sec={sec}|vul={vul}|{cov}|{mut_f}|i={}|e={}|l={}|ft={}|fw={}",
-            l.max_file_lines,
-            l.max_function_lines,
-            l.max_parameters,
-            l.max_cyclomatic_complexity,
-            l.max_cognitive_complexity,
-            l.max_nesting_depth,
-            l.max_imports_per_file,
-            l.max_methods_per_type,
-            l.max_struct_bools,
-            l.min_clone_lines,
-            l.min_clone_nodes,
-            l.min_clone_similarity_pct,
-            ignores.join(","),
-            entries.join(","),
-            langs.join(","),
-            feats.join(","),
-            fws.join(","),
+            "v18|arch={arch}|fl={}|fnl={}|p={}|cyc={}|cog={}|nest={}|imp={}|meth={}|sb={}|cll={}|cln={}|csim={}|{dom}|{fort}|sec={sec}|vul={vul}|{cov}|{mut_f}|i={}|e={}|l={}|ft={}|fw={}",
+            l.max_file_lines, l.max_function_lines, l.max_parameters,
+            l.max_cyclomatic_complexity, l.max_cognitive_complexity, l.max_nesting_depth,
+            l.max_imports_per_file, l.max_methods_per_type, l.max_struct_bools,
+            l.min_clone_lines, l.min_clone_nodes, l.min_clone_similarity_pct,
+            ignores.join(","), entries.join(","), langs.join(","), feats.join(","), fws.join(","),
         )
     }
 }

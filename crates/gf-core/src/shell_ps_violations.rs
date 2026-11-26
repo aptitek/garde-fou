@@ -49,9 +49,11 @@ pub enum ShellViolation {
     PosixBashism,
     /// Dynamic `eval` command execution (`SH-NO-EVAL`, `SC2294`).
     ForbiddenEval,
+    /// Unencrypted `http://` or unhardened `curl ... | sh` / `wget -O- ... | sh` pipe (`SH-CURL-PIPE-UNSAFE`).
+    CurlPipeUnsafe,
 }
 
-const SHELL_SPECS: [(&str, &str); 8] = [
+const SHELL_SPECS: [(&str, &str); 9] = [
     (
         "SH-STRICT-MODE",
         "Enable `set -eu` at the top of POSIX `#!/bin/sh` scripts or `set -euo pipefail` in `#!/bin/bash` scripts.",
@@ -84,11 +86,15 @@ const SHELL_SPECS: [(&str, &str); 8] = [
         "SH-NO-EVAL",
         "Avoid `eval`; invoke commands directly with quoted arguments (`\"$@\"`) or explicit dispatch.",
     ),
+    (
+        "SH-CURL-PIPE-UNSAFE",
+        "Use HTTPS with `curl -fsSL` (and prefer downloading + verifying SHA-256 checksums before executing) instead of unencrypted or unhardened `curl|sh` pipes.",
+    ),
 ];
 
 impl ShellViolation {
     /// All [`ShellViolation`] variants in deterministic order.
-    pub const ALL: [Self; 8] = [
+    pub const ALL: [Self; 9] = [
         Self::MissingStrictMode,
         Self::UnquotedExpansion,
         Self::UnquotedCommandSub,
@@ -97,6 +103,7 @@ impl ShellViolation {
         Self::UncheckedCd,
         Self::PosixBashism,
         Self::ForbiddenEval,
+        Self::CurlPipeUnsafe,
     ];
 
     /// Canonical ecosystem rule identifier (`"SH-..."`).

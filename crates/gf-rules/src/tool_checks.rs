@@ -6,9 +6,9 @@ use alloc::string::String;
 use alloc::vec::Vec;
 
 use gf_core::{
-    Config, Diagnostic, ExternalToolFinding, PytestCoverageIssue, Span, ToolConfigViolation,
-    TsconfigIssue, TsconfigStrictState, TsconfigSummary, UastDocument, Validation, glob_matches,
-    is_known_strict_preset,
+    ArchetypePolicy, Config, Diagnostic, ExternalToolFinding, Language, PytestCoverageIssue, Span,
+    ToolConfigViolation, TsconfigIssue, TsconfigStrictState, TsconfigSummary, UastDocument,
+    Validation, classify_path_for_archetype, glob_matches, is_known_strict_preset,
 };
 
 use crate::checks::{SourceLoc, rule_error};
@@ -27,7 +27,12 @@ pub fn check_local_tool_and_lang_rules(
     config: &Config,
 ) -> Validation<(), Diagnostic> {
     let mut diags = Vec::new();
-    let is_cli_entry = is_declared_cli_entrypoint(doc.path.as_str(), config);
+    let archetype = config.effective_archetype();
+    let domain = classify_path_for_archetype(&doc.path, &config.domains, archetype);
+    let policy = ArchetypePolicy::for_archetype(archetype);
+    let is_cli_entry = is_declared_cli_entrypoint(doc.path.as_str(), config)
+        || policy.allows_print_in_domain(domain)
+        || matches!(doc.language, Language::Notebook | Language::Quarto);
 
     for finding in &doc.lang_rule_findings {
         if finding.violation.is_entrypoint_exempt() && is_cli_entry {

@@ -7,22 +7,17 @@ use crate::clean_code::{
     BypassFinding, ContractDecl, ContractImpl, KissYagniFinding, TestCaseSummary,
 };
 use crate::diagnostic::{Span, SpanError};
-use crate::docker::DockerDocument;
 use crate::domain_summaries::{
-    AssetDocument, ContenusDocument, FormeDocument, StyleLeakFinding, TexteDocument,
-    TomlManifestSummary, UiCheckFinding,
+    AcademicSummary, AssetDocument, ContenusDocument, FormeDocument, StyleLeakFinding,
+    TexteDocument, TomlManifestSummary, UiCheckFinding,
 };
 pub use crate::language_meta::Language;
-use crate::language_meta::TsconfigSummary;
 use crate::metrics::{
     CallableDecl, EffectSighting, ExportDecl, ImportDecl, SecretFinding, SyntaxErrorNode, TypeDecl,
 };
 use crate::path::RepoPath;
 use crate::policies::ForbiddenRuleKind;
-use crate::python_violations::CoverageFailUnder;
-use crate::sql_violations::SqlDocument;
 use crate::tool_ingest::{LangRuleFinding, ToolConfigFinding};
-use crate::web_edge_summary::WebEdgeSummary;
 
 /// Language-agnostic semantic node categories inside a [`UastDocument`].
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -121,14 +116,14 @@ pub struct UastDocument {
     /// Tier 2 static tool-configuration hardening findings (`GF081`).
     pub tool_config_findings: Vec<ToolConfigFinding>,
     /// Optional `[tool.coverage.report] fail_under` floor percentage (`GF081`).
-    pub coverage_fail_under: Option<CoverageFailUnder>,
+    pub coverage_fail_under: Option<crate::python_violations::CoverageFailUnder>,
     /// Optional parsed `tsconfig*.json` summary for `extends` & `paths` resolution (`GF071`/`GF072`/`GF081`).
     #[serde(default)]
-    pub tsconfig: Option<TsconfigSummary>,
+    pub tsconfig: Option<crate::language_meta::TsconfigSummary>,
     /// Architectural effect and silent error-swallowing sightings (`GF011`, `GF078`).
     pub effect_sightings: Vec<EffectSighting>,
     /// Optional structured `Dockerfile` representation.
-    pub docker: Option<DockerDocument>,
+    pub docker: Option<crate::docker::DockerDocument>,
     /// Optional `Forme` stylesheet summary (`GF061`).
     pub forme: Option<FormeDocument>,
     /// Optional `Texte` (`i18n`) dictionary summary (`GF062`).
@@ -142,10 +137,13 @@ pub struct UastDocument {
     pub toml_manifest: Option<TomlManifestSummary>,
     /// Optional SQL & database migration summary (`GF080` `MIG-*`).
     #[serde(default)]
-    pub sql_doc: Option<SqlDocument>,
+    pub sql_doc: Option<crate::sql_violations::SqlDocument>,
     /// Optional Web, Cloudflare/Wrangler, Drizzle, and `Forme` motion summary (`GF080`–`GF081`).
     #[serde(default)]
-    pub web_edge: Option<WebEdgeSummary>,
+    pub web_edge: Option<crate::web_edge_summary::WebEdgeSummary>,
+    /// Optional Jupyter, Quarto, or Obsidian workspace-ref & cell summary (`GF080`).
+    #[serde(default)]
+    pub academic: Option<AcademicSummary>,
     /// Root `UAST` node (typically [`UastKind::File`]).
     pub root: UastNode,
 }
@@ -198,6 +196,7 @@ impl UastDocument {
             toml_manifest: None,
             sql_doc: None,
             web_edge: None,
+            academic: None,
             root: UastNode::leaf(UastKind::File, root_span),
         })
     }

@@ -98,29 +98,29 @@ fn append_language_sections(out: &mut String, ctx: &ProjectContext, seen: &mut B
     }
 }
 
+#[rustfmt::skip]
+const FRAMEWORK_IGNORES: &[(FrameworkId, &str, &[&str])] = &[
+    (FrameworkId::Astro, "Astro", &[".astro/"]),
+    (FrameworkId::NextJs, "Next.js", &[".next/", "out/"]),
+    (FrameworkId::ReactRouter, "React Router", &[".react-router/", "build/"]),
+    (FrameworkId::CloudflareWorkers, "Cloudflare Workers", &[".wrangler/", ".dev.vars"]),
+    (FrameworkId::Django, "Django", &["db.sqlite3", "staticfiles/"]),
+    (FrameworkId::Jupyter, "Jupyter", &[".ipynb_checkpoints/", "/.virtual_documents/"]),
+    (FrameworkId::Quarto, "Quarto", &["/.quarto/", "/_site/", "/_book/", "/*_files/"]),
+    (FrameworkId::Obsidian, "Obsidian", &[".obsidian/workspace.json", ".obsidian/workspace-mobile.json", ".obsidian/cache", ".trash/"]),
+];
+
 fn append_framework_sections(out: &mut String, ctx: &ProjectContext, seen: &mut BTreeSet<String>) {
-    if ctx.frameworks.contains(&FrameworkId::Astro) || ctx.languages.contains(&LanguageId::Astro) {
+    if ctx.languages.contains(&LanguageId::Astro) {
         append_section(out, "Astro", &[".astro/"], seen);
     }
-    if ctx.frameworks.contains(&FrameworkId::NextJs) {
-        append_section(out, "Next.js", &[".next/", "out/"], seen);
-    }
-    if ctx.frameworks.contains(&FrameworkId::ReactRouter) {
-        append_section(out, "React Router", &[".react-router/", "build/"], seen);
-    }
-    if ctx.frameworks.contains(&FrameworkId::CloudflareWorkers) {
-        append_section(
-            out,
-            "Cloudflare Workers",
-            &[".wrangler/", ".dev.vars"],
-            seen,
-        );
+    for &(fw, title, entries) in FRAMEWORK_IGNORES {
+        if ctx.frameworks.contains(&fw) {
+            append_section(out, title, entries, seen);
+        }
     }
     if ctx.features.contains(&FeatureId::PandaCss) {
         append_section(out, "Panda CSS", &["styled-system/"], seen);
-    }
-    if ctx.frameworks.contains(&FrameworkId::Django) {
-        append_section(out, "Django", &["db.sqlite3", "staticfiles/"], seen);
     }
 }
 

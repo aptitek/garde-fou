@@ -6,6 +6,7 @@ use alloc::string::String;
 use alloc::vec::Vec;
 use serde::{Deserialize, Serialize};
 
+use crate::archetype_policy::WorkspaceArchetype;
 use crate::context::{FeatureId, FrameworkId, LanguageId, ProjectContext};
 use crate::policies::ScannerPolicy;
 
@@ -123,7 +124,7 @@ pub struct SkillEntry {
 }
 
 #[rustfmt::skip]
-const BUILTINS: [(&str, &str, &str, &str); 8] = [
+const BUILTINS: [(&str, &str, &str, &str); 11] = [
     ("property-based-testing", "trailofbits/skills", "plugins/property-based-testing/skills/property-based-testing", "Property-based testing invariants (proptest, Hypothesis, fast-check)."),
     ("ast-grep", "ast-grep/agent-skill", "skills/ast-grep", "Structural AST search and refactoring rules with ast-grep."),
     ("rust-best-practices", "apollographql/skills", "skills/rust-best-practices", "Idiomatic Safe Rust ownership, Clippy, and error-handling patterns."),
@@ -132,17 +133,15 @@ const BUILTINS: [(&str, &str, &str, &str); 8] = [
     ("vercel-react-best-practices", "vercel-labs/agent-skills", "skills/react-best-practices", "React & Next.js component composition and rendering performance."),
     ("workers-best-practices", "cloudflare/skills", "skills/workers-best-practices", "Cloudflare Workers, D1, R2, and Wrangler production edge best practices."),
     ("modern-python", "trailofbits/skills", "plugins/modern-python/skills/modern-python", "Modern Python workflows with uv, ruff, pytest, and strict type checking."),
+    ("obsidian-markdown", "kepano/obsidian-skills", "plugins/obsidian/skills/obsidian-markdown", "Obsidian Flavored Markdown wikilinks, embeds, callouts, and properties."),
+    ("obsidian-bases", "kepano/obsidian-skills", "plugins/obsidian/skills/obsidian-bases", "Obsidian Bases structured view and filter definitions."),
+    ("json-canvas", "kepano/obsidian-skills", "plugins/obsidian/skills/json-canvas", "JSON Canvas 1.0 (.canvas) node and edge graph authoring."),
 ];
 
+#[rustfmt::skip]
 fn builtin_spec(idx: usize) -> ResolvedSkillSpec {
     let (id, repo, skill_path, summary) = BUILTINS[idx];
-    RemoteSkillSpec {
-        id,
-        repo,
-        skill_path,
-        summary,
-    }
-    .into()
+    RemoteSkillSpec { id, repo, skill_path, summary }.into()
 }
 
 fn split_pinned_rev(tail: &str) -> Result<(&str, Option<String>), &'static str> {
@@ -198,6 +197,35 @@ fn has_web_ui_context(ctx: &ProjectContext) -> bool {
             .any(|f| ctx.features.contains(f))
 }
 
+#[rustfmt::skip]
+fn add_framework_skills(ctx: &ProjectContext, insert: &mut impl FnMut(ResolvedSkillSpec)) {
+    if has_web_ui_context(ctx) { insert(builtin_spec(4)); }
+    if [FrameworkId::React, FrameworkId::NextJs, FrameworkId::ReactRouter].iter().any(|fw| ctx.frameworks.contains(fw)) {
+        insert(builtin_spec(5));
+    }
+    if ctx.frameworks.contains(&FrameworkId::CloudflareWorkers) { insert(builtin_spec(6)); }
+    if ctx.frameworks.contains(&FrameworkId::Obsidian) || ctx.archetype == WorkspaceArchetype::Knowledge {
+        for idx in [8, 9, 10] { insert(builtin_spec(idx)); }
+    }
+}
+
+#[rustfmt::skip]
+fn add_archetype_skills(ctx: &ProjectContext, insert: &mut impl FnMut(ResolvedSkillSpec)) {
+    if ctx.archetype == WorkspaceArchetype::Minimal { return; }
+    if ctx.archetype == WorkspaceArchetype::Software {
+        insert(builtin_spec(0));
+        insert(builtin_spec(1));
+    }
+    if ctx.languages.contains(&LanguageId::Rust) {
+        insert(builtin_spec(2));
+        insert(builtin_spec(3));
+    }
+    if ctx.languages.contains(&LanguageId::Python) || ctx.frameworks.contains(&FrameworkId::Jupyter) {
+        insert(builtin_spec(7));
+    }
+    add_framework_skills(ctx, insert);
+}
+
 /// Resolves the ordered, deduplicated list of `skills.sh` skills matching `ctx` and `cfg`.
 #[must_use]
 pub fn select_contextual_skills(
@@ -211,32 +239,7 @@ pub fn select_contextual_skills(
             map.entry(spec.id.clone()).or_insert(spec);
         }
     };
-    for idx in [0, 1] {
-        insert(builtin_spec(idx));
-    }
-    if ctx.languages.contains(&LanguageId::Rust) {
-        insert(builtin_spec(2));
-        insert(builtin_spec(3));
-    }
-    if ctx.languages.contains(&LanguageId::Python) {
-        insert(builtin_spec(7));
-    }
-    if has_web_ui_context(ctx) {
-        insert(builtin_spec(4));
-    }
-    if [
-        FrameworkId::React,
-        FrameworkId::NextJs,
-        FrameworkId::ReactRouter,
-    ]
-    .iter()
-    .any(|fw| ctx.frameworks.contains(fw))
-    {
-        insert(builtin_spec(5));
-    }
-    if ctx.frameworks.contains(&FrameworkId::CloudflareWorkers) {
-        insert(builtin_spec(6));
-    }
+    add_archetype_skills(ctx, &mut insert);
     for extra in &cfg.extra_skills {
         if let Ok(parsed) = parse_extra_skill_spec(extra) {
             insert(parsed);

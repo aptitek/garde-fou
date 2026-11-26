@@ -1,7 +1,7 @@
 //! Infrastructure & governance templates (`garde-fou.toml`, `AGENTS.md`, `.gitattributes`,
 //! hardened multi-stage `Dockerfile`, `lefthook.yml`, `Taskfile.yml`, `.github/workflows/garde-fou.yml`).
 
-use gf_core::{FeatureId, LanguageId, ProjectContext};
+use gf_core::{FeatureId, LanguageId, ProjectContext, WorkspaceArchetype};
 
 /// Default cross-OS line-ending policy written to `.gitattributes` by `garde init`.
 pub const GITATTRIBUTES_TEMPLATE: &str = "* text=auto eol=lf\n\
@@ -136,11 +136,13 @@ pub fn render_garde_fou_toml(project_name: &str, ctx: &ProjectContext) -> String
         ""
     };
 
+    let archetype_line = format!("archetype = \"{}\"\n", ctx.archetype.as_str());
     format!(
         "# Garde-fou configuration\n\
          schema_version = 1\n\n\
          [project]\n\
          name = \"{project_name}\"\n\
+         {archetype_line}\
          languages = {langs}\n\
          features = {feats}\n\
          frameworks = {fws}\n\n\
@@ -220,7 +222,7 @@ fn hardened_dockerfile(project_kebab: &str, ctx: &ProjectContext) -> String {
 /// Generates optional feature infrastructure files `(relative_path, contents)`.
 pub fn infra_feature_files(project_kebab: &str, ctx: &ProjectContext) -> Vec<(String, String)> {
     let mut files = Vec::new();
-    if ctx.features.contains(&FeatureId::Docker) {
+    if ctx.features.contains(&FeatureId::Docker) && ctx.archetype == WorkspaceArchetype::Software {
         files.push((
             String::from("Dockerfile"),
             hardened_dockerfile(project_kebab, ctx),

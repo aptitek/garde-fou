@@ -4,7 +4,10 @@
 use std::collections::BTreeSet;
 use std::path::Path;
 
-use gf_core::{Config, Diagnostic, LockStatus, ProjectContext, RepoPath, UastDocument, Validation};
+use gf_core::{
+    ArchetypeSetting, Config, Diagnostic, LockStatus, ProjectContext, RepoPath, UastDocument,
+    Validation,
+};
 use gf_rules::{check_agentic_governance, check_lock_integrity, evaluate_workspace_sorted};
 use rayon::prelude::*;
 
@@ -93,13 +96,21 @@ fn empty_staged_report(
 pub fn execute_pipeline(env: &PipelineEnv<'_>) -> Result<CheckReport, EngineError> {
     let all_files = discover_files(env.root, ScanScope::All, env.config)?;
     let context = detect_project_context(env.root, &all_files, env.config);
-    let sql_dialect_hint = detect_workspace_sql_dialect(env.root, env.config.sql.dialect);
+    let mut effective_config = env.config.clone();
+    effective_config.project.archetype = ArchetypeSetting::Explicit(context.archetype);
+    let sql_dialect_hint = detect_workspace_sql_dialect(env.root, effective_config.sql.dialect);
     let effective_cfg_key = sql_dialect_hint.map_or_else(
-        || env.config.canonical_string(),
-        |hint| format!("{}|ws_sql={}", env.config.canonical_string(), hint.as_str()),
+        || effective_config.canonical_string(),
+        |hint| {
+            format!(
+                "{}|ws_sql={}",
+                effective_config.canonical_string(),
+                hint.as_str()
+            )
+        },
     );
     let staged_filter: Option<BTreeSet<RepoPath>> = (env.options.scope == ScanScope::StagedOnly)
-        .then(|| discover_files(env.root, ScanScope::StagedOnly, env.config))
+        .then(|| discover_files(env.root, ScanScope::StagedOnly, &effective_config))
         .transpose()?
         .map(|v| v.into_iter().collect());
 
@@ -116,7 +127,7 @@ pub fn execute_pipeline(env: &PipelineEnv<'_>) -> Result<CheckReport, EngineErro
                     .as_ref()
                     .is_none_or(|staged| staged.contains(path));
             let scan_ctx = FileScanCtx {
-                config: env.config,
+                config: &effective_config,
                 config_hash,
                 disk_cache: env.disk_cache,
                 bypass_read,
@@ -129,7 +140,7 @@ pub fn execute_pipeline(env: &PipelineEnv<'_>) -> Result<CheckReport, EngineErro
     let inputs = ReportInputs {
         scope: env.options.scope,
         context,
-        config: env.config,
+        config: &effective_config,
         effective_cfg_key,
         staged_filter: staged_filter.as_ref(),
     };

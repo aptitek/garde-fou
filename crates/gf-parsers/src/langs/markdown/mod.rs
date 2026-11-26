@@ -3,6 +3,7 @@
 
 mod frontmatter;
 mod mdx_bridge;
+pub mod obsidian;
 pub mod slugger_links;
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -230,7 +231,14 @@ impl LanguageExtractor for MarkdownExtractor {
             state.handle_event(ev, range, &lines);
         }
         state.finalize_post_walk(&fm, &lines, broken_refs);
+        let obs_meta = obsidian::extract_obsidian_metadata(
+            fm.body,
+            &state.code_ranges,
+            fm.body_start_line,
+            &mut state.acc.asset_refs,
+        );
         doc.asset_refs = state.acc.asset_refs;
+        doc.academic = obs_meta;
         doc.contenus = Some(ContenusDocument {
             issues: state.acc.issues,
             heading_slugs: state.heading_slugs,

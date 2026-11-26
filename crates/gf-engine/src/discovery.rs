@@ -50,6 +50,13 @@ fn should_descend(entry_path: &Path, root: &Path) -> bool {
                 | ".wrangler"
                 | ".react-router"
                 | ".astro"
+                | ".obsidian"
+                | ".quarto"
+                | "_site"
+                | "_book"
+                | ".ipynb_checkpoints"
+                | ".virtual_documents"
+                | ".trash"
         )
     })
 }

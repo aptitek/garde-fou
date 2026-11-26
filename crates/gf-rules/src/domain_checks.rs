@@ -7,8 +7,8 @@ use alloc::vec::Vec;
 
 use gf_core::{
     Config, ContenusIssueKind, Diagnostic, DomainKind, FormeFindingKind, Language, Severity, Span,
-    StyleLeakKind, UastDocument, UiCheckKind, Validation, classify_path, is_forme_token_path,
-    is_root_governance_doc,
+    StyleLeakKind, UastDocument, UiCheckKind, Validation, classify_path_for_archetype,
+    is_forme_token_path, is_root_governance_doc,
 };
 
 use crate::checks::{SourceLoc, rule_error as domain_diag};
@@ -236,7 +236,8 @@ pub fn check_single_file_domains(
     doc: &UastDocument,
     config: &Config,
 ) -> Validation<(), Diagnostic> {
-    let domain = classify_path(&doc.path, &config.domains);
+    let domain =
+        classify_path_for_archetype(&doc.path, &config.domains, config.effective_archetype());
     let mut diags = Vec::new();
     check_code_style_and_ui(doc, domain, &mut diags);
     check_forme_tokens(doc, domain, config, &mut diags);

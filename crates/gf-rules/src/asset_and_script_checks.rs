@@ -7,7 +7,8 @@ use alloc::string::String;
 use alloc::vec::Vec;
 
 use gf_core::{
-    Config, Diagnostic, DomainKind, RepoPath, Span, UastDocument, Validation, classify_path,
+    ArchetypePolicy, Config, Diagnostic, DomainKind, FeatureId, ProjectContext, RepoPath, Span,
+    UastDocument, Validation, WorkspaceArchetype, classify_path, classify_path_for_archetype,
     glob_matches,
 };
 
@@ -61,6 +62,10 @@ fn resolve_asset_target<'a>(
             format!("public/{trimmed}"),
             format!("assets/{trimmed}"),
             format!("static/{trimmed}"),
+            format!("attachments/{trimmed}"),
+            format!("images/{trimmed}"),
+            format!("figures/{trimmed}"),
+            format!("files/{trimmed}"),
         ]
     };
     for cand in candidates {
@@ -103,6 +108,7 @@ fn collect_referenced_assets<'a>(
 
 fn check_asset_links_and_orphans(
     docs: &[UastDocument],
+    archetype: WorkspaceArchetype,
     config: &Config,
     out: &mut Vec<Diagnostic>,
 ) {
@@ -110,7 +116,8 @@ fn check_asset_links_and_orphans(
     let referenced_assets = collect_referenced_assets(docs, &known_paths, out);
 
     for doc in docs {
-        let is_orphan = classify_path(&doc.path, &config.domains) == DomainKind::Asset
+        let is_orphan = classify_path_for_archetype(&doc.path, &config.domains, archetype)
+            == DomainKind::Asset
             && doc.asset.is_some()
             && !is_exempt_public_asset(doc.path.as_str(), config)
             && !referenced_assets.contains(doc.path.as_str());
@@ -194,15 +201,23 @@ fn is_script_covered(path: &RepoPath, covered: &BTreeSet<String>) -> bool {
 
 fn check_scripts_boundary_and_tests(
     docs: &[UastDocument],
+    ctx: &ProjectContext,
     config: &Config,
     out: &mut Vec<Diagnostic>,
 ) {
     let covered = collect_test_script_mentions(docs, config);
+    let has_tests = docs
+        .iter()
+        .any(|d| classify_path(&d.path, &config.domains) == DomainKind::Tests);
+    let require_script_test = ArchetypePolicy::for_archetype(ctx.archetype)
+        .requires_script_test(has_tests || ctx.features.contains(&FeatureId::Tdd));
 
     for doc in docs {
-        match classify_path(&doc.path, &config.domains) {
+        match classify_path_for_archetype(&doc.path, &config.domains, ctx.archetype) {
             DomainKind::Code => check_code_script_imports(doc, config, out),
-            DomainKind::Scripts if !is_script_covered(&doc.path, &covered) => {
+            DomainKind::Scripts
+                if require_script_test && !is_script_covered(&doc.path, &covered) =>
+            {
                 out.push(domain_diag(
                     "GF065",
                     format!(
@@ -221,10 +236,11 @@ fn check_scripts_boundary_and_tests(
 /// Evaluates workspace-wide `Asset` (`GF064`) and `Scripts` (`GF065`) segregation rules.
 pub fn check_workspace_assets_and_scripts(
     docs: &[UastDocument],
+    ctx: &ProjectContext,
     config: &Config,
 ) -> Validation<(), Diagnostic> {
     let mut diags = Vec::new();
-    check_asset_links_and_orphans(docs, config, &mut diags);
-    check_scripts_boundary_and_tests(docs, config, &mut diags);
+    check_asset_links_and_orphans(docs, ctx.archetype, config, &mut diags);
+    check_scripts_boundary_and_tests(docs, ctx, config, &mut diags);
     Validation::<(), Diagnostic>::from_errors(diags)
 }

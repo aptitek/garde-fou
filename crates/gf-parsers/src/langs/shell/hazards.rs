@@ -3,6 +3,7 @@
 use gf_core::{LangRuleFinding, ShellViolation};
 use tree_sitter::Node;
 
+use super::curl_pipe::check_curl_pipe_pipeline;
 use crate::cst::{node_span, node_text};
 
 fn collect_cmd_tokens<'a>(cmd_node: Node<'a>, source: &'a str) -> (Option<&'a str>, Vec<Node<'a>>) {
@@ -182,6 +183,7 @@ pub fn check_shell_hazards(
     out: &mut Vec<LangRuleFinding>,
 ) {
     match node.kind() {
+        "pipeline" => check_curl_pipe_pipeline(node, source, out),
         "declaration_command" => check_sc2155_declaration(node, source, out),
         "command" => {
             let (name, args) = collect_cmd_tokens(node, source);

@@ -342,7 +342,7 @@ dependencies = [
 
 [[package]]
 name = "gf-cli"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "clap",
  "gf-core",
@@ -354,7 +354,7 @@ dependencies = [
 
 [[package]]
 name = "gf-core"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "proptest",
  "serde",
@@ -362,7 +362,7 @@ dependencies = [
 
 [[package]]
 name = "gf-engine"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "blake3",
  "gf-core",
@@ -379,7 +379,7 @@ dependencies = [
 
 [[package]]
 name = "gf-parsers"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "blake3",
  "gf-core",
@@ -403,7 +403,7 @@ dependencies = [
 
 [[package]]
 name = "gf-rules"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "gf-core",
  "proptest",

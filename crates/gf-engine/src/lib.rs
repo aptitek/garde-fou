@@ -3,6 +3,7 @@
 
 pub mod adapters;
 pub mod agents;
+mod archetype_detector;
 pub mod cache;
 mod config_fortress;
 pub mod config_loader;

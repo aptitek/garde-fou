@@ -4,9 +4,9 @@ use std::fs;
 use std::path::Path;
 
 use gf_core::{
-    ArchitectureConfig, Config, DomainLayoutConfig, FeatureId, ForbiddenRulesConfig, FrameworkId,
-    LanguageId, LimitsConfig, ProjectConfig, ScannerPolicy, ScannersConfig, SqlConfig,
-    SqlDialectSetting,
+    ArchetypeSetting, ArchitectureConfig, Config, DomainLayoutConfig, FeatureId,
+    ForbiddenRulesConfig, FrameworkId, LanguageId, LimitsConfig, NotebookConfig, ProjectConfig,
+    ScannerPolicy, ScannersConfig, SqlConfig, SqlDialectSetting,
 };
 
 use crate::config_fortress::{
@@ -14,8 +14,8 @@ use crate::config_fortress::{
     merge_tdd, merge_tools, parse_coverage_section, parse_mutation_section,
 };
 use crate::config_schema::{
-    ArchitectureSection, DomainsSection, LimitsSection, PathsAndCache, ProjectSection, RawManifest,
-    RulesSection, ScannersSection, default_cache_dir,
+    ArchitectureSection, DomainsSection, LimitsSection, NotebookSection, PathsAndCache,
+    ProjectSection, RawManifest, RulesSection, ScannersSection, default_cache_dir,
 };
 use crate::types::{DEFAULT_CONFIG_FILENAME, EngineError};
 
@@ -40,9 +40,16 @@ fn parse_project_section(raw: Option<ProjectSection>) -> Result<ProjectConfig, E
         )));
     }
     let mut cfg = ProjectConfig::empty();
+    if let Some(raw_arch) = section.archetype {
+        cfg.archetype = ArchetypeSetting::from_config_str(&raw_arch).ok_or_else(|| {
+            EngineError::InvalidConfig(format!(
+                "invalid `project.archetype` `{raw_arch}` (expected `auto`, `minimal`, `scripts`, `infra`, `knowledge`, `academic`, or `software`)"
+            ))
+        })?;
+    }
     for item in section.languages {
         cfg.languages.insert(
-            LanguageId::from_config_str(&item)
+            LanguageId::from_slug(&item)
                 .ok_or_else(|| EngineError::InvalidConfig(format!("unknown language `{item}`")))?,
         );
     }
@@ -154,54 +161,44 @@ fn merge_domains(raw: Option<DomainsSection>) -> DomainLayoutConfig {
     }
 }
 
+fn parse_notebook_section(raw: Option<NotebookSection>) -> NotebookConfig {
+    NotebookConfig {
+        require_clean_outputs: raw.and_then(|n| n.require_clean_outputs).unwrap_or(false),
+    }
+}
+
 fn build_loaded_config(mut raw: RawManifest) -> Result<LoadedWorkspaceConfig, EngineError> {
-    let project = parse_project_section(raw.project.take())?;
-    let limits = merge_limits(raw.limits.take())?;
-    let domains = merge_domains(raw.domains.take());
-    let integrity = merge_integrity(raw.integrity.take());
-    let boundaries = merge_boundaries(core::mem::take(&mut raw.boundaries));
-    let architecture = raw
+    let mut analyzer = Config::strict_defaults();
+    analyzer.project = parse_project_section(raw.project.take())?;
+    analyzer.limits = merge_limits(raw.limits.take())?;
+    analyzer.domains = merge_domains(raw.domains.take());
+    analyzer.integrity = merge_integrity(raw.integrity.take());
+    analyzer.boundaries = merge_boundaries(core::mem::take(&mut raw.boundaries));
+    analyzer.architecture = raw
         .architecture
         .take()
         .map_or_else(ArchitectureConfig::empty, ArchitectureSection::into_config);
-    let clean_code = merge_clean_code(raw.clean_code.take());
-    let tdd = merge_tdd(raw.tdd.take());
-    let commit = merge_commit(raw.commit.take());
-    let agents = merge_agents(raw.agents.take())?;
-    let tools = merge_tools(raw.tools.take())?;
-    let scanners = parse_scanners_section(raw.scanners.take())?;
-    let coverage = parse_coverage_section(raw.coverage.take())?;
-    let mutation = parse_mutation_section(raw.mutation.take())?;
-    let rules = raw.rules.take().map_or_else(
+    analyzer.clean_code = merge_clean_code(raw.clean_code.take());
+    analyzer.tdd = merge_tdd(raw.tdd.take());
+    analyzer.commit = merge_commit(raw.commit.take());
+    analyzer.agents = merge_agents(raw.agents.take())?;
+    analyzer.tools = merge_tools(raw.tools.take())?;
+    analyzer.scanners = parse_scanners_section(raw.scanners.take())?;
+    analyzer.coverage = parse_coverage_section(raw.coverage.take())?;
+    analyzer.mutation = parse_mutation_section(raw.mutation.take())?;
+    analyzer.rules = raw.rules.take().map_or_else(
         || Ok(ForbiddenRulesConfig::strict_defaults()),
         RulesSection::into_config,
     )?;
-    let sql = merge_sql(raw.sql.take())?;
-    let paths_cache: PathsAndCache = raw.into_paths_and_cache()?;
-
+    analyzer.sql = merge_sql(raw.sql.take())?;
+    analyzer.notebook = parse_notebook_section(raw.notebook.take());
+    let pc: PathsAndCache = raw.into_paths_and_cache()?;
+    analyzer.ignore_paths = pc.ignore_paths;
+    analyzer.entrypoints = pc.entrypoints;
     Ok(LoadedWorkspaceConfig {
-        analyzer: Config {
-            project,
-            limits,
-            domains,
-            integrity,
-            boundaries,
-            architecture,
-            clean_code,
-            tdd,
-            commit,
-            agents,
-            tools,
-            scanners,
-            coverage,
-            mutation,
-            rules,
-            sql,
-            ignore_paths: paths_cache.ignore_paths,
-            entrypoints: paths_cache.entrypoints,
-        },
-        cache_enabled: paths_cache.cache_enabled,
-        cache_dir: paths_cache.cache_dir,
+        analyzer,
+        cache_enabled: pc.cache_enabled,
+        cache_dir: pc.cache_dir,
     })
 }
 

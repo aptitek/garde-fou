@@ -14,7 +14,7 @@ Use this skill whenever working inside a repository governed by `garde-fou.toml`
 - `garde sync`: regenerate the `AGENTS.md` managed block, refresh `.agents/skills/garde-fou/SKILL.md`, fetch contextual `skills.sh` skills, and update `garde.lock` (`--offline` skips network).
 - `garde lock`: seal `garde-fou.toml` cryptographically into `garde.lock` (`GF070`).
 - `garde commit-msg <MSG_FILE>`: validate a Git commit message against Conventional Commits (`GF077`).
-- `garde init [PATH]`: bootstrap or non-destructively adopt a repository (`--lang`, `--feature`, `--framework`, `--offline`).
+- `garde init [PATH]`: bootstrap or non-destructively adopt a repository (`--archetype`, `--lang`, `--feature`, `--framework`, `--offline`).
 
 ## Diagnostic Reference & Root-Cause Remediation (`GF000`–`GF082`)
 
@@ -33,6 +33,6 @@ Use this skill whenever working inside a repository governed by `garde-fou.toml`
 | `GF071`–`GF072` | DAG & Boundaries | Break circular imports via leaf `types` modules (Tarjan SCC) and respect `[[boundaries]]` / Atomic Design / React Router server-client layers (`RR-SERVER-LEAK-TO-CLIENT`). |
 | `GF073`–`GF075` | KISS & YAGNI | Eliminate nested ternaries, Law of Demeter chains (`a.b.c.d.e`), wildcard `export *`, multi-boolean flag params, `TODO` markers, and single-implementation traits. |
 | `GF076`–`GF077` | TDD & Git Commits | Ensure every test has non-tautological assertions (plus companion tests/`.stories` when active) and format commits as `<type>(<scope>): <summary>`. |
-| `GF080` | Language AST Idioms & Security | Fix native AST/schema anti-patterns across Python (`PY-*`), TypeScript/React (`TS-*`, `REACT-*`), Astro (`ASTRO-*`), React Router (`RR-*`), Panda/M3E (`PANDA-*`, `M3E-*`), W3C/WCAG (`W3C-*`, `A11Y-*`), Cloudflare Workers/D1/R2 (`CF-*`), Drizzle ORM (`DRIZZLE-*`), Shell (`SH-*`), PowerShell (`PS-*`), YAML/Compose/CI (`YAML-*`, `COMPOSE-*`, `GHA-*`), XML (`XML-*`), TOML (`TOML-*`), and SQL/migrations (`SQL-*`, `MIG-*`). |
+| `GF080` | Language AST Idioms & Security | Fix native AST/schema anti-patterns across Python (`PY-*`, PEP 723 `PY-PEP723-*`), TypeScript/React (`TS-*`, `REACT-*`), Astro (`ASTRO-*`), React Router (`RR-*`), Panda/M3E (`PANDA-*`, `M3E-*`), W3C/WCAG (`W3C-*`, `A11Y-*`), Cloudflare Workers/D1/R2 (`CF-*`), Drizzle ORM (`DRIZZLE-*`), Shell (`SH-*`, `SH-CURL-PIPE-UNSAFE`), PowerShell (`PS-*`), YAML/Compose/CI (`YAML-*`, `COMPOSE-*`, `GHA-*`), XML (`XML-*`), TOML (`TOML-*`), SQL/migrations (`SQL-*`, `MIG-*`), Jupyter (`NB-*`), Quarto (`QUARTO-*`), and Obsidian (`OBS-*`). |
 | `GF081` | Tool Config Hardening | Keep strict settings intact across `pyproject.toml`, `ruff.toml`, `tsconfig*.json`, `biome.json`, `panda.config.*`, `wrangler.*`, `.shellcheckrc`, `.hadolint.yaml`, `PSScriptAnalyzerSettings.psd1`, `.yamllint*`, `.dclintrc*`, `zizmor.yml`, `.stylelintrc*`, `.markdownlint*`, `rumdl.toml`, `taplo.toml`, `svgo.config.*`, `.squawk.toml`, `.sqruff`, `.sqlfluff`, and `drizzle.config.*`. |
 | `GF082` | External Tool Ingestion | Resolve external verifier diagnostics (`ruff`, `mypy`, `pyright`, `oxlint`, `biome`, `tsc`, `astro-check`, `html-validate`, `wrangler-types`, `shellcheck`, `hadolint`, `psscriptanalyzer`, `yamllint`, `dclint`, `actionlint`, `zizmor`, `stylelint`, `rumdl`, `markdownlint`, `taplo`, `xmllint`, `squawk`, `sqruff`, `sqlfluff`) at their root cause. |

@@ -4,6 +4,9 @@
 use core::fmt;
 use serde::{Deserialize, Serialize};
 
+use crate::academic_violations::{
+    AcademicViolation, NotebookViolation, ObsidianViolation, QuartoViolation,
+};
 use crate::format_violations::{TomlViolation, XmlSvgViolation};
 use crate::python_violations::PythonViolation;
 use crate::shell_ps_violations::{PowerShellViolation, ShellViolation};
@@ -44,6 +47,8 @@ pub enum LangRuleViolation {
     Migration(MigrationViolation),
     /// Native Web, Design System (`Panda`/`M3E`), W3C/WCAG, Cloudflare, and Drizzle violation.
     WebEdge(WebEdgeViolation),
+    /// Native Jupyter, Quarto, or Obsidian violation (`NB-*`, `QUARTO-*`, `OBS-*`).
+    Academic(AcademicViolation),
 }
 
 impl LangRuleViolation {
@@ -54,6 +59,7 @@ impl LangRuleViolation {
             Self::Workflow(v) => Some((v.code(), v.remediation())),
             Self::XmlSvg(v) => Some((v.code(), v.remediation())),
             Self::Toml(v) => Some((v.code(), v.remediation())),
+            Self::Academic(v) => Some((v.code(), v.remediation())),
             _ => None,
         }
     }
@@ -75,7 +81,8 @@ impl LangRuleViolation {
             | Self::Compose(_)
             | Self::Workflow(_)
             | Self::XmlSvg(_)
-            | Self::Toml(_) => ("", ""),
+            | Self::Toml(_)
+            | Self::Academic(_) => ("", ""),
         }
     }
 
@@ -107,7 +114,8 @@ impl LangRuleViolation {
             | Self::Toml(_)
             | Self::Sql(_)
             | Self::Migration(_)
-            | Self::WebEdge(_) => false,
+            | Self::WebEdge(_)
+            | Self::Academic(_) => false,
         }
     }
 }
@@ -209,12 +217,28 @@ macro_rules! impl_from_web_edge {
 }
 
 impl_from_web_edge!(
-    AstroViolation => Astro,
-    ReactRouterViolation => ReactRouter,
-    PandaViolation => Panda,
-    M3eViolation => M3e,
-    W3cViolation => W3c,
-    A11yViolation => A11y,
-    CloudflareViolation => Cloudflare,
-    DrizzleViolation => Drizzle,
+    AstroViolation => Astro, ReactRouterViolation => ReactRouter,
+    PandaViolation => Panda, M3eViolation => M3e, W3cViolation => W3c,
+    A11yViolation => A11y, CloudflareViolation => Cloudflare, DrizzleViolation => Drizzle,
 );
+
+impl From<AcademicViolation> for LangRuleViolation {
+    fn from(v: AcademicViolation) -> Self {
+        Self::Academic(v)
+    }
+}
+impl From<NotebookViolation> for LangRuleViolation {
+    fn from(v: NotebookViolation) -> Self {
+        Self::Academic(AcademicViolation::Notebook(v))
+    }
+}
+impl From<QuartoViolation> for LangRuleViolation {
+    fn from(v: QuartoViolation) -> Self {
+        Self::Academic(AcademicViolation::Quarto(v))
+    }
+}
+impl From<ObsidianViolation> for LangRuleViolation {
+    fn from(v: ObsidianViolation) -> Self {
+        Self::Academic(AcademicViolation::Obsidian(v))
+    }
+}

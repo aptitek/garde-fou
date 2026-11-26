@@ -5,6 +5,7 @@ use alloc::string::String;
 use alloc::vec::Vec;
 use serde::{Deserialize, Serialize};
 
+pub use crate::academic_violations::AcademicSummary;
 use crate::diagnostic::Span;
 use crate::format_violations::{CssViolation, MarkdownViolation, XmlSvgViolation};
 

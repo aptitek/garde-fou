@@ -86,11 +86,11 @@ pub struct DiskCache {
 }
 
 impl DiskCache {
-    /// Creates a [`DiskCache`] handle rooted at `<workspace_root>/<cache_dir>/v9`.
+    /// Creates a [`DiskCache`] handle rooted at `<workspace_root>/<cache_dir>/v14`.
     #[must_use]
     pub fn new(workspace_root: &Path, cache_dir: &str) -> Self {
         Self {
-            base_dir: workspace_root.join(cache_dir).join("v13"),
+            base_dir: workspace_root.join(cache_dir).join("v14"),
         }
     }
 

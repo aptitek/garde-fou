@@ -6,7 +6,9 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
-use gf_core::{FeatureId, FrameworkId, LanguageId, Validation, validate_commit_message};
+use gf_core::{
+    FeatureId, FrameworkId, LanguageId, Validation, WorkspaceArchetype, validate_commit_message,
+};
 use gf_engine::{
     CheckOptions, EngineError, InitRequest, ScanScope, SkillsFetchMode, SyncOptions,
     load_workspace_config, run_check_with_options, run_init_with_sync_mode, run_lock, run_sync,
@@ -30,9 +32,17 @@ fn resolve_dir(opt_path: Option<&PathBuf>, cwd: &Path) -> PathBuf {
 
 fn build_init_request(args: &InitArgs, cwd: &Path) -> Result<InitRequest, EngineError> {
     let root = resolve_dir(args.path.as_ref(), cwd);
+    let archetype = args
+        .archetype
+        .as_deref()
+        .map(|raw| {
+            WorkspaceArchetype::from_config_str(raw)
+                .ok_or_else(|| EngineError::InvalidConfig(format!("unknown --archetype `{raw}`")))
+        })
+        .transpose()?;
     let mut languages = BTreeSet::new();
     for raw in &args.langs {
-        let id = LanguageId::from_config_str(raw)
+        let id = LanguageId::from_slug(raw)
             .ok_or_else(|| EngineError::InvalidConfig(format!("unknown --lang `{raw}`")))?;
         languages.insert(id);
     }
@@ -52,6 +62,7 @@ fn build_init_request(args: &InitArgs, cwd: &Path) -> Result<InitRequest, Engine
     Ok(InitRequest {
         root,
         project_name: args.name.clone(),
+        archetype,
         languages,
         features,
         frameworks,
