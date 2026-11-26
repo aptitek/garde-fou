@@ -75,6 +75,8 @@ pub enum Language {
     Php,
     /// Twig 3 template (`.twig`, `.html.twig`).
     Twig,
+    /// Dart 3.6+ / Flutter 3.x source file (`.dart`).
+    Dart,
     /// Non-text binary media or font asset (`.png`, `.woff2`, `.pdf`, etc.).
     BinaryAsset,
     /// Unclassified text or source file.
@@ -97,6 +99,7 @@ impl Language {
                 | Self::Kotlin
                 | Self::CSharp
                 | Self::Php
+                | Self::Dart
                 | Self::Astro
                 | Self::Shell
                 | Self::PowerShell

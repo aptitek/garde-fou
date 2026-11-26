@@ -173,6 +173,8 @@ pub enum ToolConfigViolation {
     Toolchain(ToolchainViolation),
     /// PHP (`composer.json`, `phpstan.neon`, `psalm.xml`) configuration weakened.
     Php(crate::php_tools::PhpConfigIssue),
+    /// Dart / Flutter (`pubspec.yaml`, `analysis_options.yaml`) configuration weakened.
+    Dart(crate::dart_tools::DartConfigIssue),
 }
 
 impl ToolConfigViolation {
@@ -186,6 +188,7 @@ impl ToolConfigViolation {
             Self::Compiled(k) => Some((k.tool(), k.key(), k.remediation())),
             Self::Toolchain(k) => Some((k.tool(), k.code(), k.remediation())),
             Self::Php(k) => Some((k.tool(), k.key(), k.remediation())),
+            Self::Dart(k) => Some((k.tool(), k.key(), k.remediation())),
             Self::MypyNotStrict(_)
             | Self::RuffWeakened(_)
             | Self::PytestOrCoverageWeakened(_)

@@ -18,6 +18,7 @@ mod test_inspector_py;
 mod test_inspector_script;
 pub mod tool_output;
 pub mod tool_output_compiled;
+pub mod tool_output_dart;
 pub mod tool_output_formats;
 mod tool_output_gha;
 pub mod tool_output_php;
@@ -45,6 +46,7 @@ pub use {
     tool_output_compiled::{
         parse_go_vet_json, parse_golangci_lint_json, parse_ktlint_json, parse_msbuild_diagnostics,
     },
+    tool_output_dart::parse_dart_analyze_json,
     tool_output_formats::{
         parse_rumdl_or_markdownlint_json, parse_stylelint_json, parse_taplo_output,
         parse_xmllint_output,

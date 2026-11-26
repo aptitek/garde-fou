@@ -86,22 +86,24 @@ pub enum ExternalToolKind {
     Phpstan,
     /// `Psalm` static analyzer for PHP (`psalm --output-format=json`).
     Psalm,
+    /// `dart analyze` static analyzer for Dart 3 / Flutter 3 (`dart analyze --format=json`).
+    DartAnalyze,
 }
 
 #[rustfmt::skip]
-const TOOL_NAMES: [&str; 40] = [
+const TOOL_NAMES: [&str; 41] = [
     "ruff", "mypy", "pyright", "pytest", "coverage", "tsc", "eslint", "shellcheck",
     "cargo-mutants", "stryker", "oxlint", "biome", "hadolint", "psscriptanalyzer",
     "yamllint", "dclint", "actionlint", "zizmor", "stylelint", "rumdl", "markdownlint",
     "taplo", "xmllint", "squawk", "sqruff", "sqlfluff", "astro-check", "html-validate",
     "wrangler-types", "golangci-lint", "go-vet", "detekt", "ktlint", "dotnet-build",
-    "pnpm", "uv", "gradle", "zpa", "phpstan", "psalm",
+    "pnpm", "uv", "gradle", "zpa", "phpstan", "psalm", "dart-analyze",
 ];
 
 impl ExternalToolKind {
     /// All known ecosystem tool identifiers in deterministic order.
     #[rustfmt::skip]
-    pub const ALL: [Self; 40] = [
+    pub const ALL: [Self; 41] = [
         Self::Ruff, Self::Mypy, Self::Pyright, Self::Pytest, Self::Coverage, Self::Tsc,
         Self::Eslint, Self::Shellcheck, Self::CargoMutants, Self::Stryker, Self::Oxlint,
         Self::Biome, Self::Hadolint, Self::PsScriptAnalyzer, Self::Yamllint, Self::Dclint,
@@ -109,7 +111,7 @@ impl ExternalToolKind {
         Self::Taplo, Self::Xmllint, Self::Squawk, Self::Sqruff, Self::Sqlfluff,
         Self::AstroCheck, Self::HtmlValidate, Self::WranglerTypes, Self::GolangciLint,
         Self::GoVet, Self::Detekt, Self::Ktlint, Self::DotnetBuild, Self::Pnpm, Self::Uv,
-        Self::Gradle, Self::Zpa, Self::Phpstan, Self::Psalm,
+        Self::Gradle, Self::Zpa, Self::Phpstan, Self::Psalm, Self::DartAnalyze,
     ];
 
     /// Canonical lowercase CLI/config name of the tool.

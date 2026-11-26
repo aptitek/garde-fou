@@ -54,14 +54,16 @@ pub enum FrameworkId {
     Symfony,
     /// `Doctrine` ORM 3 / DBAL 4 (`src/Entity/**`, `src/Repository/**`, `migrations/**`).
     Doctrine,
+    /// `Flutter` 3.x cross-platform UI framework (`lib/main.dart`, `lib/theme/**`, `lib/l10n/*.arb`).
+    Flutter,
 }
 
 #[rustfmt::skip]
-const FRAMEWORK_NAMES: [&str; 24] = [
+const FRAMEWORK_NAMES: [&str; 25] = [
     "cargo-workspace", "react", "astro", "nextjs", "fastapi", "django", "react-router",
     "cloudflare-workers", "drizzle", "docker-compose", "obsidian", "quarto", "jupyter",
     "nodejs", "express", "mongoose", "nicegui", "pytorch", "tensorflow", "langchain",
-    "postgresql", "mariadb", "symfony", "doctrine",
+    "postgresql", "mariadb", "symfony", "doctrine", "flutter",
 ];
 
 #[rustfmt::skip]
@@ -85,6 +87,7 @@ const FRAMEWORK_ALIASES: &[(&str, FrameworkId)] = &[
     ("postgresql", FrameworkId::PostgreSql), ("postgres", FrameworkId::PostgreSql), ("pg", FrameworkId::PostgreSql),
     ("mariadb", FrameworkId::MariaDb),
     ("symfony", FrameworkId::Symfony), ("doctrine", FrameworkId::Doctrine), ("doctrine-orm", FrameworkId::Doctrine),
+    ("flutter", FrameworkId::Flutter),
 ];
 
 const CARGO_ENTRIES: &[&str] = &[
@@ -180,12 +183,14 @@ const SYMFONY_ENTRIES: &[&str] = &[
     "migrations/**",
 ];
 
+const FLUTTER_ENTRIES: &[&str] = &["lib/main.dart", "test/**", "integration_test/**"];
+
 #[rustfmt::skip]
-const FRAMEWORK_ENTRIES: [&[&str]; 24] = [
+const FRAMEWORK_ENTRIES: [&[&str]; 25] = [
     CARGO_ENTRIES, REACT_ENTRIES, ASTRO_ENTRIES, NEXT_ENTRIES, FASTAPI_ENTRIES,
     DJANGO_ENTRIES, REACT_ROUTER_ENTRIES, CLOUDFLARE_ENTRIES, DRIZZLE_ENTRIES,
     &[], &[], &[], &[], NODE_ENTRIES, NODE_ENTRIES, &[], NICEGUI_ENTRIES,
-    &[], &[], &[], &[], &[], SYMFONY_ENTRIES, &[],
+    &[], &[], &[], &[], &[], SYMFONY_ENTRIES, &[], FLUTTER_ENTRIES,
 ];
 
 impl FrameworkId {

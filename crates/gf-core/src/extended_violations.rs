@@ -4,6 +4,7 @@
 use core::fmt;
 use serde::{Deserialize, Serialize};
 
+use crate::dart_flutter_violations::{DartFlutterViolation, DartViolation, FlutterViolation};
 use crate::db_procedural_violations::{
     DbProceduralViolation, MariaDbViolation, PostgresAdvViolation, ProceduralSqlViolation,
 };
@@ -28,6 +29,8 @@ pub enum ExtendedLangViolation {
     DiagramI18n(DiagramI18nViolation),
     /// PHP 8.4, Symfony 7, Doctrine ORM 3, and Twig 3 (`PHP-*`, `SYMFONY-*`, `TWIG-*`).
     PhpSymfony(PhpSymfonyViolation),
+    /// Dart 3.6+ and Flutter 3.x (`DART-*`, `FLUTTER-*`).
+    DartFlutter(DartFlutterViolation),
 }
 
 impl ExtendedLangViolation {
@@ -39,6 +42,7 @@ impl ExtendedLangViolation {
             Self::DbProcedural(v) => v.code(),
             Self::DiagramI18n(v) => v.code(),
             Self::PhpSymfony(v) => v.code(),
+            Self::DartFlutter(v) => v.code(),
         }
     }
 
@@ -50,6 +54,7 @@ impl ExtendedLangViolation {
             Self::DbProcedural(v) => v.remediation(),
             Self::DiagramI18n(v) => v.remediation(),
             Self::PhpSymfony(v) => v.remediation(),
+            Self::DartFlutter(v) => v.remediation(),
         }
     }
 }
@@ -81,6 +86,7 @@ impl_ext_direct!(
     DbProceduralViolation => DbProcedural,
     DiagramI18nViolation => DiagramI18n,
     PhpSymfonyViolation => PhpSymfony,
+    DartFlutterViolation => DartFlutter,
 );
 impl_ext_nested!(
     PyEcosystem, PyEcosystemViolation;
@@ -106,4 +112,9 @@ impl_ext_nested!(
     PhpViolation => Php,
     SymfonyViolation => Symfony,
     TwigViolation => Twig,
+);
+impl_ext_nested!(
+    DartFlutter, DartFlutterViolation;
+    DartViolation => Dart,
+    FlutterViolation => Flutter,
 );

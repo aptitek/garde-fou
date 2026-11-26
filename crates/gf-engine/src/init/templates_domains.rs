@@ -218,6 +218,7 @@ const fn implied_lang_and_feat(fw: FrameworkId) -> (LanguageId, Option<FeatureId
         FrameworkId::Quarto | FrameworkId::Obsidian => (LanguageId::Markdown, None),
         FrameworkId::PostgreSql | FrameworkId::MariaDb => (LanguageId::Sql, None),
         FrameworkId::Symfony | FrameworkId::Doctrine => (LanguageId::Php, None),
+        FrameworkId::Flutter => (LanguageId::Dart, Some(FeatureId::Ui)),
         _ => (LanguageId::TypeScript, None),
     }
 }

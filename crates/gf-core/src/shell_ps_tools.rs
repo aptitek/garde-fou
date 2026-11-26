@@ -216,34 +216,31 @@ pub fn is_tsconfig_filename(file_name: &str) -> bool {
                 .is_some_and(|(_, ext)| ext.eq_ignore_ascii_case("json")))
 }
 
+fn is_ecosystem_tool_config(path: &RepoPath) -> bool {
+    let raw = path.as_str();
+    crate::yaml_tools::is_yaml_tool_config_file(path)
+        || crate::format_tools::is_format_tool_config_file(path)
+        || crate::sql_tools::is_sql_tool_config_file(path)
+        || crate::web_edge_summary::is_web_edge_tool_config_file(path)
+        || crate::compiled_tools::is_compiled_tool_config_file(raw)
+        || crate::toolchain_mern_violations::is_toolchain_audited_file(raw)
+        || crate::php_tools::is_php_tool_config_file(raw)
+        || crate::dart_tools::is_dart_tool_config_file(raw)
+}
+
+#[rustfmt::skip]
+const CORE_TOOL_CONFIGS: &[&str] = &[
+    "pyproject.toml", "ruff.toml", ".ruff.toml", "biome.json", "biome.jsonc",
+    "mutants.toml", "stryker.config.json", "stryker.conf.json", ".shellcheckrc",
+    "shellcheckrc", ".hadolint.yaml", ".hadolint.yml", "hadolint.yaml", "hadolint.yml",
+];
+
 /// Returns `true` if `path` is a language-tool configuration file audited by Tier 2 (`GF081`).
 #[must_use]
 pub fn is_audited_tool_config_file(path: &RepoPath) -> bool {
     let name = path.file_name();
     is_tsconfig_filename(name)
-        || crate::yaml_tools::is_yaml_tool_config_file(path)
-        || crate::format_tools::is_format_tool_config_file(path)
-        || crate::sql_tools::is_sql_tool_config_file(path)
-        || crate::web_edge_summary::is_web_edge_tool_config_file(path)
-        || crate::compiled_tools::is_compiled_tool_config_file(path.as_str())
-        || crate::toolchain_mern_violations::is_toolchain_audited_file(path.as_str())
-        || crate::php_tools::is_php_tool_config_file(path.as_str())
+        || is_ecosystem_tool_config(path)
         || name.eq_ignore_ascii_case("psscriptanalyzersettings.psd1")
-        || matches!(
-            name,
-            "pyproject.toml"
-                | "ruff.toml"
-                | ".ruff.toml"
-                | "biome.json"
-                | "biome.jsonc"
-                | "mutants.toml"
-                | "stryker.config.json"
-                | "stryker.conf.json"
-                | ".shellcheckrc"
-                | "shellcheckrc"
-                | ".hadolint.yaml"
-                | ".hadolint.yml"
-                | "hadolint.yaml"
-                | "hadolint.yml"
-        )
+        || CORE_TOOL_CONFIGS.contains(&name)
 }

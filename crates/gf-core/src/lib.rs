@@ -23,6 +23,8 @@ pub mod compiled_violations;
 pub mod config;
 pub mod context;
 pub mod coverage;
+pub mod dart_flutter_violations;
+pub mod dart_tools;
 pub mod db_procedural_violations;
 pub mod diagnostic;
 pub mod diagrams_i18n_violations;
@@ -196,6 +198,10 @@ pub use {
     },
 };
 pub use {
+    dart_flutter_violations::{DartFlutterViolation, DartViolation, FlutterViolation},
+    dart_tools::{
+        DartConfigIssue, DartToolsConfig, is_dart_generated_file, is_dart_tool_config_file,
+    },
     db_procedural_violations::{
         DbProceduralViolation, MariaDbViolation, PostgresAdvViolation, ProceduralSqlViolation,
     },

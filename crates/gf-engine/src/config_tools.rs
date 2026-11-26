@@ -239,5 +239,6 @@ pub fn merge_tools(raw: Option<ToolsSection>) -> Result<ToolsConfig, EngineError
         kotlin: merge_kotlin_tools(s.kotlin, base.kotlin)?,
         csharp: merge_csharp_tools(s.csharp, base.csharp)?,
         php: base.php,
+        dart: base.dart,
     })
 }

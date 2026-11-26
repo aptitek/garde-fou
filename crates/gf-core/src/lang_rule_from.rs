@@ -1,6 +1,7 @@
 //! `From<T> for LangRuleViolation` trait implementations for extended ecosystems,
 //! isolated in a DAG sink module to keep `lang_rule_violation.rs` acyclic (`GF071`) and low fan-out (`GF007`).
 
+use crate::dart_flutter_violations::{DartFlutterViolation, DartViolation, FlutterViolation};
 use crate::db_procedural_violations::{
     DbProceduralViolation, MariaDbViolation, PostgresAdvViolation, ProceduralSqlViolation,
 };
@@ -42,4 +43,7 @@ impl_from_ext!(
     PhpViolation,
     SymfonyViolation,
     TwigViolation,
+    DartFlutterViolation,
+    DartViolation,
+    FlutterViolation,
 );

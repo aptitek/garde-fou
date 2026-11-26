@@ -54,6 +54,7 @@ const EXT_LANGUAGES: &[(&str, Language)] = &[
     ("props", Language::Xml),
     ("php", Language::Php),
     ("twig", Language::Twig),
+    ("dart", Language::Dart),
     ("sql", Language::Sql),
     ("pls", Language::PlSql),
     ("plb", Language::PlSql),

@@ -12,7 +12,7 @@ use crate::types::EngineError;
 pub struct CacheReport {
     /// Absolute path to the workspace cache root (`.garde-fou-cache`).
     pub cache_root: PathBuf,
-    /// Current schema version folder name (e.g. `"v20"`).
+    /// Current schema version folder name (e.g. `"v21"`).
     pub active_schema: String,
     /// Number of valid cached file entries in the active schema.
     pub active_entries: usize,

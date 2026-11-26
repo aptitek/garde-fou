@@ -5,6 +5,7 @@ use alloc::string::String;
 use serde::{Deserialize, Serialize};
 
 use crate::compiled_tools::{CSharpToolsConfig, GoToolsConfig, KotlinToolsConfig};
+use crate::dart_tools::DartToolsConfig;
 use crate::format_tools::{CssToolsConfig, MarkdownToolsConfig, TomlToolsConfig, XmlToolsConfig};
 use crate::php_tools::PhpToolsConfig;
 use crate::shell_ps_tools::{DockerToolsConfig, PowerShellToolsConfig, ShellToolsConfig};
@@ -65,37 +66,44 @@ pub struct ToolsConfig {
     /// PHP `PHPStan` and `Psalm` policies (`[tools.php]`).
     #[serde(default)]
     pub php: PhpToolsConfig,
+    /// Dart / Flutter `dart analyze` policy (`[tools.dart]`).
+    #[serde(default)]
+    pub dart: DartToolsConfig,
 }
 
 impl ToolsConfig {
+    /// Strict default `[tools]` policies constant.
+    pub const DEFAULT: Self = Self {
+        python: PythonToolsConfig::defaults(),
+        typescript: TypeScriptToolsConfig::defaults(),
+        shell: ShellToolsConfig::defaults(),
+        powershell: PowerShellToolsConfig::defaults(),
+        docker: DockerToolsConfig::defaults(),
+        yaml: YamlToolsConfig::defaults(),
+        css: CssToolsConfig::defaults(),
+        markdown: MarkdownToolsConfig::defaults(),
+        toml: TomlToolsConfig::defaults(),
+        xml: XmlToolsConfig::defaults(),
+        sql: SqlToolsConfig::defaults(),
+        web: WebToolsConfig::defaults(),
+        go: GoToolsConfig::defaults(),
+        kotlin: KotlinToolsConfig::defaults(),
+        csharp: CSharpToolsConfig::defaults(),
+        php: PhpToolsConfig::defaults(),
+        dart: DartToolsConfig::defaults(),
+    };
+
     /// Returns strict default `[tools]` policies.
     #[must_use]
     pub const fn defaults() -> Self {
-        Self {
-            python: PythonToolsConfig::defaults(),
-            typescript: TypeScriptToolsConfig::defaults(),
-            shell: ShellToolsConfig::defaults(),
-            powershell: PowerShellToolsConfig::defaults(),
-            docker: DockerToolsConfig::defaults(),
-            yaml: YamlToolsConfig::defaults(),
-            css: CssToolsConfig::defaults(),
-            markdown: MarkdownToolsConfig::defaults(),
-            toml: TomlToolsConfig::defaults(),
-            xml: XmlToolsConfig::defaults(),
-            sql: SqlToolsConfig::defaults(),
-            web: WebToolsConfig::defaults(),
-            go: GoToolsConfig::defaults(),
-            kotlin: KotlinToolsConfig::defaults(),
-            csharp: CSharpToolsConfig::defaults(),
-            php: PhpToolsConfig::defaults(),
-        }
+        Self::DEFAULT
     }
 
     /// Deterministic fragment for `BLAKE3` cache keys.
     #[must_use]
     pub fn canonical_fragment(self) -> String {
         format!(
-            "tl({},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{})",
+            "tl({},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{})",
             self.python.canonical_fragment(),
             self.typescript.canonical_fragment(),
             self.shell.canonical_fragment(),
@@ -112,6 +120,7 @@ impl ToolsConfig {
             self.kotlin.canonical_fragment(),
             self.csharp.canonical_fragment(),
             self.php.canonical_fragment(),
+            self.dart.canonical_fragment(),
         )
     }
 }

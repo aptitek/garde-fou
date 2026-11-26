@@ -59,6 +59,9 @@ impl<'a> WorkspaceImportResolver<'a> {
             Language::Php => {
                 resolve_php_psr4_import(&imp.module_source, &self.path_index, &mut out);
             }
+            Language::Dart => {
+                resolve_dart_import(raw_from, &imp.module_source, &self.path_index, &mut out);
+            }
             _ => {}
         }
         out.retain(|&idx| self.path_index.get(raw_from) != Some(&idx));
@@ -143,4 +146,20 @@ fn resolve_php_psr4_import(spec: &str, path_index: &BTreeMap<&str, usize>, out: 
     }
     push_known(&format!("{rel}.php"), path_index, out);
     push_known(&format!("src/{rel}.php"), path_index, out);
+}
+
+fn resolve_dart_import(
+    from_path: &str,
+    spec: &str,
+    path_index: &BTreeMap<&str, usize>,
+    out: &mut Vec<usize>,
+) {
+    if let Some(pkg) = spec.strip_prefix("package:") {
+        if let Some((_, rel)) = pkg.split_once('/') {
+            push_known(&format!("lib/{rel}"), path_index, out);
+        }
+        return;
+    }
+    let joined = normalize_join(dir_of(from_path), spec);
+    push_known(&joined, path_index, out);
 }

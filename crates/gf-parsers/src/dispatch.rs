@@ -131,6 +131,7 @@ fn dispatch_script_or_compiled(
         Language::CSharp => CSharpExtractor.extract(path, source),
         Language::Php => langs::php::PhpExtractor.extract(path, source),
         Language::Twig => langs::php::TwigExtractor.extract(path, source),
+        Language::Dart => langs::dart::DartExtractor.extract(path, source),
         other => dispatch_script_or_infra(other, path, source, ctx),
     }
 }
@@ -146,6 +147,12 @@ pub fn dispatch_language_extractor(
             let (total, effective) = cst::line_metrics(source);
             let mut doc = UastDocument::new(path.clone(), lang, total, effective)?;
             langs::php::tool_configs::audit_php_tool_config(path, source, &mut doc);
+            return Ok(doc);
+        }
+        if gf_core::is_dart_tool_config_file(path.as_str()) {
+            let (total, effective) = cst::line_metrics(source);
+            let mut doc = UastDocument::new(path.clone(), lang, total, effective)?;
+            langs::dart::tool_configs::audit_dart_tool_config(path, source, &mut doc);
             return Ok(doc);
         }
         if lang == Language::Xml {

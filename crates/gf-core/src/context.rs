@@ -62,13 +62,15 @@ pub enum LanguageId {
     Php,
     /// Twig 3 template ecosystem (`.twig`, `.html.twig`).
     Twig,
+    /// Dart 3.6+ & Flutter 3.x ecosystem (`.dart`, `pubspec.yaml`, `analysis_options.yaml`).
+    Dart,
 }
 
 #[rustfmt::skip]
-const LANG_NAMES: [&str; 21] = [
+const LANG_NAMES: [&str; 22] = [
     "rust", "typescript", "python", "shell", "powershell", "yaml", "css",
     "xml", "toml", "markdown", "sql", "astro", "html", "go", "kotlin", "csharp", "plsql",
-    "mermaid", "plantuml", "php", "twig",
+    "mermaid", "plantuml", "php", "twig", "dart",
 ];
 #[rustfmt::skip]
 const LANGUAGE_ALIASES: &[(&str, LanguageId)] = &[
@@ -91,7 +93,7 @@ const LANGUAGE_ALIASES: &[(&str, LanguageId)] = &[
     ("plsql", LanguageId::PlSql), ("oracle", LanguageId::PlSql), ("pl-sql", LanguageId::PlSql),
     ("mermaid", LanguageId::Mermaid), ("mmd", LanguageId::Mermaid),
     ("plantuml", LanguageId::PlantUml), ("puml", LanguageId::PlantUml),
-    ("php", LanguageId::Php), ("twig", LanguageId::Twig),
+    ("php", LanguageId::Php), ("twig", LanguageId::Twig), ("dart", LanguageId::Dart),
 ];
 
 impl LanguageId {
@@ -113,22 +115,15 @@ impl LanguageId {
         LANG_NAMES[self as usize]
     }
 
-    /// Returns `true` for primary code/automation languages (`Rust`, `TypeScript`, `Python`, `Go`, `Kotlin`, `CSharp`, `Shell`, `PowerShell`, `Astro`).
+    /// Returns `true` for primary code/automation languages.
     #[must_use]
+    #[rustfmt::skip]
     pub const fn is_programming_language(self) -> bool {
         matches!(
             self,
-            Self::Rust
-                | Self::TypeScript
-                | Self::Python
-                | Self::Go
-                | Self::Kotlin
-                | Self::CSharp
-                | Self::Php
-                | Self::Shell
-                | Self::PowerShell
-                | Self::Astro
-                | Self::PlSql
+            Self::Rust | Self::TypeScript | Self::Python | Self::Go | Self::Kotlin
+                | Self::CSharp | Self::Php | Self::Dart | Self::Shell
+                | Self::PowerShell | Self::Astro | Self::PlSql
         )
     }
 }

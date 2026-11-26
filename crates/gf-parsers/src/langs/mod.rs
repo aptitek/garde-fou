@@ -4,6 +4,7 @@ pub mod asset;
 pub mod astro;
 pub mod csharp;
 pub mod css;
+pub mod dart;
 pub mod diagrams;
 pub mod dockerfile;
 mod dockerfile_args;
