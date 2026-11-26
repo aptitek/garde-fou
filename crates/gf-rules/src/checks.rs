@@ -98,6 +98,7 @@ pub fn check_file_metrics(doc: &UastDocument, config: &Config) -> Validation<(),
             | Language::Xml
             | Language::Svg
             | Language::Sql
+            | Language::Html
             | Language::BinaryAsset
     );
     if enforce_line_cap && doc.total_lines > limits.max_file_lines {

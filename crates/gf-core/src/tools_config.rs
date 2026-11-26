@@ -8,6 +8,7 @@ use crate::format_tools::{CssToolsConfig, MarkdownToolsConfig, TomlToolsConfig, 
 use crate::shell_ps_tools::{DockerToolsConfig, PowerShellToolsConfig, ShellToolsConfig};
 use crate::sql_tools::SqlToolsConfig;
 use crate::tool_ingest::{PythonToolsConfig, TypeScriptToolsConfig};
+use crate::web_edge_tools::WebToolsConfig;
 use crate::yaml_tools::YamlToolsConfig;
 
 /// Top-level `[tools]` language and format tool adapter configuration.
@@ -47,6 +48,9 @@ pub struct ToolsConfig {
     /// SQL & migration `squawk`, `sqruff`, and `sqlfluff` policies (`[tools.sql]`).
     #[serde(default)]
     pub sql: SqlToolsConfig,
+    /// Web & Edge `astro-check`, `html-validate`, and `wrangler-types` policies (`[tools.web]`).
+    #[serde(default)]
+    pub web: WebToolsConfig,
 }
 
 impl ToolsConfig {
@@ -65,6 +69,7 @@ impl ToolsConfig {
             toml: TomlToolsConfig::defaults(),
             xml: XmlToolsConfig::defaults(),
             sql: SqlToolsConfig::defaults(),
+            web: WebToolsConfig::defaults(),
         }
     }
 
@@ -72,7 +77,7 @@ impl ToolsConfig {
     #[must_use]
     pub fn canonical_fragment(self) -> String {
         format!(
-            "tl({},{},{},{},{},{},{},{},{},{},{})",
+            "tl({},{},{},{},{},{},{},{},{},{},{},{})",
             self.python.canonical_fragment(),
             self.typescript.canonical_fragment(),
             self.shell.canonical_fragment(),
@@ -84,6 +89,7 @@ impl ToolsConfig {
             self.toml.canonical_fragment(),
             self.xml.canonical_fragment(),
             self.sql.canonical_fragment(),
+            self.web.canonical_fragment(),
         )
     }
 }

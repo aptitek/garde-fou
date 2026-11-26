@@ -5,12 +5,12 @@ use std::path::Path;
 
 use gf_core::{Config, ExternalToolFinding, ExternalToolKind, ScannerPolicy};
 use gf_parsers::{
-    ToolParseError, parse_actionlint_json, parse_biome_json, parse_dclint_json,
-    parse_hadolint_json, parse_mypy_ndjson, parse_oxlint_json, parse_psscriptanalyzer_json,
-    parse_pyright_json, parse_ruff_json, parse_rumdl_or_markdownlint_json, parse_shellcheck_json,
-    parse_sqlfluff_json, parse_sqruff_json, parse_squawk_json, parse_stylelint_json,
-    parse_taplo_output, parse_tsc_output, parse_xmllint_output, parse_yamllint_parsable,
-    parse_zizmor_sarif,
+    ToolParseError, parse_actionlint_json, parse_astro_check_output, parse_biome_json,
+    parse_dclint_json, parse_hadolint_json, parse_html_validate_json, parse_mypy_ndjson,
+    parse_oxlint_json, parse_psscriptanalyzer_json, parse_pyright_json, parse_ruff_json,
+    parse_rumdl_or_markdownlint_json, parse_shellcheck_json, parse_sqlfluff_json,
+    parse_sqruff_json, parse_squawk_json, parse_stylelint_json, parse_taplo_output,
+    parse_tsc_output, parse_xmllint_output, parse_yamllint_parsable, parse_zizmor_sarif,
 };
 
 const PSSA_COMMAND: &str = "& { \
@@ -29,7 +29,7 @@ pub(super) struct AdapterTableEntry {
     pub install_hint: &'static str,
 }
 
-pub(super) const ADAPTER_TABLE: [AdapterTableEntry; 21] = [
+pub(super) const ADAPTER_TABLE: [AdapterTableEntry; 23] = [
     AdapterTableEntry {
         tool: ExternalToolKind::Ruff,
         prefix_args: &["check", "--output-format", "json", "--no-fix", "--"],
@@ -225,5 +225,23 @@ pub(super) const ADAPTER_TABLE: [AdapterTableEntry; 21] = [
         get_policy: |c| c.tools.sql.sqlfluff,
         parse_fn: parse_sqlfluff_json,
         install_hint: "Install `sqlfluff` (`uv tool install sqlfluff`) in `.venv` or system PATH.",
+    },
+    AdapterTableEntry {
+        tool: ExternalToolKind::AstroCheck,
+        prefix_args: &["check"],
+        accepts_file_targets: false,
+        dot_when_empty: false,
+        get_policy: |c| c.tools.web.astro_check,
+        parse_fn: parse_astro_check_output,
+        install_hint: "Install `astro` and `@astrojs/check` (`pnpm add -D astro @astrojs/check typescript`) in `node_modules/.bin`.",
+    },
+    AdapterTableEntry {
+        tool: ExternalToolKind::HtmlValidate,
+        prefix_args: &["--formatter", "json", "--"],
+        accepts_file_targets: true,
+        dot_when_empty: false,
+        get_policy: |c| c.tools.web.html_validate,
+        parse_fn: parse_html_validate_json,
+        install_hint: "Install `html-validate` (`pnpm add -D html-validate`) in `node_modules/.bin` or system PATH.",
     },
 ];

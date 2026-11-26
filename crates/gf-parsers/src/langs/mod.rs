@@ -1,6 +1,7 @@
 //! Language-specific `Tree-sitter` and pure-Rust multi-domain extractors.
 
 pub mod asset;
+pub mod astro;
 pub mod css;
 pub mod dockerfile;
 mod dockerfile_args;
@@ -8,6 +9,7 @@ mod dockerfile_instr;
 mod dockerfile_run_bridge;
 mod format_tool_config;
 mod format_tool_toml;
+pub mod html_w3c;
 pub mod i18n_dict;
 pub mod jsonc;
 pub mod markdown;

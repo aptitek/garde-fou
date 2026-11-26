@@ -49,6 +49,9 @@ pub mod tools_config;
 pub mod ts_violations;
 pub mod uast;
 pub mod validation;
+pub mod web_edge_summary;
+pub mod web_edge_tools;
+pub mod web_edge_violations;
 pub mod yaml_tools;
 pub mod yaml_violations;
 
@@ -138,6 +141,14 @@ pub use {
     },
     tools_config::ToolsConfig,
     ts_violations::{AsyncHazardKind, ReactViolation, TsDebugKind, TypescriptViolation},
+    web_edge_summary::{WebEdgeSummary, WranglerSummary, is_web_edge_tool_config_file},
+    web_edge_tools::{
+        CloudflareViolation, DrizzleViolation, WebEdgeConfigIssue, WebEdgeViolation, WebToolsConfig,
+    },
+    web_edge_violations::{
+        A11yViolation, AstroViolation, M3eViolation, PandaViolation, ReactRouterViolation,
+        W3cViolation,
+    },
     yaml_tools::{
         DclintConfigIssue, YamlCiConfigIssue, YamlToolsConfig, YamllintConfigIssue,
         ZizmorConfigIssue, is_yaml_tool_config_file,

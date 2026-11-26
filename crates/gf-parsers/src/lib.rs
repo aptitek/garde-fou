@@ -23,6 +23,7 @@ pub mod tool_output_shell;
 pub mod tool_output_sql;
 mod tool_output_taplo_xml;
 pub mod tool_output_ts;
+pub mod tool_output_web;
 pub mod tool_output_yaml;
 pub mod types;
 
@@ -35,8 +36,10 @@ pub use langs::shell::dialect::detect_shebang_language;
 pub use langs::ts::is_hook_identifier;
 use langs::{
     asset::{collect_script_mentions, extract_svg_asset},
+    astro::AstroExtractor,
     css::CssExtractor,
     dockerfile::DockerfileExtractor,
+    html_w3c::HtmlExtractor,
     i18n_dict::extract_i18n_dictionary,
     markdown::MarkdownExtractor,
     powershell::PowerShellExtractor,
@@ -50,20 +53,21 @@ use langs::{
     xml::XmlExtractor,
     yaml::YamlExtractor,
 };
-pub use tool_output::{ToolParseError, parse_mypy_ndjson, parse_pyright_json, parse_ruff_json};
-pub use tool_output_formats::{
-    parse_rumdl_or_markdownlint_json, parse_stylelint_json, parse_taplo_output,
-    parse_xmllint_output,
+pub use {
+    tool_output::{ToolParseError, parse_mypy_ndjson, parse_pyright_json, parse_ruff_json},
+    tool_output_formats::{
+        parse_rumdl_or_markdownlint_json, parse_stylelint_json, parse_taplo_output,
+        parse_xmllint_output,
+    },
+    tool_output_shell::{parse_hadolint_json, parse_psscriptanalyzer_json, parse_shellcheck_json},
+    tool_output_sql::{parse_sqlfluff_json, parse_sqruff_json, parse_squawk_json},
+    tool_output_ts::{parse_biome_json, parse_oxlint_json, parse_tsc_output},
+    tool_output_web::{parse_astro_check_output, parse_html_validate_json},
+    tool_output_yaml::{
+        parse_actionlint_json, parse_dclint_json, parse_yamllint_parsable, parse_zizmor_sarif,
+    },
+    types::{LanguageExtractor, ParseError, ProjectMarker},
 };
-pub use tool_output_shell::{
-    parse_hadolint_json, parse_psscriptanalyzer_json, parse_shellcheck_json,
-};
-pub use tool_output_sql::{parse_sqlfluff_json, parse_sqruff_json, parse_squawk_json};
-pub use tool_output_ts::{parse_biome_json, parse_oxlint_json, parse_tsc_output};
-pub use tool_output_yaml::{
-    parse_actionlint_json, parse_dclint_json, parse_yamllint_parsable, parse_zizmor_sarif,
-};
-pub use types::{LanguageExtractor, ParseError, ProjectMarker};
 
 /// Builds a lightweight [`UastDocument`] for a binary asset without decoding file bytes.
 ///
@@ -99,6 +103,7 @@ fn dispatch_non_code_domain(
     let domain = classify_path(path, ctx.domains);
     match lang {
         Language::Css => CssExtractor.extract(path, source),
+        Language::Html => HtmlExtractor.extract(path, source),
         Language::Markdown => MarkdownExtractor.extract(path, source),
         Language::Svg => extract_svg_asset(path, source),
         Language::Json | Language::Toml if domain == DomainKind::Texte => {
@@ -130,7 +135,9 @@ fn dispatch_language_extractor(
     }
     let domain = classify_path(path, ctx.domains);
     if let Some(dialect) = TsDialect::from_path_and_lang(path, lang) {
-        return TypeScriptExtractor::new(dialect).extract_in_domain(path, source, domain);
+        return TypeScriptExtractor::new(dialect)
+            .with_sql_dialect(ctx.sql_dialect_hint)
+            .extract_in_domain(path, source, domain);
     }
     match lang {
         Language::Rust => RustExtractor.extract(path, source),
@@ -139,6 +146,7 @@ fn dispatch_language_extractor(
         Language::PowerShell => PowerShellExtractor.extract(path, source),
         Language::Dockerfile => DockerfileExtractor.extract(path, source),
         Language::Yaml => YamlExtractor.extract(path, source),
+        Language::Astro => AstroExtractor.extract(path, source),
         other => dispatch_non_code_domain(other, path, source, ctx),
     }
 }

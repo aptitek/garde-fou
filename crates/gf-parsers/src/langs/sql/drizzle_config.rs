@@ -1,7 +1,8 @@
 //! Tier 2 static configuration hardening (`GF081`) for `drizzle.config.{ts,js,mjs}`.
 
 use gf_core::{
-    DrizzleConfigIssue, SqlToolConfigIssue, ToolConfigFinding, ToolConfigViolation, UastDocument,
+    DrizzleConfigIssue, SqlDialectKind, SqlToolConfigIssue, ToolConfigFinding, ToolConfigViolation,
+    UastDocument, WebEdgeSummary,
 };
 use tree_sitter::Node;
 
@@ -45,7 +46,7 @@ fn url_contains_inline_credentials(unquoted: &str) -> bool {
     })
 }
 
-fn check_drizzle_pair(node: Node<'_>, source: &str, out: &mut Vec<ToolConfigFinding>) {
+fn check_drizzle_pair(node: Node<'_>, source: &str, doc: &mut UastDocument) {
     let (Some(k), Some(v)) = (
         node.child_by_field_name("key"),
         node.child_by_field_name("value"),
@@ -53,12 +54,26 @@ fn check_drizzle_pair(node: Node<'_>, source: &str, out: &mut Vec<ToolConfigFind
         return;
     };
     let key_name = node_text(k, source).trim_matches(['"', '\'']);
+    if key_name == "dialect" && matches!(v.kind(), "string" | "template_string") {
+        let raw_d = node_text(v, source).trim().trim_matches(['"', '\'', '`']);
+        let dialect = match raw_d.to_ascii_lowercase().as_str() {
+            "sqlite" | "turso" | "d1" => Some(SqlDialectKind::Sqlite),
+            "postgresql" | "postgres" => Some(SqlDialectKind::Postgres),
+            "mysql" | "singlestore" => Some(SqlDialectKind::MySql),
+            _ => SqlDialectKind::from_config_str(raw_d),
+        };
+        if let Some(d) = dialect {
+            doc.web_edge
+                .get_or_insert_with(WebEdgeSummary::default)
+                .configured_drizzle_dialect = Some(d);
+        }
+    }
     if matches!(key_name, "password" | "authToken")
         && matches!(v.kind(), "string" | "template_string")
         && !node_text(v, source).contains("process.env")
     {
         push_drizzle_finding(
-            out,
+            &mut doc.tool_config_findings,
             node,
             format!(
                 "hardcoded `{key_name}` literal in `drizzle.config.*`; read from `process.env`"
@@ -67,13 +82,13 @@ fn check_drizzle_pair(node: Node<'_>, source: &str, out: &mut Vec<ToolConfigFind
     }
 }
 
-fn walk_drizzle_config(node: Node<'_>, source: &str, out: &mut Vec<ToolConfigFinding>) {
+fn walk_drizzle_config(node: Node<'_>, source: &str, doc: &mut UastDocument) {
     match node.kind() {
         "string" | "template_string" => {
             let inner = node_text(node, source).trim_matches(['"', '\'', '`']);
             if url_contains_inline_credentials(inner) {
                 push_drizzle_finding(
-                    out,
+                    &mut doc.tool_config_findings,
                     node,
                     String::from(
                         "hardcoded database URL with inline credentials in `drizzle.config.*`",
@@ -81,12 +96,12 @@ fn walk_drizzle_config(node: Node<'_>, source: &str, out: &mut Vec<ToolConfigFin
                 );
             }
         }
-        "pair" => check_drizzle_pair(node, source, out),
+        "pair" => check_drizzle_pair(node, source, doc),
         _ => {}
     }
     let mut cursor = node.walk();
     for ch in node.children(&mut cursor) {
-        walk_drizzle_config(ch, source, out);
+        walk_drizzle_config(ch, source, doc);
     }
 }
 
@@ -96,6 +111,6 @@ pub(super) fn audit_drizzle_config(source: &str, doc: &mut UastDocument) {
     if let Ok(tree) = parse_with_language(&ts_lang, source) {
         let root = tree.root_node();
         doc.syntax_errors = collect_syntax_errors(root);
-        walk_drizzle_config(root, source, &mut doc.tool_config_findings);
+        walk_drizzle_config(root, source, doc);
     }
 }

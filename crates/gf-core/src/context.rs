@@ -41,9 +41,13 @@ pub enum LanguageId {
     Markdown,
     /// Multi-dialect SQL & zero-downtime database migrations ecosystem (`.sql`).
     Sql,
+    /// Astro component and island template ecosystem (`.astro`).
+    Astro,
+    /// W3C HTML5 document ecosystem (`.html`, `.htm`).
+    Html,
 }
 
-const LANG_NAMES: [&str; 11] = [
+const LANG_NAMES: [&str; 13] = [
     "rust",
     "typescript",
     "python",
@@ -55,6 +59,8 @@ const LANG_NAMES: [&str; 11] = [
     "toml",
     "markdown",
     "sql",
+    "astro",
+    "html",
 ];
 const LANGUAGE_ALIASES: &[(&str, LanguageId)] = &[
     ("rust", LanguageId::Rust),
@@ -83,6 +89,9 @@ const LANGUAGE_ALIASES: &[(&str, LanguageId)] = &[
     ("sql", LanguageId::Sql),
     ("postgres", LanguageId::Sql),
     ("sqlite", LanguageId::Sql),
+    ("astro", LanguageId::Astro),
+    ("html", LanguageId::Html),
+    ("htm", LanguageId::Html),
 ];
 
 impl LanguageId {
@@ -98,12 +107,17 @@ impl LanguageId {
         LANG_NAMES[self as usize]
     }
 
-    /// Returns `true` for primary code/automation languages (`Rust`, `TypeScript`, `Python`, `Shell`, `PowerShell`).
+    /// Returns `true` for primary code/automation languages (`Rust`, `TypeScript`, `Python`, `Shell`, `PowerShell`, `Astro`).
     #[must_use]
     pub const fn is_programming_language(self) -> bool {
         matches!(
             self,
-            Self::Rust | Self::TypeScript | Self::Python | Self::Shell | Self::PowerShell
+            Self::Rust
+                | Self::TypeScript
+                | Self::Python
+                | Self::Shell
+                | Self::PowerShell
+                | Self::Astro
         )
     }
 }
@@ -135,18 +149,18 @@ pub enum FeatureId {
     Tdd,
     /// Storybook `.stories.tsx` parity enforcement (`GF076`).
     Storybook,
+    /// Panda CSS zero-runtime build-time token extraction (`panda.config.*`, `styled-system/`).
+    PandaCss,
+    /// Material Design 3 Expressive (`m3e`: tonal pairing, Spatial/Effects springs, 48dp targets).
+    Material3Expressive,
+    /// W3C HTML5 content models, WAI-ARIA 1.2 & WCAG 2.2 AA/AAA compliance.
+    W3c,
 }
 
-const FEATURE_NAMES: [&str; 9] = [
-    "docker",
-    "git-hooks",
-    "ci-github",
-    "task-runner",
-    "ui",
-    "i18n",
-    "content",
-    "tdd",
-    "storybook",
+#[rustfmt::skip]
+const FEATURE_NAMES: [&str; 12] = [
+    "docker", "git-hooks", "ci-github", "task-runner", "ui", "i18n",
+    "content", "tdd", "storybook", "panda-css", "m3e", "w3c",
 ];
 
 const FEATURE_ALIASES: &[(&str, FeatureId)] = &[
@@ -170,6 +184,17 @@ const FEATURE_ALIASES: &[(&str, FeatureId)] = &[
     ("tdd", FeatureId::Tdd),
     ("storybook", FeatureId::Storybook),
     ("stories", FeatureId::Storybook),
+    ("panda-css", FeatureId::PandaCss),
+    ("pandacss", FeatureId::PandaCss),
+    ("panda", FeatureId::PandaCss),
+    ("m3e", FeatureId::Material3Expressive),
+    ("material3-expressive", FeatureId::Material3Expressive),
+    ("material-3-expressive", FeatureId::Material3Expressive),
+    ("md3", FeatureId::Material3Expressive),
+    ("w3c", FeatureId::W3c),
+    ("wcag", FeatureId::W3c),
+    ("wcag22", FeatureId::W3c),
+    ("html5", FeatureId::W3c),
 ];
 
 impl FeatureId {

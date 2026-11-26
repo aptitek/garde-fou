@@ -15,7 +15,7 @@ fn is_hex_color_token(tok: &str) -> bool {
     matches!(hex.len(), 3 | 4 | 6 | 8) && hex.bytes().all(|b| b.is_ascii_hexdigit())
 }
 
-fn contains_raw_color(val: &str) -> bool {
+pub(super) fn contains_raw_color(val: &str) -> bool {
     let lower = val.to_ascii_lowercase();
     if ["rgb(", "rgba(", "hsl(", "hsla(", "oklch(", "oklab("]
         .iter()
@@ -30,7 +30,7 @@ fn contains_raw_color(val: &str) -> bool {
         .any(is_hex_color_token)
 }
 
-fn is_standalone_css_unit(val: &str) -> bool {
+pub(super) fn is_standalone_css_unit(val: &str) -> bool {
     let trimmed = val.trim();
     for &unit in CSS_UNITS {
         if let Some(num) = trimmed.strip_suffix(unit)
@@ -79,16 +79,41 @@ fn is_translation_call(callee_text: &str) -> bool {
     member == "t" || member == "translate"
 }
 
+fn is_runtime_css_in_js_call(node: Node<'_>, callee: &str, doc: &UastDocument) -> bool {
+    if callee.starts_with("styled.")
+        || callee.starts_with("styled(")
+        || callee == "createGlobalStyle"
+    {
+        return true;
+    }
+    if callee != "css" {
+        return false;
+    }
+    let has_runtime_import = doc.imports.iter().any(|i| {
+        i.module_source == "styled-components"
+            || i.module_source.starts_with("@emotion/")
+            || i.module_source.starts_with("@stitches/")
+            || i.module_source == "goober"
+    });
+    if has_runtime_import {
+        return true;
+    }
+    let first_arg = node.child_by_field_name("arguments").and_then(|a| {
+        if a.kind() == "template_string" {
+            Some(a)
+        } else {
+            a.named_child(0)
+        }
+    });
+    first_arg.is_none_or(|arg| arg.kind() != "object")
+}
+
 fn handle_call_expr(node: Node<'_>, source: &str, doc: &mut UastDocument) {
     let Some(func) = node.child_by_field_name("function") else {
         return;
     };
     let callee = node_text(func, source).trim();
-    if callee.starts_with("styled.")
-        || callee.starts_with("styled(")
-        || callee == "css"
-        || callee == "createGlobalStyle"
-    {
+    if is_runtime_css_in_js_call(node, callee, doc) {
         doc.style_leaks.push(StyleLeakFinding {
             kind: StyleLeakKind::CssInJs,
             detail: format!("CSS-in-JS call `{callee}`"),
@@ -112,22 +137,37 @@ fn handle_call_expr(node: Node<'_>, source: &str, doc: &mut UastDocument) {
     }
 }
 
-fn handle_string_node(node: Node<'_>, source: &str, doc: &mut UastDocument) {
-    if node
-        .parent()
-        .is_some_and(|p| p.kind() == "import_statement")
-    {
-        if let Some(val) = unquote_literal(node_text(node, source))
-            && let Some(asset) = maybe_extract_asset_ref(val)
-        {
-            doc.asset_refs.insert(asset);
-        }
-        return;
+fn is_runtime_css_in_js_specifier(spec: &str) -> bool {
+    spec == "styled-components"
+        || spec.starts_with("@emotion/")
+        || spec.starts_with("@stitches/")
+        || spec == "goober"
+}
+
+fn handle_import_string(val: &str, span: gf_core::Span, doc: &mut UastDocument) {
+    if is_runtime_css_in_js_specifier(val) {
+        doc.style_leaks.push(StyleLeakFinding {
+            kind: StyleLeakKind::CssInJs,
+            detail: format!("runtime CSS-in-JS import `{val}`"),
+            span,
+        });
+    } else if let Some(asset) = maybe_extract_asset_ref(val) {
+        doc.asset_refs.insert(asset);
     }
+}
+
+fn handle_string_node(node: Node<'_>, source: &str, doc: &mut UastDocument) {
     let Some(val) = unquote_literal(node_text(node, source)) else {
         return;
     };
     let span = node_span(node);
+    if node
+        .parent()
+        .is_some_and(|p| p.kind() == "import_statement")
+    {
+        handle_import_string(val, span, doc);
+        return;
+    }
     if val.trim_start().starts_with("data:") {
         doc.style_leaks.push(StyleLeakFinding {
             kind: StyleLeakKind::DataUri,

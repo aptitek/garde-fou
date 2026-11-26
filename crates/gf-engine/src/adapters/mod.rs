@@ -14,12 +14,12 @@ use gf_core::{
     UastDocument,
 };
 pub use gf_parsers::{
-    ToolParseError, parse_actionlint_json, parse_biome_json, parse_dclint_json,
-    parse_hadolint_json, parse_mypy_ndjson, parse_oxlint_json, parse_psscriptanalyzer_json,
-    parse_pyright_json, parse_ruff_json, parse_rumdl_or_markdownlint_json, parse_shellcheck_json,
-    parse_sqlfluff_json, parse_sqruff_json, parse_squawk_json, parse_stylelint_json,
-    parse_taplo_output, parse_tsc_output, parse_xmllint_output, parse_yamllint_parsable,
-    parse_zizmor_sarif,
+    ToolParseError, parse_actionlint_json, parse_astro_check_output, parse_biome_json,
+    parse_dclint_json, parse_hadolint_json, parse_html_validate_json, parse_mypy_ndjson,
+    parse_oxlint_json, parse_psscriptanalyzer_json, parse_pyright_json, parse_ruff_json,
+    parse_rumdl_or_markdownlint_json, parse_shellcheck_json, parse_sqlfluff_json,
+    parse_sqruff_json, parse_squawk_json, parse_stylelint_json, parse_taplo_output,
+    parse_tsc_output, parse_xmllint_output, parse_yamllint_parsable, parse_zizmor_sarif,
 };
 use gf_rules::convert_external_tool_findings;
 use rayon::prelude::*;
@@ -69,24 +69,24 @@ fn resolve_adapter_launcher(
     policy: ScannerPolicy,
     root: &Path,
 ) -> Option<ResolvedPythonTool> {
-    let tool_name = adapter.tool_kind().as_str();
+    let bin_name = adapter.binary_name();
     if adapter.is_python() {
-        return resolve_python_tool(root, tool_name);
+        return resolve_python_tool(root, bin_name);
     }
     if adapter.is_typescript() {
-        if adapter == ExternalAdapter::Tsc
+        if matches!(adapter, ExternalAdapter::Tsc | ExternalAdapter::AstroCheck)
             && policy == ScannerPolicy::Auto
             && root.join("package.json").is_file()
             && !root.join("node_modules").is_dir()
         {
             return None;
         }
-        return resolve_node_tool(root, tool_name).map(ResolvedPythonTool::Direct);
+        return resolve_node_tool(root, bin_name).map(ResolvedPythonTool::Direct);
     }
     if adapter == ExternalAdapter::PsScriptAnalyzer {
         return resolve_pwsh_analyzer().map(ResolvedPythonTool::Direct);
     }
-    resolve_system_binary(tool_name).map(ResolvedPythonTool::Direct)
+    resolve_system_binary(bin_name).map(ResolvedPythonTool::Direct)
 }
 
 fn run_single_adapter(

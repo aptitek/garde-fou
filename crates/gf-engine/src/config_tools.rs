@@ -4,7 +4,7 @@
 use gf_core::{
     CssToolsConfig, DockerToolsConfig, MarkdownToolsConfig, PowerShellToolsConfig,
     PythonToolsConfig, ScannerPolicy, ShellToolsConfig, SqlToolsConfig, TomlToolsConfig,
-    ToolsConfig, TypeScriptToolsConfig, XmlToolsConfig, YamlToolsConfig,
+    ToolsConfig, TypeScriptToolsConfig, WebToolsConfig, XmlToolsConfig, YamlToolsConfig,
 };
 use serde::Deserialize;
 
@@ -88,6 +88,14 @@ struct SqlToolsSection {
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
+struct WebToolsSection {
+    astro_check: Option<String>,
+    html_validate: Option<String>,
+    wrangler_types: Option<String>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ToolsSection {
     python: Option<PythonToolsSection>,
     typescript: Option<TypeScriptToolsSection>,
@@ -100,6 +108,7 @@ pub struct ToolsSection {
     toml: Option<TomlToolsSection>,
     xml: Option<XmlToolsSection>,
     sql: Option<SqlToolsSection>,
+    web: Option<WebToolsSection>,
 }
 
 fn parse_opt_tool_policy(
@@ -184,46 +193,45 @@ fn merge_sql_tools(
     })
 }
 
+fn merge_web_tools(
+    raw: Option<WebToolsSection>,
+    base: WebToolsConfig,
+) -> Result<WebToolsConfig, EngineError> {
+    let Some(wb) = raw else { return Ok(base) };
+    Ok(WebToolsConfig {
+        astro_check: parse_opt_tool_policy(
+            wb.astro_check,
+            base.astro_check,
+            "tools.web.astro_check",
+        )?,
+        html_validate: parse_opt_tool_policy(
+            wb.html_validate,
+            base.html_validate,
+            "tools.web.html_validate",
+        )?,
+        wrangler_types: parse_opt_tool_policy(
+            wb.wrangler_types,
+            base.wrangler_types,
+            "tools.web.wrangler_types",
+        )?,
+    })
+}
+
+#[rustfmt::skip]
 pub fn merge_tools(raw: Option<ToolsSection>) -> Result<ToolsConfig, EngineError> {
     let base = ToolsConfig::defaults();
     let Some(s) = raw else { return Ok(base) };
-    let sh = parse_opt_tool_policy(
-        s.shell.and_then(|x| x.shellcheck),
-        base.shell.shellcheck,
-        "tools.shell.shellcheck",
-    )?;
-    let ps = parse_opt_tool_policy(
-        s.powershell.and_then(|x| x.psscriptanalyzer),
-        base.powershell.psscriptanalyzer,
-        "tools.powershell.psscriptanalyzer",
-    )?;
-    let dk = parse_opt_tool_policy(
-        s.docker.and_then(|x| x.hadolint),
-        base.docker.hadolint,
-        "tools.docker.hadolint",
-    )?;
-    let cs = parse_opt_tool_policy(
-        s.css.and_then(|x| x.stylelint),
-        base.css.stylelint,
-        "tools.css.stylelint",
-    )?;
-    let tm = parse_opt_tool_policy(
-        s.toml.and_then(|x| x.taplo),
-        base.toml.taplo,
-        "tools.toml.taplo",
-    )?;
-    let xm = parse_opt_tool_policy(
-        s.xml.and_then(|x| x.xmllint),
-        base.xml.xmllint,
-        "tools.xml.xmllint",
-    )?;
+    let sh = parse_opt_tool_policy(s.shell.and_then(|x| x.shellcheck), base.shell.shellcheck, "tools.shell.shellcheck")?;
+    let ps = parse_opt_tool_policy(s.powershell.and_then(|x| x.psscriptanalyzer), base.powershell.psscriptanalyzer, "tools.powershell.psscriptanalyzer")?;
+    let dk = parse_opt_tool_policy(s.docker.and_then(|x| x.hadolint), base.docker.hadolint, "tools.docker.hadolint")?;
+    let cs = parse_opt_tool_policy(s.css.and_then(|x| x.stylelint), base.css.stylelint, "tools.css.stylelint")?;
+    let tm = parse_opt_tool_policy(s.toml.and_then(|x| x.taplo), base.toml.taplo, "tools.toml.taplo")?;
+    let xm = parse_opt_tool_policy(s.xml.and_then(|x| x.xmllint), base.xml.xmllint, "tools.xml.xmllint")?;
     Ok(ToolsConfig {
         python: merge_py_tools(s.python, base.python)?,
         typescript: merge_ts_tools(s.typescript, base.typescript)?,
         shell: ShellToolsConfig { shellcheck: sh },
-        powershell: PowerShellToolsConfig {
-            psscriptanalyzer: ps,
-        },
+        powershell: PowerShellToolsConfig { psscriptanalyzer: ps },
         docker: DockerToolsConfig { hadolint: dk },
         yaml: merge_yaml_tools(s.yaml, base.yaml)?,
         css: CssToolsConfig { stylelint: cs },
@@ -231,5 +239,6 @@ pub fn merge_tools(raw: Option<ToolsSection>) -> Result<ToolsConfig, EngineError
         toml: TomlToolsConfig { taplo: tm },
         xml: XmlToolsConfig { xmllint: xm },
         sql: merge_sql_tools(s.sql, base.sql)?,
+        web: merge_web_tools(s.web, base.web)?,
     })
 }

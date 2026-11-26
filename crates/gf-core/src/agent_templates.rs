@@ -13,7 +13,7 @@ pub const CORE_FRAGMENT: &str = include_str!("../../../content/agent-fragments/c
 /// Six-domain segregation fragment (`GF060`–`GF066`).
 pub const DOMAINS_FRAGMENT: &str = include_str!("../../../content/agent-fragments/domains.md");
 
-const LANGUAGE_FRAGMENTS: [&str; 11] = [
+const LANGUAGE_FRAGMENTS: [&str; 13] = [
     include_str!("../../../content/agent-fragments/lang-rust.md"),
     include_str!("../../../content/agent-fragments/lang-typescript.md"),
     include_str!("../../../content/agent-fragments/lang-python.md"),
@@ -25,9 +25,11 @@ const LANGUAGE_FRAGMENTS: [&str; 11] = [
     include_str!("../../../content/agent-fragments/lang-toml.md"),
     include_str!("../../../content/agent-fragments/lang-markdown.md"),
     include_str!("../../../content/agent-fragments/lang-sql.md"),
+    include_str!("../../../content/agent-fragments/lang-astro.md"),
+    include_str!("../../../content/agent-fragments/lang-html.md"),
 ];
 
-const FEATURE_FRAGMENTS: [&str; 9] = [
+const FEATURE_FRAGMENTS: [&str; 12] = [
     include_str!("../../../content/agent-fragments/feat-docker.md"),
     include_str!("../../../content/agent-fragments/feat-git-hooks.md"),
     include_str!("../../../content/agent-fragments/feat-ci-github.md"),
@@ -37,15 +39,21 @@ const FEATURE_FRAGMENTS: [&str; 9] = [
     include_str!("../../../content/agent-fragments/feat-content.md"),
     include_str!("../../../content/agent-fragments/feat-tdd.md"),
     include_str!("../../../content/agent-fragments/feat-storybook.md"),
+    include_str!("../../../content/agent-fragments/feat-panda-css.md"),
+    include_str!("../../../content/agent-fragments/feat-m3e.md"),
+    include_str!("../../../content/agent-fragments/feat-w3c-a11y.md"),
 ];
 
-const FRAMEWORK_FRAGMENTS: [&str; 6] = [
+const FRAMEWORK_FRAGMENTS: [&str; 9] = [
     include_str!("../../../content/agent-fragments/fw-cargo-workspace.md"),
     include_str!("../../../content/agent-fragments/fw-react.md"),
     include_str!("../../../content/agent-fragments/fw-astro.md"),
     include_str!("../../../content/agent-fragments/fw-nextjs.md"),
     include_str!("../../../content/agent-fragments/fw-fastapi.md"),
     include_str!("../../../content/agent-fragments/fw-django.md"),
+    include_str!("../../../content/agent-fragments/fw-react-router.md"),
+    include_str!("../../../content/agent-fragments/fw-cloudflare-workers.md"),
+    include_str!("../../../content/agent-fragments/fw-drizzle.md"),
 ];
 
 /// Returns the embedded Markdown fragment for `lang`.

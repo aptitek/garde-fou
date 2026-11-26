@@ -8,6 +8,7 @@ use crate::language_meta::ExternalToolKind;
 pub use crate::mutation_config_issues::{MutantsConfigIssue, StrykerConfigIssue};
 use crate::shell_ps_tools::ShellInfraConfigIssue;
 use crate::sql_tools::SqlToolConfigIssue;
+use crate::web_edge_tools::WebEdgeConfigIssue;
 use crate::yaml_tools::YamlCiConfigIssue;
 
 /// Specific `[tool.mypy]` configuration weakening (`GF081`).
@@ -162,6 +163,8 @@ pub enum ToolConfigViolation {
     Formats(FormatConfigIssue),
     /// `.squawk.toml`, `.sqruff`, `.sqlfluff`, or `drizzle.config.*` weakened.
     Sql(SqlToolConfigIssue),
+    /// `panda.config.*` or `wrangler.{toml,json,jsonc}` weakened.
+    WebEdge(WebEdgeConfigIssue),
 }
 
 impl ToolConfigViolation {
@@ -171,6 +174,7 @@ impl ToolConfigViolation {
             Self::YamlCi(k) => Some((k.tool(), k.key(), k.remediation())),
             Self::Formats(k) => Some((k.tool(), k.key(), k.remediation())),
             Self::Sql(k) => Some((k.tool(), k.key(), k.remediation())),
+            Self::WebEdge(k) => Some((k.tool(), k.key(), k.remediation())),
             Self::MypyNotStrict(_)
             | Self::RuffWeakened(_)
             | Self::PytestOrCoverageWeakened(_)
@@ -198,7 +202,8 @@ impl ToolConfigViolation {
             | Self::ShellInfra(_)
             | Self::YamlCi(_)
             | Self::Formats(_)
-            | Self::Sql(_) => (ExternalToolKind::Biome, "linter.enabled", REM_CFG_BIOME),
+            | Self::Sql(_)
+            | Self::WebEdge(_) => (ExternalToolKind::Biome, "linter.enabled", REM_CFG_BIOME),
         }
     }
 

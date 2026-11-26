@@ -113,7 +113,7 @@ fn check_forme_tokens(
     config: &Config,
     out: &mut Vec<Diagnostic>,
 ) {
-    if domain != DomainKind::Forme {
+    if domain != DomainKind::Forme && doc.language != Language::Astro {
         return;
     }
     let Some(forme) = &doc.forme else {

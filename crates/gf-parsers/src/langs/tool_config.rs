@@ -6,22 +6,22 @@
 use gf_core::{
     CoverageFailUnder, Language, MutantsConfigIssue, PytestCoverageIssue, RepoPath,
     ToolConfigFinding, ToolConfigViolation, UastDocument, is_sql_tool_config_file,
-    is_tsconfig_filename,
+    is_tsconfig_filename, is_web_edge_tool_config_file,
 };
 
-use super::format_tool_config::{
-    audit_markdownlint_config, audit_stylelint_config, audit_svgo_config,
-};
-use super::format_tool_toml::{audit_rumdl_toml, audit_taplo_toml};
-use super::jsonc::{audit_stryker_json, line_span_containing, push_cfg_violation};
-use super::powershell::psd1_config::audit_psscriptanalyzer_psd1;
-use super::shell_docker_config::{audit_hadolint_yaml, audit_shellcheckrc};
-use super::sql::sql_tool_config::audit_sql_tool_config;
-use super::toml_lang::analyze_toml_into_document;
-use super::tool_config_py::{audit_mypy_table, audit_ruff_tables, section_key_span};
-use super::ts::tsconfig_jsonc::{audit_biome_jsonc, audit_tsconfig_jsonc};
-use super::yaml::yaml_tool_config::{
-    audit_dclint_config, audit_yamllint_config, audit_zizmor_config,
+use super::{
+    format_tool_config::{audit_markdownlint_config, audit_stylelint_config, audit_svgo_config},
+    format_tool_toml::{audit_rumdl_toml, audit_taplo_toml},
+    jsonc::{audit_stryker_json, line_span_containing, push_cfg_violation},
+    powershell::psd1_config::audit_psscriptanalyzer_psd1,
+    shell_docker_config::{audit_hadolint_yaml, audit_shellcheckrc},
+    sql::sql_tool_config::audit_sql_tool_config,
+    toml_lang::analyze_toml_into_document,
+    tool_config_py::{audit_mypy_table, audit_ruff_tables, section_key_span},
+    ts::panda_m3e::audit_panda_config,
+    ts::tsconfig_jsonc::{audit_biome_jsonc, audit_tsconfig_jsonc},
+    ts::wrangler_config::audit_wrangler_config,
+    yaml::yaml_tool_config::{audit_dclint_config, audit_yamllint_config, audit_zizmor_config},
 };
 use crate::cst::line_metrics;
 use crate::types::ParseError;
@@ -168,7 +168,30 @@ fn audit_toml_tool_config(path: &RepoPath, file_name: &str, source: &str, doc: &
     audit_pytest_and_coverage(tool, source, doc);
 }
 
-fn try_audit_format_or_yaml_config(path: &RepoPath, source: &str, doc: &mut UastDocument) -> bool {
+fn try_audit_sql_or_web_config(path: &RepoPath, source: &str, doc: &mut UastDocument) -> bool {
+    if is_sql_tool_config_file(path) {
+        audit_sql_tool_config(path, source, doc);
+        return true;
+    }
+    if is_web_edge_tool_config_file(path) {
+        if path.file_name().starts_with("panda.config.") {
+            audit_panda_config(source, doc);
+        } else {
+            audit_wrangler_config(path, source, doc);
+        }
+        return true;
+    }
+    false
+}
+
+fn try_audit_format_yaml_or_web_config(
+    path: &RepoPath,
+    source: &str,
+    doc: &mut UastDocument,
+) -> bool {
+    if try_audit_sql_or_web_config(path, source, doc) {
+        return true;
+    }
     let name = path.file_name();
     let low = name.to_ascii_lowercase();
     match low.as_str() {
@@ -197,11 +220,7 @@ pub fn extract_tool_config(
 ) -> Result<UastDocument, ParseError> {
     let (total_lines, effective_lines) = line_metrics(source);
     let mut doc = UastDocument::new(path.clone(), lang, total_lines, effective_lines)?;
-    if is_sql_tool_config_file(path) {
-        audit_sql_tool_config(path, source, &mut doc);
-        return Ok(doc);
-    }
-    if try_audit_format_or_yaml_config(path, source, &mut doc) {
+    if try_audit_format_yaml_or_web_config(path, source, &mut doc) {
         return Ok(doc);
     }
     match path.file_name() {

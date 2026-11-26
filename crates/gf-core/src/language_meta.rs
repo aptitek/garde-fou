@@ -1,13 +1,12 @@
 //! Source [`Language`] classification, `tsconfig*.json` inheritance/alias metadata,
 //! and TypeScript declaration file predicates.
 
-use alloc::collections::BTreeMap;
-use alloc::string::String;
-use alloc::vec::Vec;
 use core::fmt;
 use serde::{Deserialize, Serialize};
 
-use crate::diagnostic::Span;
+pub use crate::ts_violations::{
+    TsconfigStrictState, TsconfigSummary, is_known_strict_preset, is_ts_declaration_path,
+};
 
 /// Closed sum type identifying a first-class ecosystem linter, type-checker, or runner.
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
@@ -64,9 +63,15 @@ pub enum ExternalToolKind {
     Sqruff,
     /// `sqlfluff` Python multi-dialect SQL linter (`sqlfluff lint --format json`).
     Sqlfluff,
+    /// `astro check` Astro component & TypeScript verifier (`astro check`).
+    AstroCheck,
+    /// `html-validate` W3C HTML5 & WCAG verifier (`html-validate --formatter json`).
+    HtmlValidate,
+    /// `wrangler types` Cloudflare Workers binding type verifier (`wrangler types --check`).
+    WranglerTypes,
 }
 
-const TOOL_NAMES: [&str; 26] = [
+const TOOL_NAMES: [&str; 29] = [
     "ruff",
     "mypy",
     "pyright",
@@ -93,11 +98,14 @@ const TOOL_NAMES: [&str; 26] = [
     "squawk",
     "sqruff",
     "sqlfluff",
+    "astro-check",
+    "html-validate",
+    "wrangler-types",
 ];
 
 impl ExternalToolKind {
     /// All known ecosystem tool identifiers in deterministic order.
-    pub const ALL: [Self; 26] = [
+    pub const ALL: [Self; 29] = [
         Self::Ruff,
         Self::Mypy,
         Self::Pyright,
@@ -124,6 +132,9 @@ impl ExternalToolKind {
         Self::Squawk,
         Self::Sqruff,
         Self::Sqlfluff,
+        Self::AstroCheck,
+        Self::HtmlValidate,
+        Self::WranglerTypes,
     ];
 
     /// Canonical lowercase CLI/config name of the tool.
@@ -178,6 +189,10 @@ pub enum Language {
     Xml,
     /// SQL query, view, or database migration script (`.sql`).
     Sql,
+    /// Astro component / page / layout template (`.astro`).
+    Astro,
+    /// W3C HTML5 document (`.html`, `.htm`).
+    Html,
     /// Non-text binary media or font asset (`.png`, `.woff2`, `.pdf`, etc.).
     BinaryAsset,
     /// Unclassified text or source file.
@@ -196,6 +211,7 @@ impl Language {
                 | Self::Tsx
                 | Self::JavaScript
                 | Self::Jsx
+                | Self::Astro
                 | Self::Shell
                 | Self::PowerShell
                 | Self::Dockerfile
@@ -215,36 +231,8 @@ impl Language {
                     | Self::Xml
                     | Self::Svg
                     | Self::Sql
+                    | Self::Html
                     | Self::BinaryAsset
             )
     }
 }
-
-/// Tri-state representation of `compilerOptions.strict` inside a `tsconfig*.json` file.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
-pub enum TsconfigStrictState {
-    /// `"strict": true` explicitly declared.
-    ExplicitTrue,
-    /// `"strict": false` explicitly declared.
-    ExplicitFalse,
-    /// `"strict"` omitted (valid only when inherited via `"extends"`).
-    Omitted,
-}
-
-/// Parsed `tsconfig*.json` summary enabling workspace `"extends"` verification (`GF081`)
-/// and `compilerOptions.baseUrl` / `paths` import alias resolution (`GF071` & `GF072`).
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-pub struct TsconfigSummary {
-    /// Optional `"extends"` parent specifier (relative path or preset package).
-    pub extends: Option<String>,
-    /// Declared state of `compilerOptions.strict`.
-    pub strict: TsconfigStrictState,
-    /// Optional `compilerOptions.baseUrl`.
-    pub base_url: Option<String>,
-    /// Optional `compilerOptions.paths` alias table (`pattern -> [targets]`).
-    pub paths: BTreeMap<String, Vec<String>>,
-    /// 1-based span used if an inherited `tsconfig` chain fails to enable `"strict": true`.
-    pub strict_span: Span,
-}
-
-pub use crate::ts_violations::{is_known_strict_preset, is_ts_declaration_path};

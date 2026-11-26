@@ -141,6 +141,41 @@ pub fn push_format_jobs(
         jobs.push((ExternalAdapter::Xmllint, xml_t));
     }
     push_sql_jobs(docs, staged_filter, jobs);
+    push_web_jobs(docs, staged_filter, jobs);
+}
+
+fn is_astro_cfg(name: &str) -> bool {
+    matches!(
+        name.to_ascii_lowercase().as_str(),
+        "astro.config.mjs" | "astro.config.ts" | "astro.config.js"
+    )
+}
+
+fn is_html_validate_cfg(name: &str) -> bool {
+    name.to_ascii_lowercase().starts_with(".htmlvalidate.")
+}
+
+fn push_web_jobs(
+    docs: &[UastDocument],
+    staged_filter: Option<&BTreeSet<RepoPath>>,
+    jobs: &mut Vec<(ExternalAdapter, Vec<String>)>,
+) {
+    if let Some(astro_t) = resolve_matching_doc_targets(
+        docs,
+        staged_filter,
+        |d| d.language == Language::Astro,
+        is_astro_cfg,
+    ) {
+        jobs.push((ExternalAdapter::AstroCheck, astro_t));
+    }
+    if let Some(html_t) = resolve_matching_doc_targets(
+        docs,
+        staged_filter,
+        |d| d.language == Language::Html,
+        is_html_validate_cfg,
+    ) {
+        jobs.push((ExternalAdapter::HtmlValidate, html_t));
+    }
 }
 
 fn is_squawk_cfg(name: &str) -> bool {

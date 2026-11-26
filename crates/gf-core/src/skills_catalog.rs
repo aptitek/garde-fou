@@ -122,48 +122,28 @@ pub struct SkillEntry {
     pub summary: String,
 }
 
-const SKILL_PBT: RemoteSkillSpec = RemoteSkillSpec {
-    id: "property-based-testing",
-    repo: "trailofbits/skills",
-    skill_path: "plugins/property-based-testing/skills/property-based-testing",
-    summary: "Property-based testing invariants (proptest, Hypothesis, fast-check).",
-};
-const SKILL_AST_GREP: RemoteSkillSpec = RemoteSkillSpec {
-    id: "ast-grep",
-    repo: "ast-grep/agent-skill",
-    skill_path: "skills/ast-grep",
-    summary: "Structural AST search and refactoring rules with ast-grep.",
-};
-const SKILL_RUST_BP: RemoteSkillSpec = RemoteSkillSpec {
-    id: "rust-best-practices",
-    repo: "apollographql/skills",
-    skill_path: "skills/rust-best-practices",
-    summary: "Idiomatic Safe Rust ownership, Clippy, and error-handling patterns.",
-};
-const SKILL_RUST_REVIEW: RemoteSkillSpec = RemoteSkillSpec {
-    id: "rust-review",
-    repo: "trailofbits/skills",
-    skill_path: "plugins/rust-review/skills/rust-review",
-    summary: "Security & panic-DoS auditing for Rust crates and workspaces.",
-};
-const SKILL_WEB_DESIGN: RemoteSkillSpec = RemoteSkillSpec {
-    id: "web-design-guidelines",
-    repo: "vercel-labs/agent-skills",
-    skill_path: "skills/web-design-guidelines",
-    summary: "UI accessibility (a11y), design tokens, and semantic HTML guidelines.",
-};
-const SKILL_REACT_BP: RemoteSkillSpec = RemoteSkillSpec {
-    id: "vercel-react-best-practices",
-    repo: "vercel-labs/agent-skills",
-    skill_path: "skills/react-best-practices",
-    summary: "React & Next.js component composition and rendering performance.",
-};
-const SKILL_MODERN_PYTHON: RemoteSkillSpec = RemoteSkillSpec {
-    id: "modern-python",
-    repo: "trailofbits/skills",
-    skill_path: "plugins/modern-python/skills/modern-python",
-    summary: "Modern Python workflows with uv, ruff, pytest, and strict type checking.",
-};
+#[rustfmt::skip]
+const BUILTINS: [(&str, &str, &str, &str); 8] = [
+    ("property-based-testing", "trailofbits/skills", "plugins/property-based-testing/skills/property-based-testing", "Property-based testing invariants (proptest, Hypothesis, fast-check)."),
+    ("ast-grep", "ast-grep/agent-skill", "skills/ast-grep", "Structural AST search and refactoring rules with ast-grep."),
+    ("rust-best-practices", "apollographql/skills", "skills/rust-best-practices", "Idiomatic Safe Rust ownership, Clippy, and error-handling patterns."),
+    ("rust-review", "trailofbits/skills", "plugins/rust-review/skills/rust-review", "Security & panic-DoS auditing for Rust crates and workspaces."),
+    ("web-design-guidelines", "vercel-labs/agent-skills", "skills/web-design-guidelines", "UI accessibility (a11y), design tokens, and semantic HTML guidelines."),
+    ("vercel-react-best-practices", "vercel-labs/agent-skills", "skills/react-best-practices", "React & Next.js component composition and rendering performance."),
+    ("workers-best-practices", "cloudflare/skills", "skills/workers-best-practices", "Cloudflare Workers, D1, R2, and Wrangler production edge best practices."),
+    ("modern-python", "trailofbits/skills", "plugins/modern-python/skills/modern-python", "Modern Python workflows with uv, ruff, pytest, and strict type checking."),
+];
+
+fn builtin_spec(idx: usize) -> ResolvedSkillSpec {
+    let (id, repo, skill_path, summary) = BUILTINS[idx];
+    RemoteSkillSpec {
+        id,
+        repo,
+        skill_path,
+        summary,
+    }
+    .into()
+}
 
 fn split_pinned_rev(tail: &str) -> Result<(&str, Option<String>), &'static str> {
     let Some((id, sha)) = tail.split_once('#') else {
@@ -210,6 +190,14 @@ pub fn parse_extra_skill_spec(raw: &str) -> Result<ResolvedSkillSpec, &'static s
     })
 }
 
+#[rustfmt::skip]
+fn has_web_ui_context(ctx: &ProjectContext) -> bool {
+    [LanguageId::TypeScript, LanguageId::Astro, LanguageId::Html].iter().any(|l| ctx.languages.contains(l))
+        || [FeatureId::Ui, FeatureId::PandaCss, FeatureId::Material3Expressive, FeatureId::W3c]
+            .iter()
+            .any(|f| ctx.features.contains(f))
+}
+
 /// Resolves the ordered, deduplicated list of `skills.sh` skills matching `ctx` and `cfg`.
 #[must_use]
 pub fn select_contextual_skills(
@@ -223,22 +211,31 @@ pub fn select_contextual_skills(
             map.entry(spec.id.clone()).or_insert(spec);
         }
     };
-
-    insert(SKILL_PBT.into());
-    insert(SKILL_AST_GREP.into());
+    for idx in [0, 1] {
+        insert(builtin_spec(idx));
+    }
     if ctx.languages.contains(&LanguageId::Rust) {
-        insert(SKILL_RUST_BP.into());
-        insert(SKILL_RUST_REVIEW.into());
+        insert(builtin_spec(2));
+        insert(builtin_spec(3));
     }
     if ctx.languages.contains(&LanguageId::Python) {
-        insert(SKILL_MODERN_PYTHON.into());
+        insert(builtin_spec(7));
     }
-    if ctx.languages.contains(&LanguageId::TypeScript) || ctx.features.contains(&FeatureId::Ui) {
-        insert(SKILL_WEB_DESIGN.into());
+    if has_web_ui_context(ctx) {
+        insert(builtin_spec(4));
     }
-    if ctx.frameworks.contains(&FrameworkId::React) || ctx.frameworks.contains(&FrameworkId::NextJs)
+    if [
+        FrameworkId::React,
+        FrameworkId::NextJs,
+        FrameworkId::ReactRouter,
+    ]
+    .iter()
+    .any(|fw| ctx.frameworks.contains(fw))
     {
-        insert(SKILL_REACT_BP.into());
+        insert(builtin_spec(5));
+    }
+    if ctx.frameworks.contains(&FrameworkId::CloudflareWorkers) {
+        insert(builtin_spec(6));
     }
     for extra in &cfg.extra_skills {
         if let Ok(parsed) = parse_extra_skill_spec(extra) {

@@ -214,7 +214,7 @@ impl Config {
         let cov = self.coverage.canonical_fragment();
         let mut_f = self.mutation.canonical_fragment();
         format!(
-            "v16|fl={}|fnl={}|p={}|cyc={}|cog={}|nest={}|imp={}|meth={}|sb={}|cll={}|cln={}|csim={}|{dom}|{fort}|sec={sec}|vul={vul}|{cov}|{mut_f}|i={}|e={}|l={}|ft={}|fw={}",
+            "v17|fl={}|fnl={}|p={}|cyc={}|cog={}|nest={}|imp={}|meth={}|sb={}|cll={}|cln={}|csim={}|{dom}|{fort}|sec={sec}|vul={vul}|{cov}|{mut_f}|i={}|e={}|l={}|ft={}|fw={}",
             l.max_file_lines,
             l.max_function_lines,
             l.max_parameters,

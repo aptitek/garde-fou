@@ -15,6 +15,17 @@ const TOKENS_CSS: &str = "/* Design Tokens — single source of primitive visual
   --radius-md: 8px;\n\
 }\n";
 
+const TOKENS_M3E_CSS: &str = "/* Material Design 3 Expressive Tokens (md.sys.color.primaryContainer / onSurfaceVariant) */\n\
+:root {\n\
+  --color-bg: #0f172a;\n\
+  --color-fg: #f8fafc;\n\
+  --color-accent: #38bdf8;\n\
+  --md-sys-color-primary-container: #d3e4ff;\n\
+  --md-sys-color-on-surface-variant: #44474e;\n\
+  --space-4: 16px;\n\
+  --radius-md: 8px;\n\
+}\n";
+
 const APP_CSS: &str = "/* Semantic component styles consuming exclusively Design Tokens */\n\
 .app-shell {\n\
   background-color: var(--color-bg);\n\
@@ -94,13 +105,16 @@ pub fn collect_all_init_files(
 }
 
 fn six_domain_feature_files(project_kebab: &str, ctx: &ProjectContext) -> Vec<(String, String)> {
-    let has_ui = ctx.features.contains(&FeatureId::Ui);
+    let has_ui = ctx.features.contains(&FeatureId::Ui)
+        || ctx.features.contains(&FeatureId::Material3Expressive);
+    let has_m3e = ctx.features.contains(&FeatureId::Material3Expressive);
     let has_i18n = ctx.features.contains(&FeatureId::I18n);
     let has_content = ctx.features.contains(&FeatureId::Content);
 
     let mut files = Vec::new();
     if has_ui {
-        files.push((String::from("styles/tokens.css"), String::from(TOKENS_CSS)));
+        let tok_css = if has_m3e { TOKENS_M3E_CSS } else { TOKENS_CSS };
+        files.push((String::from("styles/tokens.css"), String::from(tok_css)));
         files.push((String::from("styles/app.css"), String::from(APP_CSS)));
     }
     if has_i18n {
@@ -137,13 +151,20 @@ fn infer_feature_languages(ctx: &mut ProjectContext) {
     if has_yaml_feat {
         ctx.languages.insert(LanguageId::Yaml);
     }
-    if ctx.features.contains(&FeatureId::Ui) {
+    if ctx.features.contains(&FeatureId::Ui)
+        || ctx.features.contains(&FeatureId::Material3Expressive)
+    {
         ctx.languages.insert(LanguageId::Css);
         ctx.languages.insert(LanguageId::Xml);
     }
     if ctx.features.contains(&FeatureId::Content) {
         ctx.languages.insert(LanguageId::Xml);
         ctx.languages.insert(LanguageId::Markdown);
+    }
+    if ctx.languages.contains(&LanguageId::Astro) {
+        ctx.languages.insert(LanguageId::TypeScript);
+        ctx.features.insert(FeatureId::W3c);
+        ctx.frameworks.insert(FrameworkId::Astro);
     }
 }
 
@@ -152,7 +173,12 @@ pub fn finalize_init_context(ctx: &mut ProjectContext) {
     for fw in &ctx.frameworks {
         let lang = match fw {
             FrameworkId::CargoWorkspace => LanguageId::Rust,
-            FrameworkId::React | FrameworkId::Astro | FrameworkId::NextJs => LanguageId::TypeScript,
+            FrameworkId::React
+            | FrameworkId::Astro
+            | FrameworkId::NextJs
+            | FrameworkId::ReactRouter
+            | FrameworkId::CloudflareWorkers
+            | FrameworkId::Drizzle => LanguageId::TypeScript,
             FrameworkId::FastApi | FrameworkId::Django => LanguageId::Python,
         };
         ctx.languages.insert(lang);

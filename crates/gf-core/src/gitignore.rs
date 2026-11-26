@@ -6,7 +6,7 @@ use alloc::format;
 use alloc::string::String;
 use alloc::vec::Vec;
 
-use crate::context::{FrameworkId, LanguageId, ProjectContext};
+use crate::context::{FeatureId, FrameworkId, LanguageId, ProjectContext};
 
 /// Opening marker of the Garde-fou managed `.gitignore` block.
 pub const MANAGED_START: &str = "# >>> garde-fou managed >>>";
@@ -64,11 +64,20 @@ fn append_language_sections(out: &mut String, ctx: &ProjectContext, seen: &mut B
     if ctx.languages.contains(&LanguageId::Rust) {
         append_section(out, "Rust", &["/target/", "**/*.rs.bk"], seen);
     }
-    if ctx.languages.contains(&LanguageId::TypeScript) {
+    if ctx.languages.contains(&LanguageId::TypeScript) || ctx.languages.contains(&LanguageId::Astro)
+    {
         append_section(
             out,
             "TypeScript / Node",
-            &["node_modules/", "dist/", "*.tsbuildinfo", ".tsbuildinfo"],
+            &[
+                "node_modules/",
+                "dist/",
+                "*.tsbuildinfo",
+                ".tsbuildinfo",
+                "styled-system/",
+                ".wrangler/",
+                ".dev.vars",
+            ],
             seen,
         );
     }
@@ -90,11 +99,25 @@ fn append_language_sections(out: &mut String, ctx: &ProjectContext, seen: &mut B
 }
 
 fn append_framework_sections(out: &mut String, ctx: &ProjectContext, seen: &mut BTreeSet<String>) {
-    if ctx.frameworks.contains(&FrameworkId::Astro) {
+    if ctx.frameworks.contains(&FrameworkId::Astro) || ctx.languages.contains(&LanguageId::Astro) {
         append_section(out, "Astro", &[".astro/"], seen);
     }
     if ctx.frameworks.contains(&FrameworkId::NextJs) {
         append_section(out, "Next.js", &[".next/", "out/"], seen);
+    }
+    if ctx.frameworks.contains(&FrameworkId::ReactRouter) {
+        append_section(out, "React Router", &[".react-router/", "build/"], seen);
+    }
+    if ctx.frameworks.contains(&FrameworkId::CloudflareWorkers) {
+        append_section(
+            out,
+            "Cloudflare Workers",
+            &[".wrangler/", ".dev.vars"],
+            seen,
+        );
+    }
+    if ctx.features.contains(&FeatureId::PandaCss) {
+        append_section(out, "Panda CSS", &["styled-system/"], seen);
     }
     if ctx.frameworks.contains(&FrameworkId::Django) {
         append_section(out, "Django", &["db.sqlite3", "staticfiles/"], seen);
@@ -162,36 +185,41 @@ pub fn merge_managed_block(existing: Option<&str>, managed: &str) -> String {
     format!("{trimmed_existing}\n\n{clean_managed}\n")
 }
 
+#[rustfmt::skip]
+const DOCKER_BASE_IGNORES: &[&str] = &[
+    ".git", ".gitignore", ".garde-fou-cache", ".env", ".env.*", "*.pem", "*.key", "coverage", "lcov.info",
+];
+
+#[rustfmt::skip]
+const DOCKER_WEB_IGNORES: &[&str] = &[
+    "node_modules", "dist", ".astro", ".next", ".react-router", "styled-system", ".wrangler", ".dev.vars", "out",
+];
+
+#[rustfmt::skip]
+const DOCKER_PY_IGNORES: &[&str] = &[
+    ".venv", "__pycache__", ".pytest_cache", ".mypy_cache", ".ruff_cache",
+];
+
 /// Composes a strict `.dockerignore` satisfying `GF034` for all languages active in `ctx`.
 #[must_use]
 pub fn compose_dockerignore(ctx: &ProjectContext) -> String {
     let mut body = String::new();
     let mut seen = BTreeSet::new();
-
     append_section(
         &mut body,
         "VCS, Secrets & Local Caches",
-        &[
-            ".git",
-            ".gitignore",
-            ".garde-fou-cache",
-            ".env",
-            ".env.*",
-            "*.pem",
-            "*.key",
-            "coverage",
-            "lcov.info",
-        ],
+        DOCKER_BASE_IGNORES,
         &mut seen,
     );
     if ctx.languages.contains(&LanguageId::Rust) {
         append_section(&mut body, "Rust Build Artifacts", &["target"], &mut seen);
     }
-    if ctx.languages.contains(&LanguageId::TypeScript) {
+    if ctx.languages.contains(&LanguageId::TypeScript) || ctx.languages.contains(&LanguageId::Astro)
+    {
         append_section(
             &mut body,
             "Node & Web Build Artifacts",
-            &["node_modules", "dist", ".astro", ".next", "out"],
+            DOCKER_WEB_IGNORES,
             &mut seen,
         );
     }
@@ -199,13 +227,7 @@ pub fn compose_dockerignore(ctx: &ProjectContext) -> String {
         append_section(
             &mut body,
             "Python Virtualenvs & Bytecode",
-            &[
-                ".venv",
-                "__pycache__",
-                ".pytest_cache",
-                ".mypy_cache",
-                ".ruff_cache",
-            ],
+            DOCKER_PY_IGNORES,
             &mut seen,
         );
     }

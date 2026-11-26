@@ -169,7 +169,7 @@ fn format_tool_filenames_and_canonical_config_keys_are_exact() -> Res {
     assert_eq!(c1.tools.toml, TomlToolsConfig::default());
     assert_eq!(c1.tools.xml, XmlToolsConfig::default());
     let s1 = c1.canonical_string();
-    assert!(s1.starts_with("v16|"));
+    assert!(s1.starts_with("v17|"));
     c1.tools.css.stylelint = ScannerPolicy::Off;
     let s2 = c1.canonical_string();
     assert_ne!(s1, s2);

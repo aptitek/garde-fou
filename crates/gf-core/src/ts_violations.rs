@@ -1,6 +1,37 @@
 //! Closed algebraic sum types for Tier 1 TypeScript & React 19 AST violations (`GF080`).
 
+use alloc::collections::BTreeMap;
+use alloc::string::String;
+use alloc::vec::Vec;
 use serde::{Deserialize, Serialize};
+
+use crate::diagnostic::Span;
+
+/// Tri-state representation of `compilerOptions.strict` inside a `tsconfig*.json` file.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub enum TsconfigStrictState {
+    /// `"strict": true` explicitly declared.
+    ExplicitTrue,
+    /// `"strict": false` explicitly declared.
+    ExplicitFalse,
+    /// `"strict"` omitted (valid only when inherited via `"extends"`).
+    Omitted,
+}
+
+/// Parsed `tsconfig*.json` summary enabling workspace `"extends"` verification (`GF081`).
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct TsconfigSummary {
+    /// Optional `"extends"` parent specifier.
+    pub extends: Option<String>,
+    /// Declared state of `compilerOptions.strict`.
+    pub strict: TsconfigStrictState,
+    /// Optional `compilerOptions.baseUrl`.
+    pub base_url: Option<String>,
+    /// Optional `compilerOptions.paths` alias table (`pattern -> [targets]`).
+    pub paths: BTreeMap<String, Vec<String>>,
+    /// 1-based span used if an inherited `tsconfig` chain fails to enable `"strict": true`.
+    pub strict_span: Span,
+}
 
 /// Sub-category of hazardous `async` callbacks losing rejections or cleanup functions (`GF080`).
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]

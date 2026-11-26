@@ -66,7 +66,7 @@ fn wrangler_d1_and_drizzle_sqlite_context_detection_drive_migration_rules()
     let repo = TempRepo::new("d1-ctx")?;
     repo.write(
         "wrangler.toml",
-        "name = \"edge-worker\"\nmain = \"src/index.ts\"\n\n[[d1_databases]]\nbinding = \"DB\"\ndatabase_name = \"prod\"\ndatabase_id = \"00000000-0000-0000-0000-000000000000\"\n",
+        "name = \"edge-worker\"\nmain = \"src/index.ts\"\ncompatibility_date = \"2025-01-01\"\n\n[[d1_databases]]\nbinding = \"DB\"\ndatabase_name = \"prod\"\ndatabase_id = \"00000000-0000-0000-0000-000000000000\"\n",
     )?;
     repo.write(
         "migrations/0001_init.sql",
@@ -86,7 +86,10 @@ fn wrangler_d1_and_drizzle_sqlite_context_detection_drive_migration_rules()
     );
 
     // Removing `d1_databases` switches auto-dialect back to Postgres where `BEGIN ... COMMIT` around CREATE TABLE is valid!
-    repo.write("wrangler.toml", "name = \"plain-worker\"\n")?;
+    repo.write(
+        "wrangler.toml",
+        "name = \"plain-worker\"\ncompatibility_date = \"2025-01-01\"\n",
+    )?;
     let rep_pg = run_check(repo.path(), ScanScope::All, &cfg)?;
     assert_ne!(rep_d1.cache_fingerprint, rep_pg.cache_fingerprint);
     assert!(

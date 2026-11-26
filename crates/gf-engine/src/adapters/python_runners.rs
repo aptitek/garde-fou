@@ -57,6 +57,10 @@ pub enum ExternalAdapter {
     Sqruff,
     /// `sqlfluff lint --format json <sql-files...>`.
     Sqlfluff,
+    /// `astro check` (`@astrojs/check`).
+    AstroCheck,
+    /// `html-validate --formatter json -- <html-files...>`.
+    HtmlValidate,
 }
 
 impl ExternalAdapter {
@@ -91,7 +95,7 @@ impl ExternalAdapter {
         )
     }
 
-    /// Returns `true` for Node/npm CLI adapters (`oxlint`, `biome`, `tsc`, `dclint`, `stylelint`, `markdownlint`).
+    /// Returns `true` for Node/npm CLI adapters (`oxlint`, `biome`, `tsc`, `dclint`, `stylelint`, `markdownlint`, `astro-check`, `html-validate`).
     #[must_use]
     pub const fn is_typescript(self) -> bool {
         matches!(
@@ -102,7 +106,19 @@ impl ExternalAdapter {
                 | Self::Dclint
                 | Self::Stylelint
                 | Self::Markdownlint
+                | Self::AstroCheck
+                | Self::HtmlValidate
         )
+    }
+
+    /// Executable binary name looked up in `node_modules/.bin` or `PATH`.
+    #[must_use]
+    pub const fn binary_name(self) -> &'static str {
+        if matches!(self, Self::AstroCheck) {
+            "astro"
+        } else {
+            self.tool_kind().as_str()
+        }
     }
 
     /// Returns `true` when diagnostics are emitted on `stderr` (`taplo`, `xmllint`).

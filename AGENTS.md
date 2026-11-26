@@ -75,7 +75,7 @@ Les frontières entre crates sont vérifiées par le compilateur et par les test
 | :--- | :--- |
 | `Code` | `src/**, crates/**, app/**, lib/**, packages/**` |
 | `Scripts` | `scripts/**, tools/**` |
-| `Forme` (Tokens) | `styles/**, tokens/**, theme/**, design-system/**, src/styles/**, src/tokens/**, panda.config.*` (`tokens/**, styles/tokens/**, src/tokens/**, **/tokens.*, **/variables.css, panda.config.*`) |
+| `Forme` (Tokens) | `styles/**, tokens/**, theme/**, design-system/**, src/styles/**, src/tokens/**, **/recipes/**, **/tokens/**, panda.config.*` (`tokens/**, styles/tokens/**, src/tokens/**, **/tokens/**, **/tokens.*, **/variables.css, panda.config.*`) |
 | `Texte` | `locales/**, i18n/**, messages/**, src/locales/**` |
 | `Contenus` | `content/**, courses/**, docs/**, src/content/**` |
 | `Asset` (`max_asset_bytes`) | `assets/**, public/**, static/**, src/assets/**` (`1048576` B) |

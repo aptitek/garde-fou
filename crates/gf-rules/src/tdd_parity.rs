@@ -84,7 +84,7 @@ fn requires_companion_test(doc: &UastDocument, ctx: &ProjectContext, config: &Co
         && doc.language.is_code_analyzed()
         && !matches!(
             doc.language,
-            Language::Dockerfile | Language::Shell | Language::PowerShell
+            Language::Dockerfile | Language::Shell | Language::PowerShell | Language::Astro
         )
         && !is_ts_declaration_path(raw_path)
         && !raw_path.contains(".stories.")

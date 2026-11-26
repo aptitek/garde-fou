@@ -32,6 +32,7 @@ mod tdd_parity;
 mod tool_checks;
 mod ts_import_resolver;
 mod type_and_uast_checks;
+mod web_edge_workspace_checks;
 mod workspace_checks;
 
 use alloc::vec::Vec;
@@ -54,6 +55,7 @@ use {
     tdd_parity::check_workspace_tdd,
     tool_checks::{check_local_tool_and_lang_rules, check_workspace_tsconfigs},
     type_and_uast_checks::{check_root_uast, check_types},
+    web_edge_workspace_checks::check_workspace_web_edge,
     workspace_checks::check_dead_exports,
 };
 pub use {
@@ -140,6 +142,7 @@ pub fn evaluate_workspace(
         check_workspace_tsconfigs(docs),
         check_workspace_formats(docs),
         check_workspace_sql_migrations(docs),
+        check_workspace_web_edge(docs, config),
         check_architecture_purity(docs, config),
     ])
 }

@@ -10,7 +10,10 @@ mod value_rules;
 
 use std::collections::BTreeSet;
 
-use gf_core::{CssViolation, FormeDocument, FormeFinding, Language, RepoPath, UastDocument};
+use gf_core::{
+    A11yViolation, CssViolation, FormeDocument, FormeFinding, LangRuleFinding, Language, RepoPath,
+    Span, UastDocument, WebEdgeSummary,
+};
 
 use crate::cst::line_metrics;
 use crate::types::{LanguageExtractor, ParseError};
@@ -55,9 +58,86 @@ impl LanguageExtractor for CssExtractor {
         for rule in &rules {
             analyze_css_rule(rule, &mut findings, &mut doc.asset_refs);
         }
+        check_css_a11y_focus_and_motion(source, &rules, &mut doc);
         doc.forme = Some(FormeDocument { findings });
         Ok(doc)
     }
+}
+
+fn is_outline_none_or_zero(values: &[CssValue]) -> bool {
+    values.iter().any(|v| match v {
+        CssValue::Token(CssToken {
+            kind: CssTokKind::Ident(id),
+            ..
+        }) => id.eq_ignore_ascii_case("none"),
+        CssValue::Token(CssToken {
+            kind: CssTokKind::Number(num) | CssTokKind::Dimension { num, .. },
+            ..
+        }) => num == "0",
+        _ => false,
+    })
+}
+
+fn collect_css_a11y_rules(
+    rule: &CssRule,
+    has_focus_visible: bool,
+    motion_spans: &mut Vec<Span>,
+    out: &mut Vec<LangRuleFinding>,
+) {
+    if let CssRule::AtRule { name, line, .. } = rule
+        && name.eq_ignore_ascii_case("keyframes")
+    {
+        motion_spans.push(Span::new(*line, *line).unwrap_or(Span::FIRST));
+    }
+    for d in rule.declarations() {
+        let span = Span::new(d.line, d.line).unwrap_or(Span::FIRST);
+        if d.property == "outline" && is_outline_none_or_zero(&d.values) && !has_focus_visible {
+            out.push(LangRuleFinding::new(
+                A11yViolation::TabindexAndFocusRing,
+                span,
+                String::from(
+                    "`outline: none`/`0` removes focus ring without a `:focus-visible` style",
+                ),
+            ));
+        }
+        if matches!(d.property.as_str(), "animation" | "animation-name")
+            && !is_outline_none_or_zero(&d.values)
+        {
+            motion_spans.push(span);
+        }
+    }
+    for nr in rule.nested_rules() {
+        collect_css_a11y_rules(nr, has_focus_visible, motion_spans, out);
+    }
+}
+
+fn check_css_a11y_focus_and_motion(source: &str, rules: &[CssRule], doc: &mut UastDocument) {
+    let low = source.to_ascii_lowercase();
+    let has_focus_visible = low.contains(":focus-visible");
+    let has_reduced_motion = low.contains("prefers-reduced-motion");
+    let mut motion_spans = Vec::new();
+    for rule in rules {
+        collect_css_a11y_rules(
+            rule,
+            has_focus_visible,
+            &mut motion_spans,
+            &mut doc.lang_rule_findings,
+        );
+    }
+    if !has_reduced_motion {
+        for &span in &motion_spans {
+            doc.lang_rule_findings.push(LangRuleFinding::new(
+                A11yViolation::MediaFormMotion,
+                span,
+                String::from(
+                    "CSS `@keyframes`/animation lacks `@media (prefers-reduced-motion: reduce)` guard",
+                ),
+            ));
+        }
+    }
+    let we = doc.web_edge.get_or_insert_with(WebEdgeSummary::default);
+    we.forme_has_reduced_motion = has_reduced_motion;
+    we.forme_spatial_motion_spans = motion_spans;
 }
 
 fn analyze_at_import(

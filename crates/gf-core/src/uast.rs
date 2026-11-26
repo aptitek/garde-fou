@@ -22,6 +22,7 @@ use crate::policies::ForbiddenRuleKind;
 use crate::python_violations::CoverageFailUnder;
 use crate::sql_violations::SqlDocument;
 use crate::tool_ingest::{LangRuleFinding, ToolConfigFinding};
+use crate::web_edge_summary::WebEdgeSummary;
 
 /// Language-agnostic semantic node categories inside a [`UastDocument`].
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -142,6 +143,9 @@ pub struct UastDocument {
     /// Optional SQL & database migration summary (`GF080` `MIG-*`).
     #[serde(default)]
     pub sql_doc: Option<SqlDocument>,
+    /// Optional Web, Cloudflare/Wrangler, Drizzle, and `Forme` motion summary (`GF080`–`GF081`).
+    #[serde(default)]
+    pub web_edge: Option<WebEdgeSummary>,
     /// Root `UAST` node (typically [`UastKind::File`]).
     pub root: UastNode,
 }
@@ -193,6 +197,7 @@ impl UastDocument {
             asset: None,
             toml_manifest: None,
             sql_doc: None,
+            web_edge: None,
             root: UastNode::leaf(UastKind::File, root_span),
         })
     }

@@ -47,6 +47,9 @@ fn should_descend(entry_path: &Path, root: &Path) -> bool {
                 | ".agents"
                 | "mutants.out"
                 | ".stryker-tmp"
+                | ".wrangler"
+                | ".react-router"
+                | ".astro"
         )
     })
 }

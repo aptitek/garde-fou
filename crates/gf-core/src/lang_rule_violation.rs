@@ -9,6 +9,10 @@ use crate::python_violations::PythonViolation;
 use crate::shell_ps_violations::{PowerShellViolation, ShellViolation};
 use crate::sql_violations::{MigrationViolation, SqlViolation};
 use crate::ts_violations::{ReactViolation, TypescriptViolation};
+use crate::web_edge_tools::{CloudflareViolation, DrizzleViolation, WebEdgeViolation};
+use crate::web_edge_violations::{
+    A11yViolation, AstroViolation, M3eViolation, PandaViolation, ReactRouterViolation, W3cViolation,
+};
 use crate::yaml_violations::{ComposeViolation, WorkflowViolation, YamlViolation};
 
 /// Unified closed sum type across all Tier 1 native language & schema violations (`GF080`).
@@ -38,28 +42,24 @@ pub enum LangRuleViolation {
     Sql(SqlViolation),
     /// Native zero-downtime database migration violation (`MIG-*`).
     Migration(MigrationViolation),
+    /// Native Web, Design System (`Panda`/`M3E`), W3C/WCAG, Cloudflare, and Drizzle violation.
+    WebEdge(WebEdgeViolation),
 }
 
 impl LangRuleViolation {
-    const fn infra_data_descriptor(self) -> Option<(&'static str, &'static str)> {
+    const fn yaml_or_format_descriptor(self) -> Option<(&'static str, &'static str)> {
         match self {
             Self::Yaml(v) => Some((v.code(), v.remediation())),
             Self::Compose(v) => Some((v.code(), v.remediation())),
             Self::Workflow(v) => Some((v.code(), v.remediation())),
             Self::XmlSvg(v) => Some((v.code(), v.remediation())),
             Self::Toml(v) => Some((v.code(), v.remediation())),
-            Self::Sql(v) => Some((v.code(), v.remediation())),
-            Self::Migration(v) => Some((v.code(), v.remediation())),
-            Self::Python(_)
-            | Self::TypeScript(_)
-            | Self::React(_)
-            | Self::Shell(_)
-            | Self::PowerShell(_) => None,
+            _ => None,
         }
     }
 
     const fn descriptor(self) -> (&'static str, &'static str) {
-        if let Some(pair) = self.infra_data_descriptor() {
+        if let Some(pair) = self.yaml_or_format_descriptor() {
             return pair;
         }
         match self {
@@ -68,13 +68,14 @@ impl LangRuleViolation {
             Self::React(v) => (v.code(), v.remediation()),
             Self::Shell(v) => (v.code(), v.remediation()),
             Self::PowerShell(v) => (v.code(), v.remediation()),
+            Self::Sql(v) => (v.code(), v.remediation()),
+            Self::Migration(v) => (v.code(), v.remediation()),
+            Self::WebEdge(v) => (v.code(), v.remediation()),
             Self::Yaml(_)
             | Self::Compose(_)
             | Self::Workflow(_)
             | Self::XmlSvg(_)
-            | Self::Toml(_)
-            | Self::Sql(_)
-            | Self::Migration(_) => ("", ""),
+            | Self::Toml(_) => ("", ""),
         }
     }
 
@@ -105,7 +106,8 @@ impl LangRuleViolation {
             | Self::XmlSvg(_)
             | Self::Toml(_)
             | Self::Sql(_)
-            | Self::Migration(_) => false,
+            | Self::Migration(_)
+            | Self::WebEdge(_) => false,
         }
     }
 }
@@ -187,3 +189,32 @@ impl From<MigrationViolation> for LangRuleViolation {
         Self::Migration(v)
     }
 }
+
+impl From<WebEdgeViolation> for LangRuleViolation {
+    fn from(v: WebEdgeViolation) -> Self {
+        Self::WebEdge(v)
+    }
+}
+
+macro_rules! impl_from_web_edge {
+    ($($ty:ty => $variant:ident),+ $(,)?) => {
+        $(
+            impl From<$ty> for LangRuleViolation {
+                fn from(v: $ty) -> Self {
+                    Self::WebEdge(WebEdgeViolation::$variant(v))
+                }
+            }
+        )+
+    };
+}
+
+impl_from_web_edge!(
+    AstroViolation => Astro,
+    ReactRouterViolation => ReactRouter,
+    PandaViolation => Panda,
+    M3eViolation => M3e,
+    W3cViolation => W3c,
+    A11yViolation => A11y,
+    CloudflareViolation => Cloudflare,
+    DrizzleViolation => Drizzle,
+);
