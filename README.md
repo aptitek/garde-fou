@@ -1,6 +1,6 @@
 # Garde-fou (`garde`)
 
-**Garde-fou** est un orchestrateur et analyseur statique polyglotte ultra-strict inspiré de l'architecture Hub-and-Spoke de Pandoc (`Tree-sitter` -> `UAST` `#![no_std]` -> Règles pures + Ingestion d'outils par langage + Ponts `SARIF` / `LCOV` + Cache incrémental `BLAKE3` `v5`).
+**Garde-fou** est un orchestrateur et analyseur statique polyglotte ultra-strict inspiré de l'architecture Hub-and-Spoke de Pandoc (`Tree-sitter` -> `UAST` `#![no_std]` -> Règles pures + Ingestion d'outils par langage + Ponts `SARIF` / `LCOV` + Cache incrémental `BLAKE3` `v22`).
 
 Le binaire CLI s'appelle **`garde`** (`garde.exe` sous Windows) et lit la configuration stricte `garde-fou.toml`.
 
@@ -31,7 +31,7 @@ curl -fsSL https://github.com/aptitek/garde-fou/releases/latest/download/install
 Avec options explicites (`--version`, `--install-dir`) :
 
 ```bash
-curl -fsSL https://github.com/aptitek/garde-fou/releases/latest/download/install.sh | sh -s -- --version v0.1.0 --install-dir "$HOME/.local/bin"
+curl -fsSL https://github.com/aptitek/garde-fou/releases/latest/download/install.sh | sh -s -- --version v0.3.0 --install-dir "$HOME/.local/bin"
 ```
 
 ### One-Liner Windows PowerShell 5.1+ / `pwsh` 7+ (vérification `SHA256SUMS` obligatoire)

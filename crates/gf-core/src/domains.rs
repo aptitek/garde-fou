@@ -173,7 +173,12 @@ pub fn is_root_governance_doc(path: &RepoPath) -> bool {
     let upper = path.file_name().to_ascii_uppercase();
     matches!(
         upper.as_str(),
-        "README.MD" | "AGENTS.MD" | "CHANGELOG.MD" | "CONTRIBUTING.MD" | "SECURITY.MD"
+        "README.MD"
+            | "AGENTS.MD"
+            | "CHANGELOG.MD"
+            | "CHANGELOGS.MD"
+            | "CONTRIBUTING.MD"
+            | "SECURITY.MD"
     ) || upper.starts_with("LICENSE")
 }
 
