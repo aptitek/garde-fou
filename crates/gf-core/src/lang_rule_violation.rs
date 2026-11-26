@@ -8,6 +8,7 @@ use crate::academic_violations::{
     AcademicViolation, NotebookViolation, ObsidianViolation, QuartoViolation,
 };
 use crate::compiled_violations::CompiledLangViolation;
+use crate::db_procedural_violations::DbProceduralViolation;
 use crate::format_violations::{TomlViolation, XmlSvgViolation};
 use crate::py_ecosystems_violations::PyEcosystemViolation;
 use crate::python_violations::PythonViolation;
@@ -60,6 +61,8 @@ pub enum LangRuleViolation {
     Mern(MernViolation),
     /// Native Python ecosystem (`DJ-*`, `NICEGUI-*`, `ML-*`, `LLM-*`) violation.
     PyEcosystem(PyEcosystemViolation),
+    /// Native MariaDB, advanced `PostgreSQL`/PL/pgSQL, or Oracle PL/SQL violation.
+    DbProcedural(DbProceduralViolation),
 }
 
 impl LangRuleViolation {
@@ -84,6 +87,7 @@ impl LangRuleViolation {
             Self::Node(v) => Some((v.code(), v.remediation())),
             Self::Mern(v) => Some((v.code(), v.remediation())),
             Self::PyEcosystem(v) => Some((v.code(), v.remediation())),
+            Self::DbProcedural(v) => Some((v.code(), v.remediation())),
             _ => None,
         }
     }
@@ -138,7 +142,8 @@ impl LangRuleViolation {
             | Self::Compiled(_)
             | Self::Node(_)
             | Self::Mern(_)
-            | Self::PyEcosystem(_) => false,
+            | Self::PyEcosystem(_)
+            | Self::DbProcedural(_) => false,
         }
     }
 }
@@ -174,6 +179,7 @@ impl_from_direct!(
     NodeViolation => Node,
     MernViolation => Mern,
     PyEcosystemViolation => PyEcosystem,
+    DbProceduralViolation => DbProcedural,
 );
 
 macro_rules! impl_from_nested {
@@ -204,4 +210,10 @@ impl_from_nested!(
     crate::py_ecosystems_violations::NiceGuiViolation => NiceGui,
     crate::py_ecosystems_violations::MlDlViolation => MlDl,
     crate::py_ecosystems_violations::LlmAgentViolation => LlmAgent,
+);
+impl_from_nested!(
+    DbProcedural, DbProceduralViolation;
+    crate::db_procedural_violations::MariaDbViolation => MariaDb,
+    crate::db_procedural_violations::PostgresAdvViolation => PostgresAdv,
+    crate::db_procedural_violations::ProceduralSqlViolation => ProceduralSql,
 );

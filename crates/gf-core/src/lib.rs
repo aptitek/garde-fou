@@ -23,6 +23,7 @@ pub mod compiled_violations;
 pub mod config;
 pub mod context;
 pub mod coverage;
+pub mod db_procedural_violations;
 pub mod diagnostic;
 pub mod docker;
 pub mod domain_summaries;
@@ -189,6 +190,9 @@ pub use {
     },
 };
 pub use {
+    db_procedural_violations::{
+        DbProceduralViolation, MariaDbViolation, PostgresAdvViolation, ProceduralSqlViolation,
+    },
     py_ecosystems_violations::{
         DjangoViolation, LlmAgentViolation, MlDlViolation, NiceGuiViolation, PyEcosystemViolation,
         is_django_migration_path,

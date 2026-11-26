@@ -55,9 +55,9 @@ pub fn make_sqlparser_dialect(kind: SqlDialectKind) -> Box<dyn Dialect> {
     match kind {
         SqlDialectKind::Postgres => Box::new(PostgreSqlDialect {}),
         SqlDialectKind::Sqlite | SqlDialectKind::CloudflareD1 => Box::new(SQLiteDialect {}),
-        SqlDialectKind::MySql => Box::new(MySqlDialect {}),
+        SqlDialectKind::MySql | SqlDialectKind::MariaDb => Box::new(MySqlDialect {}),
         SqlDialectKind::DuckDb => Box::new(DuckDbDialect {}),
-        SqlDialectKind::Generic => Box::new(GenericDialect {}),
+        SqlDialectKind::Generic | SqlDialectKind::OraclePlSql => Box::new(GenericDialect {}),
     }
 }
 
@@ -157,6 +157,33 @@ fn has_sqlite_table_signature(source: &str) -> bool {
         || upper.contains(") STRICT\n")
 }
 
+fn detect_mariadb_or_plsql_signature(source: &str) -> Option<SqlDialectKind> {
+    let upper = source.to_ascii_uppercase();
+    if [
+        "DELIMITER ",
+        "ENGINE=INNODB",
+        "ENGINE=MYISAM",
+        "ALGORITHM=INSTANT",
+    ]
+    .iter()
+    .any(|kw| upper.contains(kw))
+    {
+        return Some(SqlDialectKind::MariaDb);
+    }
+    if [
+        "AUTHID CURRENT_USER",
+        "PRAGMA AUTONOMOUS_TRANSACTION",
+        "CREATE OR REPLACE PACKAGE",
+        "EXECUTE IMMEDIATE",
+    ]
+    .iter()
+    .any(|kw| upper.contains(kw))
+    {
+        return Some(SqlDialectKind::OraclePlSql);
+    }
+    None
+}
+
 /// Resolves the effective [`SqlDialectKind`] for a `.sql` document.
 #[must_use]
 pub fn resolve_sql_dialect(source: &str, ws_hint: Option<SqlDialectKind>) -> SqlDialectKind {
@@ -165,6 +192,9 @@ pub fn resolve_sql_dialect(source: &str, ws_hint: Option<SqlDialectKind>) -> Sql
     }
     if let Some(hint) = ws_hint {
         return hint;
+    }
+    if let Some(sig) = detect_mariadb_or_plsql_signature(source) {
+        return sig;
     }
     if has_sqlite_table_signature(source) {
         return SqlDialectKind::Sqlite;

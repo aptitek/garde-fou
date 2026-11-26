@@ -10,6 +10,7 @@ use gf_core::{
 };
 
 use crate::checks::{SourceLoc, rule_error};
+use crate::sql_rls_plsql_checks::{check_workspace_pg_rls, check_workspace_plsql_packages};
 
 /// Evaluates `MIG-DESTRUCTIVE-DDL` on a single `.sql` document unless explicitly allowed.
 pub fn check_local_sql_destructive_ddl(
@@ -131,12 +132,15 @@ fn emit_orphan_downs(
     }
 }
 
-/// Evaluates cross-file migration prefix collisions and orphan `.down.sql` files (`GF080`).
+/// Evaluates cross-file migration collisions, orphan `.down.sql`, PostgreSQL RLS parity,
+/// and Oracle PL/SQL `PACKAGE` / `PACKAGE BODY` parity (`GF080`).
 pub fn check_workspace_sql_migrations(docs: &[UastDocument]) -> Validation<(), Diagnostic> {
     let mut diags = Vec::new();
     for (group_dir, group) in collect_migration_groups(docs) {
         emit_version_collisions(group_dir, group.up_by_version, &mut diags);
         emit_orphan_downs(group_dir, &group.up_stems, &group.downs, &mut diags);
     }
+    check_workspace_pg_rls(docs, &mut diags);
+    check_workspace_plsql_packages(docs, &mut diags);
     Validation::<(), Diagnostic>::from_errors(diags)
 }

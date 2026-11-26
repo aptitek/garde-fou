@@ -1,5 +1,6 @@
 //! Pure `#![no_std]` leaf SQL dialect, configuration, migration role, and document summary types.
 
+use alloc::collections::{BTreeMap, BTreeSet};
 use alloc::format;
 use alloc::string::String;
 use alloc::vec::Vec;
@@ -18,8 +19,12 @@ pub enum SqlDialectKind {
     Sqlite,
     /// Cloudflare `D1` managed `SQLite` (forbids explicit `BEGIN` / `COMMIT` / `ROLLBACK` / `SAVEPOINT`).
     CloudflareD1,
-    /// `MySQL` / `MariaDB`.
+    /// `MySQL`.
     MySql,
+    /// `MariaDB` 10.11 / 11.4 (Online DDL, `utf8mb4`, `InnoDB`, `DELIMITER`).
+    MariaDb,
+    /// Oracle `PL/SQL` (`.pks`, `.pkb`, `.pls`, `.plb`, `.prc`, `.fnc`, `.trg`, `.tps`, `.tpb`).
+    OraclePlSql,
     /// `DuckDB` analytical SQL.
     DuckDb,
     /// ANSI / generic SQL fallback.
@@ -27,23 +32,18 @@ pub enum SqlDialectKind {
 }
 
 impl SqlDialectKind {
-    /// Parses a case-insensitive SQL dialect name (`postgres`, `sqlite`, `d1`, `mysql`, `duckdb`, `generic`).
+    /// Parses a case-insensitive SQL dialect name (`postgres`, `mariadb`, `mysql`, `plsql`, `sqlite`, `d1`, `duckdb`, `generic`).
     #[must_use]
+    #[rustfmt::skip]
     pub fn from_config_str(raw: &str) -> Option<Self> {
         let trimmed = raw.trim();
         for (alias, kind) in [
-            ("postgres", Self::Postgres),
-            ("postgresql", Self::Postgres),
-            ("pg", Self::Postgres),
-            ("sqlite", Self::Sqlite),
-            ("sqlite3", Self::Sqlite),
-            ("d1", Self::CloudflareD1),
-            ("cloudflare-d1", Self::CloudflareD1),
-            ("mysql", Self::MySql),
-            ("mariadb", Self::MySql),
-            ("duckdb", Self::DuckDb),
-            ("generic", Self::Generic),
-            ("ansi", Self::Generic),
+            ("postgres", Self::Postgres), ("postgresql", Self::Postgres), ("pg", Self::Postgres),
+            ("sqlite", Self::Sqlite), ("sqlite3", Self::Sqlite),
+            ("d1", Self::CloudflareD1), ("cloudflare-d1", Self::CloudflareD1),
+            ("mysql", Self::MySql), ("mariadb", Self::MariaDb),
+            ("plsql", Self::OraclePlSql), ("oracle", Self::OraclePlSql), ("pl-sql", Self::OraclePlSql),
+            ("duckdb", Self::DuckDb), ("generic", Self::Generic), ("ansi", Self::Generic),
         ] {
             if trimmed.eq_ignore_ascii_case(alias) {
                 return Some(kind);
@@ -60,6 +60,8 @@ impl SqlDialectKind {
             Self::Sqlite => "sqlite",
             Self::CloudflareD1 => "d1",
             Self::MySql => "mysql",
+            Self::MariaDb => "mariadb",
+            Self::OraclePlSql => "plsql",
             Self::DuckDb => "duckdb",
             Self::Generic => "generic",
         }
@@ -171,4 +173,19 @@ pub struct SqlDocument {
     pub migration_group_dir: String,
     /// Destructive DDL operations found on existing tables in up-migrations.
     pub destructive_ddl: Vec<DestructiveDdlFinding>,
+    /// Tables with `ENABLE ROW LEVEL SECURITY` (normalized `schema.table`).
+    #[serde(default)]
+    pub rls_enabled_tables: BTreeSet<String>,
+    /// Tables with `FORCE ROW LEVEL SECURITY` (normalized `schema.table`).
+    #[serde(default)]
+    pub rls_forced_tables: BTreeSet<String>,
+    /// `CREATE POLICY ... ON <table>` spans indexed by normalized `schema.table`.
+    #[serde(default)]
+    pub rls_policies_by_table: BTreeMap<String, Vec<Span>>,
+    /// Oracle PL/SQL `CREATE PACKAGE` public routine signatures (package -> routine names).
+    #[serde(default)]
+    pub plsql_package_specs: BTreeMap<String, BTreeSet<String>>,
+    /// Oracle PL/SQL `CREATE PACKAGE BODY` implemented routine names (package -> routine names).
+    #[serde(default)]
+    pub plsql_package_bodies: BTreeMap<String, BTreeSet<String>>,
 }

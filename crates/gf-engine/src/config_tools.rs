@@ -88,6 +88,7 @@ struct SqlToolsSection {
     squawk: Option<String>,
     sqruff: Option<String>,
     sqlfluff: Option<String>,
+    zpa: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -197,6 +198,7 @@ fn merge_sql_tools(
         squawk: parse_opt_tool_policy(sq.squawk, base.squawk, "tools.sql.squawk")?,
         sqruff: parse_opt_tool_policy(sq.sqruff, base.sqruff, "tools.sql.sqruff")?,
         sqlfluff: parse_opt_tool_policy(sq.sqlfluff, base.sqlfluff, "tools.sql.sqlfluff")?,
+        zpa: parse_opt_tool_policy(sq.zpa, base.zpa, "tools.sql.zpa")?,
     })
 }
 

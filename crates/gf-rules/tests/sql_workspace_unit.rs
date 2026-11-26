@@ -26,6 +26,11 @@ fn mig_doc(
         },
         migration_group_dir: String::from(group_dir),
         destructive_ddl: Vec::new(),
+        rls_enabled_tables: std::collections::BTreeSet::new(),
+        rls_forced_tables: std::collections::BTreeSet::new(),
+        rls_policies_by_table: std::collections::BTreeMap::new(),
+        plsql_package_specs: std::collections::BTreeMap::new(),
+        plsql_package_bodies: std::collections::BTreeMap::new(),
     });
     Ok(doc)
 }
@@ -103,6 +108,11 @@ fn workspace_migrations_detect_orphan_downs_and_ignore_non_migrations() -> Res {
         role: SqlRole::QueryOrSchema,
         migration_group_dir: String::from("sql"),
         destructive_ddl: Vec::new(),
+        rls_enabled_tables: std::collections::BTreeSet::new(),
+        rls_forced_tables: std::collections::BTreeSet::new(),
+        rls_policies_by_table: std::collections::BTreeMap::new(),
+        plsql_package_specs: std::collections::BTreeMap::new(),
+        plsql_package_bodies: std::collections::BTreeMap::new(),
     });
     let plain_doc = UastDocument::new(RepoPath::new("README.md")?, Language::Markdown, 2, 2)?;
     let docs = vec![

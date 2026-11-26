@@ -182,7 +182,7 @@ fn infer_feature_languages(ctx: &mut ProjectContext) {
 
 #[rustfmt::skip]
 fn has_software_lang(ctx: &ProjectContext) -> bool {
-    [LanguageId::Rust, LanguageId::TypeScript, LanguageId::Python, LanguageId::Astro]
+    [LanguageId::Rust, LanguageId::TypeScript, LanguageId::Python, LanguageId::Astro, LanguageId::PlSql]
         .iter()
         .any(|l| ctx.languages.contains(l))
 }
@@ -222,6 +222,7 @@ fn apply_framework_implied_deps(ctx: &mut ProjectContext) {
             FrameworkId::DockerCompose => { ctx.features.insert(FeatureId::Docker); ctx.languages.insert(LanguageId::Yaml); }
             FrameworkId::Quarto => { ctx.languages.insert(LanguageId::Yaml); ctx.languages.insert(LanguageId::Markdown); }
             FrameworkId::Obsidian => { ctx.languages.insert(LanguageId::Markdown); }
+            FrameworkId::PostgreSql | FrameworkId::MariaDb => { ctx.languages.insert(LanguageId::Sql); }
         }
     }
 }

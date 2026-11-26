@@ -26,6 +26,7 @@ mod tool_output_taplo_xml;
 pub mod tool_output_ts;
 pub mod tool_output_web;
 pub mod tool_output_yaml;
+pub mod tool_output_zpa;
 pub mod types;
 
 use gf_core::{
@@ -52,7 +53,7 @@ use langs::{
     quarto::QuartoExtractor,
     rust::RustExtractor,
     shell::ShellExtractor,
-    sql::extract_sql_with_dialect_hint,
+    sql::{extract_plsql, extract_sql_with_dialect_hint},
     toml_lang::TomlExtractor,
     tool_config::extract_tool_config,
     ts::{TsDialect, TypeScriptExtractor},
@@ -75,6 +76,7 @@ pub use {
     tool_output_yaml::{
         parse_actionlint_json, parse_dclint_json, parse_yamllint_parsable, parse_zizmor_sarif,
     },
+    tool_output_zpa::parse_zpa_generic_issues_json,
     types::{LanguageExtractor, ParseError, ProjectMarker},
 };
 
@@ -166,6 +168,7 @@ fn dispatch_script_or_compiled(
         Language::Dockerfile => DockerfileExtractor.extract(path, source),
         Language::Yaml => YamlExtractor.extract(path, source),
         Language::Astro => AstroExtractor.extract(path, source),
+        Language::PlSql => extract_plsql(path, source),
         other => dispatch_non_code_domain(other, path, source, ctx),
     }
 }

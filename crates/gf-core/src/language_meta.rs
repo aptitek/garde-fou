@@ -51,6 +51,8 @@ pub enum Language {
     Xml,
     /// SQL query, view, or database migration script (`.sql`).
     Sql,
+    /// Oracle PL/SQL unit (`.pls`, `.plb`, `.pks`, `.pkb`, `.prc`, `.fnc`, `.trg`, `.tps`, `.tpb`).
+    PlSql,
     /// Astro component / page / layout template (`.astro`).
     Astro,
     /// W3C HTML5 document (`.html`, `.htm`).
@@ -86,6 +88,7 @@ impl Language {
                 | Self::Shell
                 | Self::PowerShell
                 | Self::Dockerfile
+                | Self::PlSql
         )
     }
 

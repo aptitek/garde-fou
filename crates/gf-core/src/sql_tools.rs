@@ -36,6 +36,8 @@ pub enum SqruffSqlfluffConfigIssue {
     ExcludeAllRules,
     /// `exclude_rules` silencing critical correctness rules (`AL09`, `CV05`, `L049`, `AM04`).
     CriticalRuleExcluded,
+    /// `dialect = ...` contradicting the detected workspace SQL dialect (e.g. `ansi`/`sqlite` on `MariaDb` or `Oracle`).
+    DialectMismatch,
 }
 
 impl SqruffSqlfluffConfigIssue {
@@ -44,6 +46,7 @@ impl SqruffSqlfluffConfigIssue {
     pub const fn key(self) -> &'static str {
         match self {
             Self::ExcludeAllRules | Self::CriticalRuleExcluded => "sqlfluff.exclude_rules",
+            Self::DialectMismatch => "sqlfluff.dialect",
         }
     }
 }
@@ -126,16 +129,24 @@ pub struct SqlToolsConfig {
     pub sqruff: ScannerPolicy,
     /// Policy for `sqlfluff lint --format json` (`off` by default due to Python cold-start).
     pub sqlfluff: ScannerPolicy,
+    /// Policy for `zpa-cli` Oracle PL/SQL static analyzer (`auto` by default).
+    #[serde(default = "default_auto_policy")]
+    pub zpa: ScannerPolicy,
+}
+
+const fn default_auto_policy() -> ScannerPolicy {
+    ScannerPolicy::Auto
 }
 
 impl SqlToolsConfig {
-    /// Default SQL tool policies (`squawk = Auto`, `sqruff = Auto`, `sqlfluff = Off`).
+    /// Default SQL tool policies (`squawk = Auto`, `sqruff = Auto`, `sqlfluff = Off`, `zpa = Auto`).
     #[must_use]
     pub const fn defaults() -> Self {
         Self {
             squawk: ScannerPolicy::Auto,
             sqruff: ScannerPolicy::Auto,
             sqlfluff: ScannerPolicy::Off,
+            zpa: ScannerPolicy::Auto,
         }
     }
 
@@ -143,10 +154,11 @@ impl SqlToolsConfig {
     #[must_use]
     pub fn canonical_fragment(self) -> String {
         format!(
-            "sql(sqk={},sqr={},flf={})",
+            "sql(sqk={},sqr={},flf={},zpa={})",
             self.squawk.as_str(),
             self.sqruff.as_str(),
-            self.sqlfluff.as_str()
+            self.sqlfluff.as_str(),
+            self.zpa.as_str()
         )
     }
 }

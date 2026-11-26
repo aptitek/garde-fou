@@ -27,6 +27,7 @@ mod kiss_yagni_checks;
 mod mutation_checks;
 mod rust_import_resolver;
 mod security_checks;
+mod sql_rls_plsql_checks;
 mod sql_workspace_checks;
 mod tarjan;
 mod tdd_checks;

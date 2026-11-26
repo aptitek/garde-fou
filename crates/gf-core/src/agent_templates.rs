@@ -14,7 +14,7 @@ pub const CORE_FRAGMENT: &str = include_str!("../../../content/agent-fragments/c
 /// Six-domain segregation fragment (`GF060`–`GF066`).
 pub const DOMAINS_FRAGMENT: &str = include_str!("../../../content/agent-fragments/domains.md");
 
-const LANGUAGE_FRAGMENTS: [&str; 16] = [
+const LANGUAGE_FRAGMENTS: [&str; 17] = [
     include_str!("../../../content/agent-fragments/lang-rust.md"),
     include_str!("../../../content/agent-fragments/lang-typescript.md"),
     include_str!("../../../content/agent-fragments/lang-python.md"),
@@ -31,6 +31,7 @@ const LANGUAGE_FRAGMENTS: [&str; 16] = [
     include_str!("../../../content/agent-fragments/lang-go.md"),
     include_str!("../../../content/agent-fragments/lang-kotlin.md"),
     include_str!("../../../content/agent-fragments/lang-csharp.md"),
+    include_str!("../../../content/agent-fragments/lang-plsql.md"),
 ];
 
 const FEATURE_FRAGMENTS: [&str; 13] = [
@@ -49,7 +50,7 @@ const FEATURE_FRAGMENTS: [&str; 13] = [
     include_str!("../../../content/agent-fragments/feat-ai-ml.md"),
 ];
 
-const FRAMEWORK_FRAGMENTS: [&str; 20] = [
+const FRAMEWORK_FRAGMENTS: [&str; 22] = [
     include_str!("../../../content/agent-fragments/fw-cargo-workspace.md"),
     include_str!("../../../content/agent-fragments/fw-react.md"),
     include_str!("../../../content/agent-fragments/fw-astro.md"),
@@ -70,6 +71,8 @@ const FRAMEWORK_FRAGMENTS: [&str; 20] = [
     include_str!("../../../content/agent-fragments/feat-ai-ml.md"),
     include_str!("../../../content/agent-fragments/feat-ai-ml.md"),
     include_str!("../../../content/agent-fragments/feat-ai-ml.md"),
+    include_str!("../../../content/agent-fragments/fw-postgresql.md"),
+    include_str!("../../../content/agent-fragments/fw-mariadb.md"),
 ];
 
 const ARCH_MINIMAL_FRAGMENT: &str =

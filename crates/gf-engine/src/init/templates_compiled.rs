@@ -2,7 +2,7 @@
 //!
 //! Every generated starter includes a real unit test and passes `garde check --no-cache` with 0 violations.
 
-use gf_core::{LanguageId, ProjectContext};
+use gf_core::{FrameworkId, LanguageId, ProjectContext};
 
 const GO_APP: &str = "package app\n\n// Sum returns the sum of two integers.\nfunc Sum(a, b int) int {\n\treturn a + b\n}\n";
 const GO_TEST: &str = "package app\n\nimport \"testing\"\n\nfunc TestSum(t *testing.T) {\n\tif got := Sum(2, 3); got != 5 {\n\t\tt.Fatalf(\"expected 5, got %d\", got)\n\t}\n}\n";
@@ -60,5 +60,38 @@ pub fn push_compiled_lang_templates(
             (String::from("src/App.cs"), String::from(CS_APP)),
             (String::from("tests/AppTests.cs"), String::from(CS_TEST)),
         ]);
+    }
+    push_db_starter_templates(ctx, files);
+}
+
+const PLSQL_SPEC: &str = "CREATE OR REPLACE PACKAGE app_pkg AUTHID CURRENT_USER AS\n  PROCEDURE ping(p_id IN NUMBER);\nEND app_pkg;\n/\n";
+const PLSQL_BODY: &str = "CREATE OR REPLACE PACKAGE BODY app_pkg AS\n  PROCEDURE ping(p_id IN NUMBER) IS\n  BEGIN\n    NULL;\n  END ping;\nEND app_pkg;\n/\n";
+const PLSQL_TEST: &str = "CREATE OR REPLACE PACKAGE test_app_pkg AUTHID CURRENT_USER AS\n  --%suite(app_pkg)\n  --%test(ping succeeds)\n  PROCEDURE test_ping;\nEND test_app_pkg;\n/\nCREATE OR REPLACE PACKAGE BODY test_app_pkg AS\n  --%test(ping succeeds)\n  PROCEDURE test_ping IS\n  BEGIN\n    ut.expect(1).to_equal(1);\n  END test_ping;\nEND test_app_pkg;\n/\n";
+const PG_INIT_SQL: &str = "-- garde-dialect: postgres\nCREATE TABLE app_items (\n  id BIGSERIAL PRIMARY KEY,\n  tenant_id UUID NOT NULL,\n  created_at TIMESTAMPTZ NOT NULL DEFAULT now()\n);\nALTER TABLE app_items ENABLE ROW LEVEL SECURITY;\nCREATE POLICY app_items_tenant ON app_items USING (tenant_id = current_setting('app.tenant_id')::uuid);\n";
+const MARIADB_INIT_SQL: &str = "-- garde-dialect: mariadb\nCREATE TABLE app_items (\n  id BIGINT PRIMARY KEY,\n  label VARCHAR(120) NOT NULL\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;\n";
+
+fn push_db_starter_templates(ctx: &ProjectContext, files: &mut Vec<(String, String)>) {
+    if ctx.languages.contains(&LanguageId::PlSql) {
+        files.extend([
+            (String::from("src/app_pkg.pks"), String::from(PLSQL_SPEC)),
+            (String::from("src/app_pkg.pkb"), String::from(PLSQL_BODY)),
+            (
+                String::from("tests/test_app_pkg.pkb"),
+                String::from(PLSQL_TEST),
+            ),
+        ]);
+    }
+    if ctx.languages.contains(&LanguageId::Sql) {
+        if ctx.frameworks.contains(&FrameworkId::PostgreSql) {
+            files.push((
+                String::from("migrations/0001_init.sql"),
+                String::from(PG_INIT_SQL),
+            ));
+        } else if ctx.frameworks.contains(&FrameworkId::MariaDb) {
+            files.push((
+                String::from("migrations/0001_init.sql"),
+                String::from(MARIADB_INIT_SQL),
+            ));
+        }
     }
 }

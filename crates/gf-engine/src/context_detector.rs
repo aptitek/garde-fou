@@ -30,7 +30,7 @@ const SOURCE_LANGUAGE_MAP: &[(Language, LanguageId)] = &[
     (Language::Yaml, LanguageId::Yaml), (Language::Css, LanguageId::Css),
     (Language::Xml, LanguageId::Xml), (Language::Svg, LanguageId::Xml),
     (Language::Toml, LanguageId::Toml), (Language::Sql, LanguageId::Sql),
-    (Language::Astro, LanguageId::Astro), (Language::Html, LanguageId::Html),
+    (Language::PlSql, LanguageId::PlSql), (Language::Astro, LanguageId::Astro), (Language::Html, LanguageId::Html),
 ];
 const PANDA_CONFIGS: &[&str] = &["panda.config.ts", "panda.config.mjs", "panda.config.js"];
 const WRANGLER_CONFIGS: &[&str] = &["wrangler.toml", "wrangler.jsonc", "wrangler.json"];

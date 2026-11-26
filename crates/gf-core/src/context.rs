@@ -52,12 +52,14 @@ pub enum LanguageId {
     Kotlin,
     /// C# / .NET ecosystem (`.cs`, `*.csproj`, `*.sln`).
     CSharp,
+    /// Oracle PL/SQL procedural database ecosystem (`.pls`, `.plb`, `.pks`, `.pkb`, `.prc`, `.fnc`, `.trg`, `.tps`, `.tpb`).
+    PlSql,
 }
 
 #[rustfmt::skip]
-const LANG_NAMES: [&str; 16] = [
+const LANG_NAMES: [&str; 17] = [
     "rust", "typescript", "python", "shell", "powershell", "yaml", "css",
-    "xml", "toml", "markdown", "sql", "astro", "html", "go", "kotlin", "csharp",
+    "xml", "toml", "markdown", "sql", "astro", "html", "go", "kotlin", "csharp", "plsql",
 ];
 #[rustfmt::skip]
 const LANGUAGE_ALIASES: &[(&str, LanguageId)] = &[
@@ -72,11 +74,12 @@ const LANGUAGE_ALIASES: &[(&str, LanguageId)] = &[
     ("xml", LanguageId::Xml), ("svg", LanguageId::Xml),
     ("toml", LanguageId::Toml),
     ("markdown", LanguageId::Markdown), ("md", LanguageId::Markdown), ("mdx", LanguageId::Markdown),
-    ("sql", LanguageId::Sql), ("postgres", LanguageId::Sql), ("sqlite", LanguageId::Sql),
+    ("sql", LanguageId::Sql), ("postgres", LanguageId::Sql), ("sqlite", LanguageId::Sql), ("mariadb", LanguageId::Sql),
     ("astro", LanguageId::Astro), ("html", LanguageId::Html), ("htm", LanguageId::Html),
     ("go", LanguageId::Go), ("golang", LanguageId::Go),
     ("kotlin", LanguageId::Kotlin), ("kt", LanguageId::Kotlin), ("kts", LanguageId::Kotlin),
     ("csharp", LanguageId::CSharp), ("c#", LanguageId::CSharp), ("cs", LanguageId::CSharp), ("dotnet", LanguageId::CSharp),
+    ("plsql", LanguageId::PlSql), ("oracle", LanguageId::PlSql), ("pl-sql", LanguageId::PlSql),
 ];
 
 impl LanguageId {
@@ -112,6 +115,7 @@ impl LanguageId {
                 | Self::Shell
                 | Self::PowerShell
                 | Self::Astro
+                | Self::PlSql
         )
     }
 }

@@ -9,20 +9,17 @@ use gf_core::{
 
 #[test]
 fn sql_dialect_and_setting_roundtrip_and_cache_fragments_are_distinct() {
-    for (raw, expected, canon) in [
-        ("postgres", SqlDialectKind::Postgres, "postgres"),
-        ("PostgreSQL", SqlDialectKind::Postgres, "postgres"),
-        ("pg", SqlDialectKind::Postgres, "postgres"),
-        ("sqlite", SqlDialectKind::Sqlite, "sqlite"),
-        ("sqlite3", SqlDialectKind::Sqlite, "sqlite"),
-        ("d1", SqlDialectKind::CloudflareD1, "d1"),
-        ("cloudflare-d1", SqlDialectKind::CloudflareD1, "d1"),
-        ("mysql", SqlDialectKind::MySql, "mysql"),
-        ("mariadb", SqlDialectKind::MySql, "mysql"),
-        ("duckdb", SqlDialectKind::DuckDb, "duckdb"),
-        ("generic", SqlDialectKind::Generic, "generic"),
-        ("ansi", SqlDialectKind::Generic, "generic"),
-    ] {
+    #[rustfmt::skip]
+    let dialect_cases = [
+        ("postgres", SqlDialectKind::Postgres, "postgres"), ("PostgreSQL", SqlDialectKind::Postgres, "postgres"),
+        ("pg", SqlDialectKind::Postgres, "postgres"), ("sqlite", SqlDialectKind::Sqlite, "sqlite"),
+        ("sqlite3", SqlDialectKind::Sqlite, "sqlite"), ("d1", SqlDialectKind::CloudflareD1, "d1"),
+        ("cloudflare-d1", SqlDialectKind::CloudflareD1, "d1"), ("mysql", SqlDialectKind::MySql, "mysql"),
+        ("mariadb", SqlDialectKind::MariaDb, "mariadb"), ("plsql", SqlDialectKind::OraclePlSql, "plsql"),
+        ("oracle", SqlDialectKind::OraclePlSql, "plsql"), ("duckdb", SqlDialectKind::DuckDb, "duckdb"),
+        ("generic", SqlDialectKind::Generic, "generic"), ("ansi", SqlDialectKind::Generic, "generic"),
+    ];
+    for (raw, expected, canon) in dialect_cases {
         assert_eq!(SqlDialectKind::from_config_str(raw), Some(expected));
         assert_eq!(expected.as_str(), canon);
         assert_eq!(expected.to_string(), canon);
@@ -31,7 +28,7 @@ fn sql_dialect_and_setting_roundtrip_and_cache_fragments_are_distinct() {
             Some(SqlDialectSetting::Explicit(expected))
         );
     }
-    assert_eq!(SqlDialectKind::from_config_str("oracle"), None);
+    assert_eq!(SqlDialectKind::from_config_str("unknown-db"), None);
     assert_eq!(
         SqlDialectSetting::from_config_str("AUTO"),
         Some(SqlDialectSetting::Auto)
