@@ -213,7 +213,7 @@ fn apply_framework_implied_deps(ctx: &mut ProjectContext) {
     for fw in fws {
         match fw {
             FrameworkId::CargoWorkspace => { ctx.languages.insert(LanguageId::Rust); }
-            FrameworkId::React | FrameworkId::Astro | FrameworkId::NextJs | FrameworkId::ReactRouter | FrameworkId::CloudflareWorkers | FrameworkId::Drizzle => {
+            FrameworkId::React | FrameworkId::Astro | FrameworkId::NextJs | FrameworkId::ReactRouter | FrameworkId::CloudflareWorkers | FrameworkId::Drizzle | FrameworkId::NodeJs | FrameworkId::Express | FrameworkId::Mongoose => {
                 ctx.languages.insert(LanguageId::TypeScript);
             }
             FrameworkId::FastApi | FrameworkId::Django | FrameworkId::Jupyter => { ctx.languages.insert(LanguageId::Python); }

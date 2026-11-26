@@ -49,6 +49,16 @@ fn build_init_request(args: &InitArgs, cwd: &Path) -> Result<InitRequest, Engine
     }
     let mut frameworks = BTreeSet::new();
     for raw in &args.frameworks {
+        if raw.eq_ignore_ascii_case("mern") {
+            languages.insert(LanguageId::TypeScript);
+            frameworks.extend([
+                FrameworkId::NodeJs,
+                FrameworkId::Express,
+                FrameworkId::Mongoose,
+                FrameworkId::React,
+            ]);
+            continue;
+        }
         let id = FrameworkId::from_config_str(raw)
             .ok_or_else(|| EngineError::InvalidConfig(format!("unknown --framework `{raw}`")))?;
         frameworks.insert(id);

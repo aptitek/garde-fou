@@ -214,6 +214,7 @@ pub fn parse_source_with_context(
         sql_dialect_hint,
     };
     let mut doc = dispatch_language_extractor(lang, path, source, ctx)?;
+    langs::toolchain_commands::maybe_audit_legacy_cli_commands(lang, path, source, &mut doc);
     doc.secret_findings = secrets::extract_secret_findings(path, source);
     if classify_path(path, domains) == DomainKind::Tests
         && (TsDialect::from_path_and_lang(path, lang).is_some()
@@ -228,9 +229,7 @@ pub fn parse_source_with_context(
 }
 
 /// Parses `source` with explicit [`DomainLayoutConfig`] (enabling `Texte` `.json`/`.toml` parsing).
-///
 /// # Errors
-///
 /// Returns [`ParseError`] if grammar setup or span construction fails.
 pub fn parse_source_with_domains(
     path: &RepoPath,
@@ -241,9 +240,7 @@ pub fn parse_source_with_domains(
 }
 
 /// Parses `source` using strict default domain boundaries.
-///
 /// # Errors
-///
 /// Returns [`ParseError`] if grammar setup or span construction fails.
 pub fn parse_source(path: &RepoPath, source: &str) -> Result<UastDocument, ParseError> {
     parse_source_with_domains(path, source, &DomainLayoutConfig::strict_defaults())

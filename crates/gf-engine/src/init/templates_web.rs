@@ -35,31 +35,22 @@ fn dependencies_block(ctx: &ProjectContext) -> String {
         (FrameworkId::ReactRouter, "\"react-router\": \"^7.2.0\""),
         (FrameworkId::CloudflareWorkers, "\"@cloudflare/workers-types\": \"^4.20260301.0\""),
         (FrameworkId::Drizzle, "\"drizzle-orm\": \"^0.40.0\""),
+        (FrameworkId::Express, "\"express\": \"^5.0.1\""),
+        (FrameworkId::Mongoose, "\"mongoose\": \"^8.10.0\""),
     ] {
-        if ctx.frameworks.contains(&fw) {
-            deps.push(pkg);
-        }
+        if ctx.frameworks.contains(&fw) { deps.push(pkg); }
     }
-    if ctx.features.contains(&FeatureId::PandaCss) {
-        deps.push("\"@pandacss/dev\": \"^0.51.0\"");
-    }
-    if [FrameworkId::React, FrameworkId::Astro, FrameworkId::NextJs, FrameworkId::ReactRouter]
-        .iter()
-        .any(|fw| ctx.frameworks.contains(fw))
-    {
+    if ctx.features.contains(&FeatureId::PandaCss) { deps.push("\"@pandacss/dev\": \"^0.51.0\""); }
+    if [FrameworkId::React, FrameworkId::Astro, FrameworkId::NextJs, FrameworkId::ReactRouter].iter().any(|fw| ctx.frameworks.contains(fw)) {
         deps.push("\"react\": \"^19.0.0\"");
     }
-    if deps.is_empty() {
-        String::from("{}")
-    } else {
-        format!("{{\n    {}\n  }}", deps.join(",\n    "))
-    }
+    if deps.is_empty() { String::from("{}") } else { format!("{{\n    {}\n  }}", deps.join(",\n    ")) }
 }
 
 fn package_json(project_kebab: &str, ctx: &ProjectContext) -> String {
     let deps = dependencies_block(ctx);
     format!(
-        "{{\n  \"name\": \"{project_kebab}\",\n  \"version\": \"0.1.0\",\n  \"private\": true,\n  \"type\": \"module\",\n  \"dependencies\": {deps},\n  \"devDependencies\": {{\n    \"typescript\": \"^5.7.0\",\n    \"vitest\": \"^3.0.0\"\n  }}\n}}\n"
+        "{{\n  \"name\": \"{project_kebab}\",\n  \"version\": \"0.1.0\",\n  \"private\": true,\n  \"type\": \"module\",\n  \"packageManager\": \"pnpm@10.6.5\",\n  \"dependencies\": {deps},\n  \"devDependencies\": {{\n    \"typescript\": \"^5.7.0\",\n    \"vitest\": \"^3.0.0\"\n  }}\n}}\n"
     )
 }
 
@@ -223,6 +214,11 @@ fn ctx_uses_jsx(ctx: &ProjectContext) -> bool {
 /// Generates non-destructive TypeScript starter files `(relative_path, contents)`.
 #[rustfmt::skip]
 pub fn web_files(project_kebab: &str, ctx: &ProjectContext) -> Vec<(String, String)> {
+    if super::templates_mern::is_mern_context(ctx) {
+        let mut files = Vec::new();
+        super::templates_mern::push_mern_templates(project_kebab, &mut files);
+        return files;
+    }
     let has_page_router = ctx.frameworks.contains(&FrameworkId::Astro)
         || ctx.frameworks.contains(&FrameworkId::NextJs);
     let has_i18n = ctx.features.contains(&FeatureId::I18n);

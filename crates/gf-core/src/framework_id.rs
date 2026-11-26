@@ -32,9 +32,15 @@ pub enum FrameworkId {
     Quarto,
     /// Jupyter Notebook ecosystem (`*.ipynb`).
     Jupyter,
+    /// Modern Node.js ESM runtime (`node:*` protocol, `pnpm`).
+    NodeJs,
+    /// Express 5 TypeScript HTTP framework (`app.ts` / `server.ts`).
+    Express,
+    /// MongoDB & Mongoose typed ODM (`Schema`, `Model`).
+    Mongoose,
 }
 
-const FRAMEWORK_NAMES: [&str; 13] = [
+const FRAMEWORK_NAMES: [&str; 16] = [
     "cargo-workspace",
     "react",
     "astro",
@@ -48,6 +54,9 @@ const FRAMEWORK_NAMES: [&str; 13] = [
     "obsidian",
     "quarto",
     "jupyter",
+    "nodejs",
+    "express",
+    "mongoose",
 ];
 
 const FRAMEWORK_ALIASES: &[(&str, FrameworkId)] = &[
@@ -74,6 +83,11 @@ const FRAMEWORK_ALIASES: &[(&str, FrameworkId)] = &[
     ("quarto", FrameworkId::Quarto),
     ("jupyter", FrameworkId::Jupyter),
     ("ipynb", FrameworkId::Jupyter),
+    ("nodejs", FrameworkId::NodeJs),
+    ("node", FrameworkId::NodeJs),
+    ("express", FrameworkId::Express),
+    ("mongoose", FrameworkId::Mongoose),
+    ("mongodb", FrameworkId::Mongoose),
 ];
 
 const CARGO_ENTRIES: &[&str] = &[
@@ -131,6 +145,43 @@ const DRIZZLE_ENTRIES: &[&str] = &[
     "**/schema.ts",
 ];
 
+const REACT_ENTRIES: &[&str] = &[
+    "src/index.*",
+    "src/main.*",
+    "src/App.*",
+    "apps/*/src/main.*",
+    "apps/*/src/App.*",
+];
+const FASTAPI_ENTRIES: &[&str] = &["main.py", "app/main.py", "src/main.py", "**/routers/**"];
+const DJANGO_ENTRIES: &[&str] = &["manage.py", "**/views.py", "**/urls.py", "**/admin.py"];
+const NODE_ENTRIES: &[&str] = &[
+    "src/server.*",
+    "src/main.*",
+    "src/index.*",
+    "apps/*/src/server.*",
+    "apps/*/src/main.*",
+    "packages/*/src/index.*",
+];
+
+const FRAMEWORK_ENTRIES: [&[&str]; 16] = [
+    CARGO_ENTRIES,
+    REACT_ENTRIES,
+    ASTRO_ENTRIES,
+    NEXT_ENTRIES,
+    FASTAPI_ENTRIES,
+    DJANGO_ENTRIES,
+    REACT_ROUTER_ENTRIES,
+    CLOUDFLARE_ENTRIES,
+    DRIZZLE_ENTRIES,
+    &[],
+    &[],
+    &[],
+    &[],
+    NODE_ENTRIES,
+    NODE_ENTRIES,
+    &[],
+];
+
 impl FrameworkId {
     /// Parses a case-insensitive framework identifier from configuration.
     #[must_use]
@@ -150,18 +201,7 @@ impl FrameworkId {
     /// Returns implicit entrypoint path globs associated with this framework.
     #[must_use]
     pub const fn implicit_entrypoints(self) -> &'static [&'static str] {
-        match self {
-            Self::CargoWorkspace => CARGO_ENTRIES,
-            Self::React => &["src/index.*", "src/main.*", "src/App.*"],
-            Self::Astro => ASTRO_ENTRIES,
-            Self::NextJs => NEXT_ENTRIES,
-            Self::FastApi => &["main.py", "app/main.py", "src/main.py", "**/routers/**"],
-            Self::Django => &["manage.py", "**/views.py", "**/urls.py", "**/admin.py"],
-            Self::ReactRouter => REACT_ROUTER_ENTRIES,
-            Self::CloudflareWorkers => CLOUDFLARE_ENTRIES,
-            Self::Drizzle => DRIZZLE_ENTRIES,
-            Self::DockerCompose | Self::Obsidian | Self::Quarto | Self::Jupyter => &[],
-        }
+        FRAMEWORK_ENTRIES[self as usize]
     }
 }
 

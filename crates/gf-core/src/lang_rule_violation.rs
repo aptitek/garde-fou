@@ -12,6 +12,7 @@ use crate::format_violations::{TomlViolation, XmlSvgViolation};
 use crate::python_violations::PythonViolation;
 use crate::shell_ps_violations::{PowerShellViolation, ShellViolation};
 use crate::sql_violations::{MigrationViolation, SqlViolation};
+use crate::toolchain_mern_violations::{MernViolation, NodeViolation};
 use crate::ts_violations::{ReactViolation, TypescriptViolation};
 use crate::web_edge_tools::{CloudflareViolation, DrizzleViolation, WebEdgeViolation};
 use crate::web_edge_violations::{
@@ -52,6 +53,10 @@ pub enum LangRuleViolation {
     Academic(AcademicViolation),
     /// Native Go, Kotlin, or C# AST violation (`GO-*`, `KT-*`, `CS-*`).
     Compiled(CompiledLangViolation),
+    /// Native modern Node.js runtime violation (`NODE-*`).
+    Node(NodeViolation),
+    /// Native MERN TypeScript (`EXPRESS-*`, `MONGO-*`) violation.
+    Mern(MernViolation),
 }
 
 impl LangRuleViolation {
@@ -64,6 +69,8 @@ impl LangRuleViolation {
             Self::Toml(v) => Some((v.code(), v.remediation())),
             Self::Academic(v) => Some((v.code(), v.remediation())),
             Self::Compiled(v) => Some((v.code(), v.remediation())),
+            Self::Node(v) => Some((v.code(), v.remediation())),
+            Self::Mern(v) => Some((v.code(), v.remediation())),
             _ => None,
         }
     }
@@ -87,7 +94,9 @@ impl LangRuleViolation {
             | Self::XmlSvg(_)
             | Self::Toml(_)
             | Self::Academic(_)
-            | Self::Compiled(_) => ("", ""),
+            | Self::Compiled(_)
+            | Self::Node(_)
+            | Self::Mern(_) => ("", ""),
         }
     }
 
@@ -121,7 +130,9 @@ impl LangRuleViolation {
             | Self::Migration(_)
             | Self::WebEdge(_)
             | Self::Academic(_)
-            | Self::Compiled(_) => false,
+            | Self::Compiled(_)
+            | Self::Node(_)
+            | Self::Mern(_) => false,
         }
     }
 }
@@ -209,6 +220,8 @@ impl_from_direct!(
     WebEdgeViolation => WebEdge,
     AcademicViolation => Academic,
     CompiledLangViolation => Compiled,
+    NodeViolation => Node,
+    MernViolation => Mern,
 );
 
 macro_rules! impl_from_nested {

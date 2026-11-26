@@ -48,7 +48,7 @@ const FEATURE_FRAGMENTS: [&str; 12] = [
     include_str!("../../../content/agent-fragments/feat-w3c-a11y.md"),
 ];
 
-const FRAMEWORK_FRAGMENTS: [&str; 13] = [
+const FRAMEWORK_FRAGMENTS: [&str; 16] = [
     include_str!("../../../content/agent-fragments/fw-cargo-workspace.md"),
     include_str!("../../../content/agent-fragments/fw-react.md"),
     include_str!("../../../content/agent-fragments/fw-astro.md"),
@@ -62,6 +62,9 @@ const FRAMEWORK_FRAGMENTS: [&str; 13] = [
     include_str!("../../../content/agent-fragments/fw-obsidian.md"),
     include_str!("../../../content/agent-fragments/fw-quarto.md"),
     include_str!("../../../content/agent-fragments/fw-jupyter.md"),
+    include_str!("../../../content/agent-fragments/fw-nodejs.md"),
+    include_str!("../../../content/agent-fragments/fw-mern.md"),
+    include_str!("../../../content/agent-fragments/fw-mern.md"),
 ];
 
 const ARCH_MINIMAL_FRAGMENT: &str =

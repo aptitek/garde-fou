@@ -4,6 +4,7 @@ mod templates_archetypes;
 mod templates_compiled;
 mod templates_domains;
 mod templates_infra;
+mod templates_mern;
 mod templates_python;
 mod templates_rust;
 mod templates_web;

@@ -168,21 +168,19 @@ fn audit_toml_tool_config(path: &RepoPath, file_name: &str, source: &str, doc: &
     audit_pytest_and_coverage(tool, source, doc);
 }
 
+#[rustfmt::skip]
 fn try_audit_sql_or_web_config(path: &RepoPath, source: &str, doc: &mut UastDocument) -> bool {
+    if gf_core::is_toolchain_audited_file(path.as_str()) {
+        super::toolchain_modern::audit_toolchain_file(path, source, doc);
+        return true;
+    }
     if is_compiled_tool_config_file(path.as_str()) {
         super::tool_config_compiled::audit_compiled_tool_config(path, source, doc);
         return true;
     }
-    if is_sql_tool_config_file(path) {
-        audit_sql_tool_config(path, source, doc);
-        return true;
-    }
+    if is_sql_tool_config_file(path) { audit_sql_tool_config(path, source, doc); return true; }
     if is_web_edge_tool_config_file(path) {
-        if path.file_name().starts_with("panda.config.") {
-            audit_panda_config(source, doc);
-        } else {
-            audit_wrangler_config(path, source, doc);
-        }
+        if path.file_name().starts_with("panda.config.") { audit_panda_config(source, doc); } else { audit_wrangler_config(path, source, doc); }
         return true;
     }
     false

@@ -166,20 +166,7 @@ pub fn render_garde_fou_toml(project_name: &str, ctx: &ProjectContext) -> String
     )
 }
 
-const PYTHON_DOCKERFILE: &str = "# syntax=docker/dockerfile:1\n\
-FROM python:3.13-slim AS builder\n\
-WORKDIR /build\n\
-COPY pyproject.toml ./\n\
-COPY src ./src\n\
-RUN pip install --no-cache-dir --no-deps .\n\
-\n\
-FROM python:3.13-slim AS runtime\n\
-WORKDIR /app\n\
-RUN useradd --system --uid 10001 --no-create-home appuser\n\
-COPY --from=builder /usr/local /usr/local\n\
-COPY src ./src\n\
-USER appuser\n\
-CMD [\"python3\", \"-c\", \"print('ready')\"]\n";
+const PYTHON_DOCKERFILE: &str = "# syntax=docker/dockerfile:1\nFROM python:3.13-slim AS builder\nCOPY --from=ghcr.io/astral-sh/uv:0.6.14 /uv /uvx /bin/\nWORKDIR /build\nCOPY pyproject.toml ./\nCOPY src ./src\nRUN uv sync --locked --no-dev\n\nFROM python:3.13-slim AS runtime\nWORKDIR /app\nRUN useradd --system --uid 10001 --no-create-home appuser\nCOPY --from=builder /build/.venv /app/.venv\nCOPY src ./src\nUSER appuser\nCMD [\"python3\", \"-c\", \"print('ready')\"]\n";
 
 const NODE_DOCKERFILE: &str = "# syntax=docker/dockerfile:1\n\
 FROM node:22-slim AS builder\n\

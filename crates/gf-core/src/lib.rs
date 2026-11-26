@@ -52,6 +52,7 @@ pub mod sql_types;
 pub mod sql_violations;
 pub mod tool_config_violations;
 pub mod tool_ingest;
+pub mod toolchain_mern_violations;
 pub mod tools_config;
 pub mod ts_violations;
 pub mod uast;
@@ -92,7 +93,6 @@ pub use metrics::{
 pub use mutation::{MutationConfig, MutationSummary, SurvivedMutant, truncate_replacement};
 pub use path::{RepoPath, RepoPathError};
 pub use project_settings::{GovernanceFlag, GovernanceFlags, ProjectSettingsState};
-pub use uast::{Language, UastDocument, UastKind, UastNode};
 pub use validation::Validation;
 pub use {
     academic_violations::{
@@ -186,4 +186,11 @@ pub use {
     yaml_violations::{
         ComposeViolation, WorkflowViolation, YamlFlavor, YamlViolation, classify_yaml_flavor,
     },
+};
+pub use {
+    toolchain_mern_violations::{
+        MernViolation, NodeViolation, ToolchainSummary, ToolchainViolation,
+        is_toolchain_audited_file,
+    },
+    uast::{Language, UastDocument, UastKind, UastNode},
 };

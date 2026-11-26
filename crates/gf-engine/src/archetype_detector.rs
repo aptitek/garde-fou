@@ -70,6 +70,32 @@ fn has_primary_app_source(root: &Path, files: &[RepoPath]) -> bool {
         || has_python_app_layout(root, files)
 }
 
+#[rustfmt::skip]
+const NODE_PKG_FRAMEWORKS: &[(&str, FrameworkId)] = &[
+    ("\"astro\"", FrameworkId::Astro), ("\"next\"", FrameworkId::NextJs),
+    ("\"react\"", FrameworkId::React), ("\"react-router\"", FrameworkId::ReactRouter),
+    ("\"@react-router/", FrameworkId::ReactRouter),
+    ("\"@cloudflare/workers-types\"", FrameworkId::CloudflareWorkers),
+    ("\"wrangler\"", FrameworkId::CloudflareWorkers), ("\"drizzle-orm\"", FrameworkId::Drizzle),
+    ("\"express\"", FrameworkId::Express), ("\"mongoose\"", FrameworkId::Mongoose),
+    ("\"mongodb\"", FrameworkId::Mongoose), ("\"@types/node\"", FrameworkId::NodeJs),
+];
+
+/// Detects Node/JS/MERN frameworks from `package.json` contents.
+pub fn detect_node_pkg_frameworks(pkg_json: &str, out: &mut BTreeSet<FrameworkId>) {
+    for &(needle, fw) in NODE_PKG_FRAMEWORKS {
+        if pkg_json.contains(needle) {
+            out.insert(fw);
+        }
+    }
+    if out.contains(&FrameworkId::Express)
+        || out.contains(&FrameworkId::Mongoose)
+        || (pkg_json.contains("\"engines\"") && pkg_json.contains("\"node\""))
+    {
+        out.insert(FrameworkId::NodeJs);
+    }
+}
+
 /// Detects `Quarto`, `Jupyter`, `Obsidian`, and `DockerCompose` frameworks from workspace files.
 pub fn detect_extra_frameworks_into(
     root: &Path,

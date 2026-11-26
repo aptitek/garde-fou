@@ -24,10 +24,13 @@ pub const ALL_LANGUAGES: [LanguageId; 16] = [
     LanguageId::Html,
 ];
 
-/// Ordered list of all 13 frameworks displayed in the Frameworks checkbox section.
-pub const ALL_FRAMEWORKS: [FrameworkId; 13] = [
+/// Ordered list of all 16 frameworks displayed in the Frameworks checkbox section.
+pub const ALL_FRAMEWORKS: [FrameworkId; 16] = [
     FrameworkId::CargoWorkspace,
     FrameworkId::DockerCompose,
+    FrameworkId::NodeJs,
+    FrameworkId::Express,
+    FrameworkId::Mongoose,
     FrameworkId::React,
     FrameworkId::ReactRouter,
     FrameworkId::Astro,

@@ -1,6 +1,8 @@
 //! Automatic workspace context detector (`languages` × `features` × `frameworks`).
 
-use crate::archetype_detector::{detect_extra_frameworks_into, detect_workspace_archetype};
+use crate::archetype_detector::{
+    detect_extra_frameworks_into, detect_node_pkg_frameworks, detect_workspace_archetype,
+};
 use crate::discovery::peek_extensionless_shebang;
 use gf_core::{
     ArchetypeSetting, Config, DomainKind, FeatureId, FrameworkId, Language, LanguageId,
@@ -128,15 +130,6 @@ fn detect_features_into(root: &Path, files: &[RepoPath], out: &mut BTreeSet<Feat
 }
 
 #[rustfmt::skip]
-const NODE_PKG_FRAMEWORKS: &[(&str, FrameworkId)] = &[
-    ("\"astro\"", FrameworkId::Astro), ("\"next\"", FrameworkId::NextJs),
-    ("\"react\"", FrameworkId::React), ("\"react-router\"", FrameworkId::ReactRouter),
-    ("\"@react-router/", FrameworkId::ReactRouter),
-    ("\"@cloudflare/workers-types\"", FrameworkId::CloudflareWorkers),
-    ("\"wrangler\"", FrameworkId::CloudflareWorkers), ("\"drizzle-orm\"", FrameworkId::Drizzle),
-];
-
-#[rustfmt::skip]
 fn detect_py_frameworks(raw: &str, out: &mut BTreeSet<FrameworkId>) {
     let lower = raw.to_ascii_lowercase();
     for (needle, fw) in [("fastapi", FrameworkId::FastApi), ("django", FrameworkId::Django)] {
@@ -146,18 +139,13 @@ fn detect_py_frameworks(raw: &str, out: &mut BTreeSet<FrameworkId>) {
     }
 }
 
+#[rustfmt::skip]
 fn detect_manifest_frameworks(root: &Path, out: &mut BTreeSet<FrameworkId>) {
     if let Ok(pkg_json) = fs::read_to_string(root.join("package.json")) {
-        for &(needle, fw) in NODE_PKG_FRAMEWORKS {
-            if pkg_json.contains(needle) {
-                out.insert(fw);
-            }
-        }
+        detect_node_pkg_frameworks(&pkg_json, out);
     }
     for py_manifest in ["pyproject.toml", "requirements.txt"] {
-        if let Ok(raw) = fs::read_to_string(root.join(py_manifest)) {
-            detect_py_frameworks(&raw, out);
-        }
+        if let Ok(raw) = fs::read_to_string(root.join(py_manifest)) { detect_py_frameworks(&raw, out); }
     }
 }
 

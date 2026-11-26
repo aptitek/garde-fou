@@ -191,6 +191,12 @@ fn audit_and_install_candidate(src_dir: &Path, dest_dir: &Path, id: &str) -> Ski
     }
 }
 
+#[rustfmt::skip]
+fn try_pnpm_dlx_stage(stage: &Path, spec: &ResolvedSkillSpec) -> Option<PathBuf> {
+    let ok = Command::new("pnpm").args(["dlx", "skills", "add", &spec.repo, "--yes"]).current_dir(stage).output().ok()?.status.success();
+    ok.then(|| locate_candidate_in_tree(stage, spec)).flatten()
+}
+
 /// Fetches, audits, and installs `spec` into `dest_skills_root/<spec.id>/`.
 #[must_use]
 pub fn fetch_and_install_skill(
@@ -226,7 +232,9 @@ pub fn fetch_and_install_skill(
             let Ok(stage) = fresh_staging_dir(&spec.id) else {
                 return SkillFetchOutcome::Unavailable(String::from("failed to create temp stage"));
             };
-            let outcome = match try_git_shallow_stage(&stage, spec) {
+            let outcome = match try_pnpm_dlx_stage(&stage, spec)
+                .map_or_else(|| try_git_shallow_stage(&stage, spec), Ok)
+            {
                 Ok(src) => audit_and_install_candidate(&src, &dest_dir, &spec.id),
                 Err(msg) => SkillFetchOutcome::Unavailable(msg),
             };

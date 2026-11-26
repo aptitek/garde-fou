@@ -74,9 +74,15 @@ pub enum ExternalToolKind {
     Ktlint,
     /// `dotnet build` C# / Roslyn `MSBuild` compiler & analyzers.
     DotnetBuild,
+    /// `pnpm` exclusive JS/TS/Node package manager (`GF081`).
+    Pnpm,
+    /// `uv` exclusive Python package & environment manager (`GF081`).
+    Uv,
+    /// Gradle Kotlin DSL (`build.gradle.kts` + `libs.versions.toml`, `GF081`).
+    Gradle,
 }
 
-const TOOL_NAMES: [&str; 34] = [
+const TOOL_NAMES: [&str; 37] = [
     "ruff",
     "mypy",
     "pyright",
@@ -111,11 +117,14 @@ const TOOL_NAMES: [&str; 34] = [
     "detekt",
     "ktlint",
     "dotnet-build",
+    "pnpm",
+    "uv",
+    "gradle",
 ];
 
 impl ExternalToolKind {
     /// All known ecosystem tool identifiers in deterministic order.
-    pub const ALL: [Self; 34] = [
+    pub const ALL: [Self; 37] = [
         Self::Ruff,
         Self::Mypy,
         Self::Pyright,
@@ -150,6 +159,9 @@ impl ExternalToolKind {
         Self::Detekt,
         Self::Ktlint,
         Self::DotnetBuild,
+        Self::Pnpm,
+        Self::Uv,
+        Self::Gradle,
     ];
 
     /// Canonical lowercase CLI/config name of the tool.

@@ -3,10 +3,13 @@
 mod callables;
 mod cloudflare_workers;
 mod drizzle_orm;
+mod express_guardrails;
 mod jsx_dangerous;
 mod jsx_keys;
 mod jsx_semantics;
 mod modules_and_types;
+mod mongoose_nosql;
+mod node_runtime;
 pub(crate) mod panda_m3e;
 mod react_classify;
 mod react_hooks;
@@ -85,6 +88,9 @@ fn run_ts_semantic_passes(
         extract_react_router_rules(root, ctx.path, ctx.source, doc);
         extract_cloudflare_workers_rules(root, ctx.source, doc);
         extract_drizzle_orm_rules(root, ctx.source, ctx.sql_dialect_hint, doc);
+        node_runtime::extract_node_runtime_rules(root, ctx.source, ctx.domain, doc);
+        express_guardrails::extract_express_guardrails(root, ctx.source, doc);
+        mongoose_nosql::extract_mongoose_nosql_rules(root, ctx.source, doc);
     }
     if ctx.supports_jsx {
         extract_jsx_semantics(root, ctx.source, false, doc);

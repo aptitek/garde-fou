@@ -9,6 +9,7 @@ use crate::language_meta::ExternalToolKind;
 pub use crate::mutation_config_issues::{MutantsConfigIssue, StrykerConfigIssue};
 use crate::shell_ps_tools::ShellInfraConfigIssue;
 use crate::sql_tools::SqlToolConfigIssue;
+use crate::toolchain_mern_violations::ToolchainViolation;
 use crate::web_edge_tools::WebEdgeConfigIssue;
 use crate::yaml_tools::YamlCiConfigIssue;
 
@@ -168,6 +169,8 @@ pub enum ToolConfigViolation {
     WebEdge(WebEdgeConfigIssue),
     /// Go (`go.mod`/`.golangci.yml`), Kotlin (`detekt.yml`/`build.gradle.kts`), or C# (`*.csproj`/`.editorconfig`) weakened.
     Compiled(CompiledConfigIssue),
+    /// Modern exclusive toolchain violation (`pnpm`, `uv`, Gradle `.kts`, Node ESM `"type": "module"`).
+    Toolchain(ToolchainViolation),
 }
 
 impl ToolConfigViolation {
@@ -179,6 +182,7 @@ impl ToolConfigViolation {
             Self::Sql(k) => Some((k.tool(), k.key(), k.remediation())),
             Self::WebEdge(k) => Some((k.tool(), k.key(), k.remediation())),
             Self::Compiled(k) => Some((k.tool(), k.key(), k.remediation())),
+            Self::Toolchain(k) => Some((k.tool(), k.code(), k.remediation())),
             Self::MypyNotStrict(_)
             | Self::RuffWeakened(_)
             | Self::PytestOrCoverageWeakened(_)
@@ -208,7 +212,8 @@ impl ToolConfigViolation {
             | Self::Formats(_)
             | Self::Sql(_)
             | Self::WebEdge(_)
-            | Self::Compiled(_) => (ExternalToolKind::Biome, "linter.enabled", REM_CFG_BIOME),
+            | Self::Compiled(_)
+            | Self::Toolchain(_) => (ExternalToolKind::Biome, "linter.enabled", REM_CFG_BIOME),
         }
     }
 

@@ -32,6 +32,7 @@ mod tarjan;
 mod tdd_checks;
 mod tdd_parity;
 mod tool_checks;
+mod toolchain_checks;
 mod ts_import_resolver;
 mod type_and_uast_checks;
 mod web_edge_workspace_checks;
@@ -148,6 +149,7 @@ pub fn evaluate_workspace(
         check_workspace_sql_migrations(docs),
         check_workspace_web_edge(docs, config),
         check_workspace_academic(docs),
+        toolchain_checks::check_workspace_toolchains_and_mern(docs, ctx),
         check_architecture_purity(docs, config),
     ])
 }

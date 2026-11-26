@@ -77,6 +77,7 @@ fn append_language_sections(out: &mut String, ctx: &ProjectContext, seen: &mut B
             "TypeScript / Node",
             &[
                 "node_modules/",
+                ".pnpm-store/",
                 "dist/",
                 "*.tsbuildinfo",
                 ".tsbuildinfo",

@@ -232,6 +232,13 @@ pub fn audit_compiled_tool_config(path: &RepoPath, source: &str, doc: &mut UastD
         "detekt.yml" | "detekt.yaml" => audit_detekt_yml(source, &mut doc.tool_config_findings),
         "build.gradle.kts" | "build.gradle" => {
             audit_gradle_build(source, &mut doc.tool_config_findings);
+            let hardcoded = super::toolchain_commands::extract_gradle_hardcoded_deps(source);
+            if !hardcoded.is_empty() {
+                doc.toolchain_meta = Some(gf_core::ToolchainSummary {
+                    hardcoded_gradle_deps: hardcoded,
+                    ..gf_core::ToolchainSummary::default()
+                });
+            }
         }
         "Directory.Build.props" => audit_csproj_xml(source, &mut doc.tool_config_findings),
         ".editorconfig" => audit_editorconfig(source, &mut doc.tool_config_findings),

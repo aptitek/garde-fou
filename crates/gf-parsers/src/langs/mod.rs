@@ -35,6 +35,8 @@ pub mod toml_lang;
 pub mod tool_config;
 pub(crate) mod tool_config_compiled;
 mod tool_config_py;
+pub mod toolchain_commands;
+pub mod toolchain_modern;
 pub mod ts;
 pub mod xml;
 pub mod yaml;

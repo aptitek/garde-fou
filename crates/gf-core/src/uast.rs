@@ -9,7 +9,7 @@ use crate::clean_code::{
 use crate::diagnostic::{Span, SpanError};
 use crate::domain_summaries::{
     AcademicSummary, AssetDocument, CompiledModuleSummary, ContenusDocument, FormeDocument,
-    StyleLeakFinding, TexteDocument, TomlManifestSummary, UiCheckFinding,
+    StyleLeakFinding, TexteDocument, TomlManifestSummary, ToolchainSummary, UiCheckFinding,
 };
 pub use crate::language_meta::Language;
 use crate::metrics::{
@@ -147,6 +147,9 @@ pub struct UastDocument {
     /// Optional Go/Kotlin/C# package, namespace, and structural interface metadata (`GF071`/`GF075`).
     #[serde(default)]
     pub compiled_meta: Option<CompiledModuleSummary>,
+    /// Optional modern toolchain & Gradle Version Catalog metadata (`GF080`/`GF081`).
+    #[serde(default)]
+    pub toolchain_meta: Option<ToolchainSummary>,
     /// Root `UAST` node (typically [`UastKind::File`]).
     pub root: UastNode,
 }
@@ -201,6 +204,7 @@ impl UastDocument {
             web_edge: None,
             academic: None,
             compiled_meta: None,
+            toolchain_meta: None,
             root: UastNode::leaf(UastKind::File, root_span),
         })
     }

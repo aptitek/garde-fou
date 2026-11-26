@@ -6,7 +6,10 @@ use gf_core::{LanguageId, ProjectContext};
 
 const GO_APP: &str = "package app\n\n// Sum returns the sum of two integers.\nfunc Sum(a, b int) int {\n\treturn a + b\n}\n";
 const GO_TEST: &str = "package app\n\nimport \"testing\"\n\nfunc TestSum(t *testing.T) {\n\tif got := Sum(2, 3); got != 5 {\n\t\tt.Fatalf(\"expected 5, got %d\", got)\n\t}\n}\n";
-const KT_GRADLE: &str = "plugins {\n    kotlin(\"jvm\") version \"2.1.0\"\n}\n\nrepositories {\n    mavenCentral()\n}\n";
+const KT_SETTINGS: &str = "rootProject.name = \"app\"\n";
+const KT_LIBS_TOML: &str = "[versions]\nkotlin = \"2.1.0\"\n\n[plugins]\nkotlin-jvm = { id = \"org.jetbrains.kotlin.jvm\", version.ref = \"kotlin\" }\n";
+const KT_GRADLE: &str =
+    "plugins {\n    alias(libs.plugins.kotlin.jvm)\n}\n\nrepositories {\n    mavenCentral()\n}\n";
 const CS_PROJ: &str = "<Project Sdk=\"Microsoft.NET.Sdk\">\n  <PropertyGroup>\n    <TargetFramework>net9.0</TargetFramework>\n    <Nullable>enable</Nullable>\n    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>\n    <EnableNETAnalyzers>true</EnableNETAnalyzers>\n  </PropertyGroup>\n</Project>\n";
 const CS_APP: &str = "namespace App.Core;\n\npublic static class MathOps\n{\n    public static int Sum(int a, int b) => a + b;\n}\n";
 const CS_TEST: &str = "using App.Core;\nusing Xunit;\n\nnamespace App.Tests;\n\npublic sealed class AppTests\n{\n    [Fact]\n    public void SumAddsNumbers()\n    {\n        Assert.Equal(5, MathOps.Sum(2, 3));\n    }\n}\n";
@@ -33,6 +36,11 @@ pub fn push_compiled_lang_templates(
     }
     if ctx.languages.contains(&LanguageId::Kotlin) {
         files.extend([
+            (String::from("settings.gradle.kts"), String::from(KT_SETTINGS)),
+            (
+                String::from("gradle/libs.versions.toml"),
+                String::from(KT_LIBS_TOML),
+            ),
             (String::from("build.gradle.kts"), String::from(KT_GRADLE)),
             (
                 String::from("src/main/kotlin/App.kt"),

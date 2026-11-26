@@ -9,6 +9,7 @@ pub use crate::academic_violations::AcademicSummary;
 pub use crate::compiled_violations::CompiledModuleSummary;
 use crate::diagnostic::Span;
 use crate::format_violations::{CssViolation, MarkdownViolation, XmlSvgViolation};
+pub use crate::toolchain_mern_violations::ToolchainSummary;
 
 /// Category of style or asset leak detected inside `DomainKind::Code`.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
