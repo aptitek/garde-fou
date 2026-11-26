@@ -1,12 +1,18 @@
-//! Pure output formatters (`human`, compact deterministic `agent` Markdown, and `SARIF` 2.1.0).
+//! Pure output formatters (`human` Lipgloss reporter, compact deterministic `agent` Markdown,
+//! and `SARIF` 2.1.0).
 
-use core::fmt::Write as _;
+use std::collections::BTreeMap;
+use std::fmt::Write as _;
 
 use gf_core::Diagnostic;
-use gf_engine::{CheckReport, FileSyncAction, InitReport, ScanScope, SyncReport};
+use gf_engine::{CheckReport, InitReport, ScanScope, SyncReport};
 use serde_json::json;
 
 use crate::args::OutputFormat;
+use crate::ui::{
+    ColorPolicy, HumanCheckMeta, SourceFileView, render_human_check, render_init_human,
+    render_sync_human,
+};
 
 const fn scope_label(scope: ScanScope) -> &'static str {
     match scope {
@@ -15,40 +21,9 @@ const fn scope_label(scope: ScanScope) -> &'static str {
     }
 }
 
-fn render_human(report: &CheckReport) -> String {
-    let ctx_summary = report.context.summary_inline();
-    if report.is_clean() {
-        let short_fp = report
-            .cache_fingerprint
-            .get(0..12)
-            .unwrap_or(&report.cache_fingerprint);
-        return format!(
-            "garde-fou: ok (scope={}, {ctx_summary}, files={}, cache_hits={}, cache_misses={}, blake3={short_fp})",
-            scope_label(report.scope),
-            report.files_checked,
-            report.cache_hits,
-            report.cache_misses,
-        );
-    }
-    let mut buf = format!("garde-fou: FAIL ({ctx_summary})\n");
-    for diag in &report.diagnostics {
-        let _ = writeln!(
-            buf,
-            "[{}] {}:{}-{} (measured={}, max={}): {}\n  help: {}",
-            diag.rule_id,
-            diag.path,
-            diag.span.start_line(),
-            diag.span.end_line(),
-            diag.measured,
-            diag.threshold,
-            diag.message,
-            diag.remediation
-        );
-    }
-    buf.trim_end().to_string()
-}
-
-fn render_agent_markdown(report: &CheckReport) -> String {
+/// Renders the deterministic, ANSI-free `--format agent` Markdown report.
+#[must_use]
+pub fn render_agent_markdown(report: &CheckReport) -> String {
     let status = if report.is_clean() { "PASS" } else { "FAIL" };
     let mut buf = format!(
         "## Garde-fou Report\n\n- **Status**: `{status}` | **Scope**: `{}` | **Files**: `{}` (`{}` hits, `{}` misses) | **Violations**: `{}`\n- **Context**: `{}`\n",
@@ -121,63 +96,37 @@ fn render_sarif(report: &CheckReport) -> String {
     payload.to_string()
 }
 
-/// Formats a [`CheckReport`] according to the requested [`OutputFormat`].
+/// Formats a [`CheckReport`] with explicit source views and terminal styling metadata.
 #[must_use]
-pub fn render_check_report(report: &CheckReport, format: OutputFormat) -> String {
+pub fn render_check_report_rich(
+    report: &CheckReport,
+    format: OutputFormat,
+    sources: &BTreeMap<String, SourceFileView>,
+    meta: &HumanCheckMeta,
+) -> String {
     match format {
-        OutputFormat::Human => render_human(report),
+        OutputFormat::Human => render_human_check(report, sources, meta),
         OutputFormat::Agent => render_agent_markdown(report),
         OutputFormat::Sarif => render_sarif(report),
     }
 }
 
-/// Formats an [`InitReport`] for terminal display.
+/// Formats a [`CheckReport`] according to `format` using plain monochrome defaults for `Human`.
 #[must_use]
-pub fn render_init_report(report: &InitReport) -> String {
-    let git_label = if report.git_initialized {
-        "initialized"
-    } else {
-        "existing/skipped"
-    };
-    let mut out = format!(
-        "garde-fou: initialized `{}` in {} ({}, git={}, created={}, updated={}, preserved={}, skills={})",
-        report.project_name,
-        report.root.display(),
-        report.context.summary_inline(),
-        git_label,
-        report.created_files.len(),
-        report.updated_files.len(),
-        report.preserved_files.len(),
-        report.installed_skills.len(),
-    );
-    for w in &report.warnings {
-        let _ = write!(out, "\n  warn: {w}");
-    }
-    out
+pub fn render_check_report(report: &CheckReport, format: OutputFormat) -> String {
+    render_check_report_rich(report, format, &BTreeMap::new(), &HumanCheckMeta::default())
 }
 
-/// Formats a [`SyncReport`] for terminal display.
+/// Formats an [`InitReport`] in plain monochrome mode.
+#[must_use]
+pub fn render_init_report(report: &InitReport) -> String {
+    render_init_human(report, ColorPolicy::Plain)
+}
+
+/// Formats a [`SyncReport`] in plain monochrome mode.
 #[must_use]
 pub fn render_sync_report(report: &SyncReport) -> String {
-    let action = match report.agents_md {
-        FileSyncAction::Created => "created",
-        FileSyncAction::Updated => "updated",
-        FileSyncAction::Unchanged => "unchanged",
-    };
-    let mut out = format!(
-        "garde: sync ok ({}, AGENTS.md={action}, skills_installed={}, skills_preserved={}, rejected={})",
-        report.context.summary_inline(),
-        report.installed_skills.len(),
-        report.preserved_skills.len(),
-        report.rejected_skills.len(),
-    );
-    for (id, reason) in &report.rejected_skills {
-        let _ = write!(out, "\n  rejected skill `{id}`: {reason}");
-    }
-    for w in &report.warnings {
-        let _ = write!(out, "\n  warn: {w}");
-    }
-    out
+    render_sync_human(report, ColorPolicy::Plain)
 }
 
 #[cfg(test)]
@@ -199,7 +148,7 @@ mod tests {
             files_checked: 3,
             cache_hits: 2,
             cache_misses: 1,
-            cache_fingerprint: "0123456789abcdef0123456789abcdef".to_string(),
+            cache_fingerprint: String::from("0123456789abcdef0123456789abcdef"),
             diagnostics: Vec::new(),
         };
         assert!(render_check_report(&clean, OutputFormat::Human).contains("langs=[]"));
@@ -212,12 +161,12 @@ mod tests {
             files_checked: 1,
             cache_hits: 0,
             cache_misses: 1,
-            cache_fingerprint: "abcdef".to_string(),
+            cache_fingerprint: String::from("abcdef"),
             diagnostics: vec![Diagnostic {
-                rule_id: "GF004".to_string(),
+                rule_id: String::from("GF004"),
                 severity: Severity::Error,
-                message: "callable `f` has cognitive complexity 14 (max 10)".to_string(),
-                remediation: "Extract pure helper functions.".to_string(),
+                message: String::from("callable `f` has cognitive complexity 14 (max 10)"),
+                remediation: String::from("Extract pure helper functions."),
                 measured: 14,
                 threshold: 10,
                 path: RepoPath::new("src/big.rs")?,

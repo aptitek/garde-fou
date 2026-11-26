@@ -1,21 +1,32 @@
-//! Subcommand execution handlers for `garde` (`check`, `init`, `lock`, `commit-msg`).
+//! Subcommand execution handlers for `garde` (`check`, `tui`, `config`, `sync`, `lock`, `commit-msg`).
 
-use std::collections::BTreeSet;
-use std::fmt::Write as _;
-use std::fs;
-use std::path::{Path, PathBuf};
-use std::process::ExitCode;
-
-use gf_core::{
-    FeatureId, FrameworkId, LanguageId, Validation, WorkspaceArchetype, validate_commit_message,
+use std::{
+    collections::BTreeMap,
+    fs,
+    path::{Path, PathBuf},
+    process::ExitCode,
+    time::Instant,
 };
+
+use gf_core::validate_commit_message;
 use gf_engine::{
-    CheckOptions, EngineError, InitRequest, ScanScope, SkillsFetchMode, SyncOptions,
-    load_workspace_config, run_check_with_options, run_init_with_sync_mode, run_lock, run_sync,
+    CheckOptions, EngineError, ScanScope, SkillsFetchMode, SyncOptions, load_workspace_config,
+    run_check_with_options, run_lock, run_sync,
 };
 
-use crate::args::{CheckArgs, CommitMsgArgs, InitArgs, LockArgs, SyncArgs};
-use crate::reporter::{render_check_report, render_init_report, render_sync_report};
+use crate::args::{
+    CheckArgs, CheckExecutionFlags, CommitMsgArgs, LockArgs, OutputFormat, SyncArgs, TuiArgs,
+};
+use crate::args_ops::ConfigArgs;
+use crate::output::with_ephemeral_spinner;
+use crate::reporter::render_check_report_rich;
+use crate::source_loader::{load_diagnosed_sources, read_lcov_tenths};
+use crate::tui::{AppTab, detect_term_width};
+use crate::tui_runner::{AppRunParams, run_app_interactive};
+use crate::ui::{
+    ColorPolicy, HumanCheckMeta, render_commit_msg_human, render_lock_human, render_sync_human,
+};
+use crate::watch_runner::run_watch_check_loop;
 
 fn resolve_dir(opt_path: Option<&PathBuf>, cwd: &Path) -> PathBuf {
     opt_path.map_or_else(
@@ -30,114 +41,162 @@ fn resolve_dir(opt_path: Option<&PathBuf>, cwd: &Path) -> PathBuf {
     )
 }
 
-fn build_init_request(args: &InitArgs, cwd: &Path) -> Result<InitRequest, EngineError> {
-    let root = resolve_dir(args.path.as_ref(), cwd);
-    let archetype = args
-        .archetype
-        .as_deref()
-        .map(|raw| {
-            WorkspaceArchetype::from_config_str(raw)
-                .ok_or_else(|| EngineError::InvalidConfig(format!("unknown --archetype `{raw}`")))
-        })
-        .transpose()?;
-    let mut languages = BTreeSet::new();
-    for raw in &args.langs {
-        let id = LanguageId::from_slug(raw)
-            .ok_or_else(|| EngineError::InvalidConfig(format!("unknown --lang `{raw}`")))?;
-        languages.insert(id);
+const fn check_options_from(
+    exec: CheckExecutionFlags,
+    strict_tools: bool,
+    lcov: Option<String>,
+    mutants: Option<String>,
+) -> CheckOptions {
+    CheckOptions {
+        scope: if exec.staged {
+            ScanScope::StagedOnly
+        } else {
+            ScanScope::All
+        },
+        no_cache: exec.no_cache,
+        strict_tools,
+        lcov_path: lcov,
+        mutants_path: mutants,
     }
-    let mut features = BTreeSet::new();
-    for raw in &args.features {
-        let id = FeatureId::from_config_str(raw)
-            .ok_or_else(|| EngineError::InvalidConfig(format!("unknown --feature `{raw}`")))?;
-        features.insert(id);
-    }
-    let mut frameworks = BTreeSet::new();
-    for raw in &args.frameworks {
-        let id = FrameworkId::from_config_str(raw)
-            .ok_or_else(|| EngineError::InvalidConfig(format!("unknown --framework `{raw}`")))?;
-        frameworks.insert(id);
-    }
-
-    Ok(InitRequest {
-        root,
-        project_name: args.name.clone(),
-        archetype,
-        languages,
-        features,
-        frameworks,
-        run_git_init: !args.no_git,
-    })
 }
 
-pub fn execute_check(args: &CheckArgs, cwd: &Path) -> Result<(String, ExitCode), EngineError> {
-    let scope = if args.exec.staged {
-        ScanScope::StagedOnly
-    } else {
-        ScanScope::All
-    };
-    let options = CheckOptions {
-        scope,
-        no_cache: args.exec.no_cache,
-        strict_tools: args.strict_tools,
-        lcov_path: args.lcov.clone(),
-        mutants_path: args.mutants.clone(),
-    };
+pub fn execute_check(
+    args: &CheckArgs,
+    cwd: &Path,
+    policy: ColorPolicy,
+) -> Result<(String, ExitCode), EngineError> {
+    if args.mode.interactive {
+        let tui = TuiArgs {
+            exec: args.exec,
+            strict_tools: args.strict_tools,
+            lcov: args.lcov.clone(),
+            mutants: args.mutants.clone(),
+        };
+        return execute_tui(&tui, cwd, policy);
+    }
+    let options = check_options_from(
+        args.exec,
+        args.strict_tools,
+        args.lcov.clone(),
+        args.mutants.clone(),
+    );
+    if args.mode.watch {
+        let code = run_watch_check_loop(cwd, &options, policy)?;
+        return Ok((String::new(), code));
+    }
+    let t0 = Instant::now();
     let report = run_check_with_options(cwd, &options)?;
+    let elapsed_ms = t0.elapsed().as_millis();
     let exit = if report.is_clean() {
         ExitCode::SUCCESS
     } else {
         ExitCode::FAILURE
     };
-    Ok((render_check_report(&report, args.format), exit))
+    let sources = if args.format == OutputFormat::Human {
+        load_diagnosed_sources(cwd, &report)
+    } else {
+        BTreeMap::new()
+    };
+    let meta = HumanCheckMeta {
+        elapsed_ms,
+        lcov_tenths: (args.format == OutputFormat::Human)
+            .then(|| read_lcov_tenths(cwd, args.lcov.as_deref()))
+            .flatten(),
+        policy,
+        max_width: detect_term_width(),
+    };
+    Ok((
+        render_check_report_rich(&report, args.format, &sources, &meta),
+        exit,
+    ))
 }
 
-pub fn execute_init(args: &InitArgs, cwd: &Path) -> Result<(String, ExitCode), EngineError> {
-    let req = build_init_request(args, cwd)?;
-    let mode = if args.offline {
+pub fn execute_tui(
+    args: &TuiArgs,
+    cwd: &Path,
+    policy: ColorPolicy,
+) -> Result<(String, ExitCode), EngineError> {
+    let initial_opts = check_options_from(
+        args.exec,
+        args.strict_tools,
+        args.lcov.clone(),
+        args.mutants.clone(),
+    );
+    let params = AppRunParams {
+        initial_tab: AppTab::Diagnostics,
+        initial_opts: &initial_opts,
+        fetch_mode: SkillsFetchMode::Offline,
+        policy,
+    };
+    let code = run_app_interactive(cwd, &params)?;
+    Ok((String::new(), code))
+}
+
+pub fn execute_config(
+    args: &ConfigArgs,
+    cwd: &Path,
+    policy: ColorPolicy,
+) -> Result<(String, ExitCode), EngineError> {
+    let root = resolve_dir(args.path.as_ref(), cwd);
+    let opts = CheckOptions::default();
+    let fetch_mode = if args.offline {
         SkillsFetchMode::Offline
     } else {
         SkillsFetchMode::Online
     };
-    let report = run_init_with_sync_mode(&req, mode)?;
-    Ok((render_init_report(&report), ExitCode::SUCCESS))
+    let params = AppRunParams {
+        initial_tab: AppTab::Config,
+        initial_opts: &opts,
+        fetch_mode,
+        policy,
+    };
+    let code = run_app_interactive(&root, &params)?;
+    Ok((String::new(), code))
 }
 
-pub fn execute_sync(args: &SyncArgs, cwd: &Path) -> Result<(String, ExitCode), EngineError> {
+pub fn execute_sync(
+    args: &SyncArgs,
+    cwd: &Path,
+    policy: ColorPolicy,
+) -> Result<(String, ExitCode), EngineError> {
     let target_root = resolve_dir(args.path.as_ref(), cwd);
     let fetch_mode = if args.offline {
         SkillsFetchMode::Offline
     } else if let Some(dir) = &args.skills_from_dir {
-        let resolved = if dir.is_absolute() {
+        SkillsFetchMode::FromDir(if dir.is_absolute() {
             dir.clone()
         } else {
             cwd.join(dir)
-        };
-        SkillsFetchMode::FromDir(resolved)
+        })
     } else {
         SkillsFetchMode::Online
     };
+    let is_online = fetch_mode == SkillsFetchMode::Online;
     let options = SyncOptions {
         fetch_mode,
         update_skills: args.update_skills,
     };
-    let report = run_sync(&target_root, &options)?;
-    Ok((render_sync_report(&report), ExitCode::SUCCESS))
+    let report =
+        with_ephemeral_spinner(is_online, "Synchronisation des skills...", policy, || {
+            run_sync(&target_root, &options)
+        })?;
+    Ok((render_sync_human(&report, policy), ExitCode::SUCCESS))
 }
 
-pub fn execute_lock(args: &LockArgs, cwd: &Path) -> Result<(String, ExitCode), EngineError> {
+pub fn execute_lock(
+    args: &LockArgs,
+    cwd: &Path,
+    policy: ColorPolicy,
+) -> Result<(String, ExitCode), EngineError> {
     let target_root = resolve_dir(args.path.as_ref(), cwd);
     let digest = run_lock(&target_root)?;
-    let short = digest.get(0..16).unwrap_or(&digest);
-    Ok((
-        format!("garde: locked `garde-fou.toml` -> `garde.lock` (blake3={short})"),
-        ExitCode::SUCCESS,
-    ))
+    Ok((render_lock_human(&digest, policy), ExitCode::SUCCESS))
 }
 
 pub fn execute_commit_msg(
     args: &CommitMsgArgs,
     cwd: &Path,
+    policy: ColorPolicy,
 ) -> Result<(String, ExitCode), EngineError> {
     let msg_path = if args.msg_file.is_absolute() {
         args.msg_file.clone()
@@ -146,18 +205,12 @@ pub fn execute_commit_msg(
     };
     let loaded = load_workspace_config(cwd)?;
     let raw_msg = fs::read_to_string(&msg_path)?;
-    match validate_commit_message(&raw_msg, &loaded.analyzer.commit) {
-        Validation::Valid(()) => Ok((String::from("garde: commit-msg ok"), ExitCode::SUCCESS)),
-        Validation::Invalid(diags) => {
-            let mut out = String::from("garde: commit-msg FAIL");
-            for d in &diags {
-                let _ = write!(
-                    out,
-                    "\n[{}] {}: {}\n  help: {}",
-                    d.rule_id, d.path, d.message, d.remediation
-                );
-            }
-            Ok((out, ExitCode::FAILURE))
-        }
-    }
+    let outcome = validate_commit_message(&raw_msg, &loaded.analyzer.commit);
+    let exit = if outcome.is_valid() {
+        ExitCode::SUCCESS
+    } else {
+        ExitCode::FAILURE
+    };
+    let rendered = render_commit_msg_human(&outcome, policy, detect_term_width());
+    Ok((rendered, exit))
 }

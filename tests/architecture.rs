@@ -10,7 +10,10 @@ use gf_parsers::parse_source;
 use gf_rules::check_architecture_purity;
 
 const MAX_FILE_LINES: usize = 250;
-const CLI_OUTPUT_BOUNDARY: &str = "crates/gf-cli/src/output.rs";
+const CLI_CONSOLE_BOUNDARIES: &[&str] = &[
+    "crates/gf-cli/src/output.rs",
+    "crates/gf-cli/src/tui/terminal.rs",
+];
 
 fn workspace_root() -> Result<PathBuf, String> {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
@@ -158,7 +161,7 @@ fn enforces_console_output_and_no_allow_cheating_via_ast() -> Result<(), Box<dyn
 
     let console_violations: Vec<String> = docs
         .iter()
-        .filter(|doc| doc.path.as_str() != CLI_OUTPUT_BOUNDARY)
+        .filter(|doc| !CLI_CONSOLE_BOUNDARIES.contains(&doc.path.as_str()))
         .flat_map(|doc| {
             doc.effect_sightings
                 .iter()
@@ -167,7 +170,29 @@ fn enforces_console_output_and_no_allow_cheating_via_ast() -> Result<(), Box<dyn
         })
         .collect();
 
+    let pure_ui_io_leaks: Vec<String> = docs
+        .iter()
+        .filter(|doc| {
+            let p = doc.path.as_str();
+            p.starts_with("crates/gf-cli/src/ui/")
+                || (p.starts_with("crates/gf-cli/src/tui/")
+                    && p != "crates/gf-cli/src/tui/terminal.rs")
+        })
+        .flat_map(|doc| {
+            doc.effect_sightings
+                .iter()
+                .filter(|eff| {
+                    matches!(
+                        eff.kind,
+                        EffectSightingKind::IoImportOrCall | EffectSightingKind::ConsoleOutput
+                    )
+                })
+                .map(move |eff| format!("{}:{} -> {}", doc.path, eff.span.start_line(), eff.detail))
+        })
+        .collect();
+
     assert_eq!(bypass_violations, Vec::<String>::new());
     assert_eq!(console_violations, Vec::<String>::new());
+    assert_eq!(pure_ui_io_leaks, Vec::<String>::new());
     Ok(())
 }

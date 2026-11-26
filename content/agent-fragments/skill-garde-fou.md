@@ -10,11 +10,16 @@ Use this skill whenever working inside a repository governed by `garde-fou.toml`
 ## CLI Commands
 
 - `garde check --staged --format agent`: fast `BLAKE3`-cached check on staged Git changes with agent-ready Markdown remediation.
-- `garde check --no-cache`: full workspace evaluation from scratch (AST, 6-domain segregation, Tarjan DAG, `[[boundaries]]`, 3-tier ecosystem tool ingestion, `SARIF`, and `LCOV`).
+- `garde check --no-cache`: full workspace evaluation from scratch (AST, 6-domain segregation, Tarjan DAG, `[[boundaries]]`, 3-tier ecosystem tool ingestion, `SARIF`, and `LCOV`, with `--color auto|always|never`).
+- `garde check --watch` (`-w`): real-time debounced filesystem watch mode re-running incremental `BLAKE3` checks on every save (`r` reload, `q`/`Ctrl+C` quit).
+- `garde tui` (or `garde check -i`): 3-tab interactive Bubble Tea cockpit (`[1] Diagnostics (Live)`, `[2] Projet & Garde-fous` lossless checkbox configurator, `[3] Cache` prune/clean; `/` filter, `w` Live/Pause watch, `r` reload, `a` agent Markdown preview, `y` `OSC 52` clipboard copy).
+- `garde config [PATH]`: opens the interactive cockpit directly on Tab `[2] Projet & Garde-fous` (lossless `toml_edit` patch of `garde-fou.toml` + `garde sync`).
+- `garde cache [status|prune|clean] [PATH]`: inspect `.garde-fou-cache/` disk usage, prune obsolete schema versions & orphaned entries, or wipe the cache cleanly.
+- `garde uninstall [--project] [--self] [--purge-skills] [--dry-run] [-y] [PATH]` (and alias `garde eject [PATH]`): surgically detach Garde-fou managed blocks while preserving human content and custom skills, or uninstall the `garde` binary safely (`mise` / standalone).
 - `garde sync`: regenerate the `AGENTS.md` managed block, refresh `.agents/skills/garde-fou/SKILL.md`, fetch contextual `skills.sh` skills, and update `garde.lock` (`--offline` skips network).
 - `garde lock`: seal `garde-fou.toml` cryptographically into `garde.lock` (`GF070`).
 - `garde commit-msg <MSG_FILE>`: validate a Git commit message against Conventional Commits (`GF077`).
-- `garde init [PATH]`: bootstrap or non-destructively adopt a repository (`--archetype`, `--lang`, `--feature`, `--framework`, `--offline`).
+- `garde init [PATH]`: bootstrap or non-destructively adopt a repository (`-i` Gum-style interactive wizard, `-y` non-interactive `Minimal` defaults, `--archetype`, `--lang`, `--feature`, `--framework`, `--offline`).
 
 ## Diagnostic Reference & Root-Cause Remediation (`GF000`–`GF082`)
 

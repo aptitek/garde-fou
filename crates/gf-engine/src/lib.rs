@@ -5,8 +5,10 @@ pub mod adapters;
 pub mod agents;
 mod archetype_detector;
 pub mod cache;
+pub mod cache_ops;
 mod config_fortress;
 pub mod config_loader;
+pub mod config_patcher;
 mod config_schema;
 mod config_tools;
 pub mod context_detector;
@@ -19,40 +21,55 @@ pub mod scaffold;
 pub mod scanners;
 pub mod sql_context;
 pub mod types;
+pub mod uninstall;
+pub mod watch;
 
 use std::path::Path;
 
 use gf_core::{Config, LockStatus, ScannerPolicy};
 
-pub use adapters::{
-    AdapterCtx, ExternalAdapter, ResolvedPythonTool, ToolParseError, parse_actionlint_json,
-    parse_astro_check_output, parse_biome_json, parse_dclint_json, parse_hadolint_json,
-    parse_html_validate_json, parse_mypy_ndjson, parse_oxlint_json, parse_psscriptanalyzer_json,
-    parse_pyright_json, parse_ruff_json, parse_rumdl_or_markdownlint_json, parse_shellcheck_json,
-    parse_sqlfluff_json, parse_sqruff_json, parse_squawk_json, parse_stylelint_json,
-    parse_taplo_output, parse_tsc_output, parse_xmllint_output, parse_yamllint_parsable,
-    parse_zizmor_sarif, resolve_node_tool, resolve_python_tool, resolve_python_tool_with_uv,
-};
-pub use agents::{
-    FileSyncAction, SyncOptions, SyncReport, collect_installed_skill_entries,
-    fetcher::SkillsFetchMode, run_sync, verify_agentic_state,
-};
-pub use cache::{CacheKey, CachedFileArtifact, DiskCache};
-pub use config_loader::{LoadedWorkspaceConfig, load_workspace_config};
-pub use context_detector::detect_project_context;
-pub use discovery::discover_files;
-pub use init::{InitReport, InitRequest, run_init, run_init_with_sync_mode};
-pub use lockfile::{
-    compute_manifest_blake3_hex, compute_skills_merkle_blake3_hex, verify_garde_lock,
-    write_garde_lock,
+pub use crate::{
+    adapters::{
+        AdapterCtx, ExternalAdapter, ResolvedPythonTool, ToolParseError, parse_actionlint_json,
+        parse_astro_check_output, parse_biome_json, parse_dclint_json, parse_hadolint_json,
+        parse_html_validate_json, parse_mypy_ndjson, parse_oxlint_json,
+        parse_psscriptanalyzer_json, parse_pyright_json, parse_ruff_json,
+        parse_rumdl_or_markdownlint_json, parse_shellcheck_json, parse_sqlfluff_json,
+        parse_sqruff_json, parse_squawk_json, parse_stylelint_json, parse_taplo_output,
+        parse_tsc_output, parse_xmllint_output, parse_yamllint_parsable, parse_zizmor_sarif,
+        resolve_node_tool, resolve_python_tool, resolve_python_tool_with_uv,
+    },
+    agents::{
+        FileSyncAction, SyncOptions, SyncReport, collect_installed_skill_entries,
+        fetcher::SkillsFetchMode, run_sync, verify_agentic_state,
+    },
+    cache::{ACTIVE_CACHE_SCHEMA, CacheKey, CachedFileArtifact, DiskCache},
+    cache_ops::{CacheCleanSummary, CacheReport, cache_clean, cache_prune, cache_status},
+    config_loader::{LoadedWorkspaceConfig, load_workspace_config},
+    config_patcher::{apply_project_settings, load_project_settings, patch_garde_fou_toml_str},
+    context_detector::detect_project_context,
+    discovery::discover_files,
+    init::{InitReport, InitRequest, run_init, run_init_with_sync_mode},
+    lockfile::{
+        compute_manifest_blake3_hex, compute_skills_merkle_blake3_hex, verify_garde_lock,
+        write_garde_lock,
+    },
+    scaffold::{InitOutcome, scaffold_config},
+    scanners::{
+        mutation_ingest::ingest_mutation_json,
+        sarif_ingest::{SarifMapping, ingest_sarif_json},
+    },
+    types::{
+        CheckOptions, CheckReport, DEFAULT_CONFIG_FILENAME, EngineError, LOCK_FILENAME, ScanScope,
+    },
+    uninstall::{
+        UninstallAction, UninstallExecReport, UninstallPlan, detect_mise_tool_slug,
+        execute_project_eject, execute_self_uninstall, find_secondary_garde_binaries,
+        plan_project_eject, plan_self_uninstall,
+    },
+    watch::{FileStamp, WatchDelta, WorkspaceSnapshot, capture_snapshot, diff_snapshots},
 };
 use runner::{PipelineEnv, execute_pipeline};
-pub use scaffold::{InitOutcome, scaffold_config};
-pub use scanners::mutation_ingest::ingest_mutation_json;
-pub use scanners::sarif_ingest::{SarifMapping, ingest_sarif_json};
-pub use types::{
-    CheckOptions, CheckReport, DEFAULT_CONFIG_FILENAME, EngineError, LOCK_FILENAME, ScanScope,
-};
 
 /// Validates `garde-fou.toml` in `root` and writes a cryptographically matching `garde.lock`.
 ///

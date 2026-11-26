@@ -3,9 +3,16 @@ cap_lints = true
 examine_globs = [
     "crates/gf-core/src/**/*.rs",
     "crates/gf-rules/src/**/*.rs",
+    "crates/gf-engine/src/config_patcher.rs",
+    "crates/gf-engine/src/watch.rs",
+    "crates/gf-engine/src/cache_ops.rs",
+    "crates/gf-engine/src/uninstall/**/*.rs",
+    "crates/gf-cli/src/ui/**/*.rs",
+    "crates/gf-cli/src/tui/**/*.rs",
 ]
 exclude_globs = [
     "crates/gf-core/src/agent_templates.rs",
+    "crates/gf-cli/src/tui/terminal.rs",
 ]
 timeout_multiplier = 3.0
 minimum_test_timeout = 20.0

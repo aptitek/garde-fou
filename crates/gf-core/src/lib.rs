@@ -33,11 +33,13 @@ pub mod glob;
 pub mod lang_rule_violation;
 pub mod language_meta;
 pub mod lcov;
+pub mod managed_blocks;
 pub mod metrics;
 pub mod mutation;
 pub mod mutation_config_issues;
 pub mod path;
 pub mod policies;
+pub mod project_settings;
 pub mod python_violations;
 pub mod shell_ps_tools;
 pub mod shell_ps_violations;
@@ -76,12 +78,17 @@ pub use gitignore::{
 };
 pub use glob::glob_matches;
 pub use lcov::{FileCoverage, LcovSummary, compute_crap_score, parse_lcov};
+pub use managed_blocks::{
+    is_empty_generated_agents_header, strip_delimited_managed_block, strip_garde_lefthook_commands,
+    strip_hash_managed_block, strip_html_managed_block,
+};
 pub use metrics::{
     CallableDecl, CallableKind, EffectSighting, EffectSightingKind, ExportDecl, ImportDecl,
     SecretFinding, SyntaxErrorNode, TypeDecl, TypeKind,
 };
 pub use mutation::{MutationConfig, MutationSummary, SurvivedMutant, truncate_replacement};
 pub use path::{RepoPath, RepoPathError};
+pub use project_settings::{GovernanceFlag, GovernanceFlags, ProjectSettingsState};
 pub use uast::{Language, UastDocument, UastKind, UastNode};
 pub use validation::Validation;
 pub use {
@@ -132,7 +139,7 @@ pub use {
     shell_ps_violations::{PowerShellViolation, ShellDialect, ShellViolation},
     skills_catalog::{
         AgenticSyncStatus, AgentsConfig, RemoteSkillSpec, ResolvedSkillSpec, SkillEntry,
-        parse_extra_skill_spec, select_contextual_skills,
+        is_catalog_skill_id, parse_extra_skill_spec, select_contextual_skills,
     },
     sql_tools::{
         DrizzleConfigIssue, SqlToolConfigIssue, SqlToolsConfig, SqruffSqlfluffConfigIssue,

@@ -11,6 +11,9 @@ use serde::{Deserialize, Serialize};
 static TEMP_COUNTER: AtomicU64 = AtomicU64::new(0);
 const STREAM_CHUNK_BYTES: usize = 64 * 1024;
 
+/// Active on-disk cache schema directory name inside `.garde-fou-cache/`.
+pub const ACTIVE_CACHE_SCHEMA: &str = "v14";
+
 /// Deterministic `BLAKE3` 256-bit digest used for incremental analysis caching.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct CacheKey([u8; 32]);
@@ -90,7 +93,7 @@ impl DiskCache {
     #[must_use]
     pub fn new(workspace_root: &Path, cache_dir: &str) -> Self {
         Self {
-            base_dir: workspace_root.join(cache_dir).join("v14"),
+            base_dir: workspace_root.join(cache_dir).join(ACTIVE_CACHE_SCHEMA),
         }
     }
 

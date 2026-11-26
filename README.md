@@ -65,17 +65,39 @@ task install
 ## 3. Utilisation Rapide
 
 ```bash
-# Initialiser un projet clé en main (Rust, Web 6-domaines, Python/FastAPI, Docker)
+# Initialiser un projet clé en main (assistant interactif style Gum sur TTY, ou drapeaux déclaratifs)
 garde init
+garde init -i
+garde init -y
 garde init mon-service --lang rust --feature docker,git-hooks
 garde init portail-ui --lang typescript --framework astro --feature ui,i18n,content,docker
 garde init api-commandes --lang python --framework fastapi --feature docker,ci-github
 
+# Poste de pilotage interactif 3 onglets (Diagnostics Live, Configurateur cases à cocher, Cache)
+garde tui
+garde check -i
+
+# Surveillance temps réel sur sauvegarde (poll 250 ms + debounce 120 ms, zéro dépendance FFI)
+garde check --watch
+
+# Configurateur interactif sans perte de garde-fou.toml (archétype radio + cases à cocher)
+garde config
+
+# Gestion du cache BLAKE3 (.garde-fou-cache/)
+garde cache status
+garde cache prune
+garde cache clean
+
+# Désinstallation chirurgicale (projet, binaire ou assistant interactif 3 choix)
+garde uninstall --project --dry-run
+garde eject -y
+garde uninstall --self --dry-run
+
 # Analyse incrémentale ultra-rapide sur les fichiers stagés (idéale en pre-commit + agents IA)
 garde check --staged --format agent
 
-# Analyse complète sans cache avec exigence stricte des scanners externes et porte LCOV
-garde check --no-cache --strict-tools --lcov lcov.info
+# Analyse complète sans cache avec exigence stricte des scanners externes, porte LCOV et contrôle couleur
+garde check --no-cache --strict-tools --lcov lcov.info --color auto
 
 # Export OASIS SARIF 2.1.0 pour GitHub Code Scanning
 garde check --format sarif
@@ -147,4 +169,4 @@ garde commit-msg .git/COMMIT_EDITMSG
 | `gf-rules` | `#![no_std]` + `alloc` | Moteur de règles locales, globales (`GF020`/`GF021`), Tarjan DAG (`GF071`), `[[boundaries]]` (`GF072`), KISS/YAGNI/TDD (`GF073`–`GF076`), écosystème (`GF080`–`GF082`) |
 | `gf-parsers` | `std` pur (0 I/O) | Extracteurs `Tree-sitter` Safe Rust (`Rust`, `TS`/`TSX`/`JS`, `Python` + guardrails `GF080`), audit configs `GF081`, `CSS`, `Markdown`/`MDX`, `i18n`, `SVG`, `Dockerfile` |
 | `gf-engine` | Shell impératif | Cache `BLAKE3` `.garde-fou-cache/v5/`, `garde sync` (`AGENTS.md` + `skills.sh`), `garde.lock`, `garde init`, adaptateurs `uv`-aware (`GF082`), orchestration `SARIF` |
-| `gf-cli` | Binaire `garde` | Sous-commandes `check`, `init`, `sync`, `lock`, `commit-msg` et formateurs (`human`, `agent` Markdown, `sarif` 2.1.0) |
+| `gf-cli` | Binaire `garde` | Sous-commandes `check`, `tui`, `init`, `sync`, `lock`, `commit-msg`, moteur TUI/Lipgloss pur Rust (`ui/`, `tui/`) et formateurs (`human`, `agent` Markdown, `sarif` 2.1.0) |

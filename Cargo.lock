@@ -349,6 +349,8 @@ dependencies = [
  "gf-engine",
  "gf-parsers",
  "gf-rules",
+ "proptest",
+ "rustix",
  "serde_json",
 ]
 
@@ -375,6 +377,7 @@ dependencies = [
  "serde",
  "serde_json",
  "toml",
+ "toml_edit 0.22.27",
 ]
 
 [[package]]
@@ -891,6 +894,7 @@ dependencies = [
  "serde",
  "serde_spanned",
  "toml_datetime 0.6.11",
+ "toml_write",
  "winnow 0.7.15",
 ]
 
@@ -914,6 +918,12 @@ checksum = "e6769c452d71ba30696c6b37770c439a9cc9110f47f7d5cdbeda79840ef5ea31"
 dependencies = [
  "winnow 1.0.5",
 ]
+
+[[package]]
+name = "toml_write"
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5d99f8c9a7727884afe522e9bd5edbfc91a3312b36a77b5fb8926e4c31a41801"
 
 [[package]]
 name = "tree-sitter"

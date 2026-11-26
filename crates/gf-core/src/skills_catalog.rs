@@ -138,6 +138,13 @@ const BUILTINS: [(&str, &str, &str, &str); 11] = [
     ("json-canvas", "kepano/obsidian-skills", "plugins/obsidian/skills/json-canvas", "JSON Canvas 1.0 (.canvas) node and edge graph authoring."),
 ];
 
+/// Returns `true` when `skill_id` is part of the built-in Garde-fou `skills.sh` catalog
+/// (excluding user-authored custom skills under `.agents/skills/`).
+#[must_use]
+pub fn is_catalog_skill_id(skill_id: &str) -> bool {
+    skill_id == "garde-fou" || BUILTINS.iter().any(|(id, _, _, _)| *id == skill_id)
+}
+
 #[rustfmt::skip]
 fn builtin_spec(idx: usize) -> ResolvedSkillSpec {
     let (id, repo, skill_path, summary) = BUILTINS[idx];
@@ -212,17 +219,9 @@ fn add_framework_skills(ctx: &ProjectContext, insert: &mut impl FnMut(ResolvedSk
 #[rustfmt::skip]
 fn add_archetype_skills(ctx: &ProjectContext, insert: &mut impl FnMut(ResolvedSkillSpec)) {
     if ctx.archetype == WorkspaceArchetype::Minimal { return; }
-    if ctx.archetype == WorkspaceArchetype::Software {
-        insert(builtin_spec(0));
-        insert(builtin_spec(1));
-    }
-    if ctx.languages.contains(&LanguageId::Rust) {
-        insert(builtin_spec(2));
-        insert(builtin_spec(3));
-    }
-    if ctx.languages.contains(&LanguageId::Python) || ctx.frameworks.contains(&FrameworkId::Jupyter) {
-        insert(builtin_spec(7));
-    }
+    if ctx.archetype == WorkspaceArchetype::Software { insert(builtin_spec(0)); insert(builtin_spec(1)); }
+    if ctx.languages.contains(&LanguageId::Rust) { insert(builtin_spec(2)); insert(builtin_spec(3)); }
+    if ctx.languages.contains(&LanguageId::Python) || ctx.frameworks.contains(&FrameworkId::Jupyter) { insert(builtin_spec(7)); }
     add_framework_skills(ctx, insert);
 }
 
