@@ -22,7 +22,7 @@ fn is_dclint_cfg(name: &str) -> bool {
     name.to_ascii_lowercase().starts_with(".dclintrc")
 }
 
-fn is_zizmor_cfg(name: &str) -> bool {
+const fn is_zizmor_cfg(name: &str) -> bool {
     name.eq_ignore_ascii_case("zizmor.yml")
 }
 

@@ -147,7 +147,7 @@ pub fn is_hadolint_config_name(name: &str) -> bool {
     )
 }
 
-pub fn is_pssa_config_name(name: &str) -> bool {
+pub const fn is_pssa_config_name(name: &str) -> bool {
     name.eq_ignore_ascii_case("psscriptanalyzersettings.psd1")
 }
 

@@ -136,7 +136,7 @@ pub enum ScannerPolicy {
 impl ScannerPolicy {
     /// Parses a case-insensitive scanner policy (`"auto"`, `"required"`, `"off"`).
     #[must_use]
-    pub fn from_config_str(raw: &str) -> Option<Self> {
+    pub const fn from_config_str(raw: &str) -> Option<Self> {
         if raw.eq_ignore_ascii_case("auto") {
             Some(Self::Auto)
         } else if raw.eq_ignore_ascii_case("required") {

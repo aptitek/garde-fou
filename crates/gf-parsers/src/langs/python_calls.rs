@@ -83,13 +83,12 @@ pub(super) fn collect_bare_unsafe_imports(doc: &UastDocument) -> BTreeSet<String
 pub(super) fn compact_callee(call_node: Node<'_>, source: &str) -> String {
     call_node
         .child_by_field_name("function")
-        .map(|fn_node| {
+        .map_or_default(|fn_node| {
             node_text(fn_node, source)
                 .chars()
                 .filter(|c| !c.is_whitespace())
                 .collect()
         })
-        .unwrap_or_default()
 }
 
 fn find_keyword_value<'a>(call_node: Node<'a>, source: &str, kw_name: &str) -> Option<Node<'a>> {
