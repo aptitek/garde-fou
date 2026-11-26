@@ -64,13 +64,15 @@ pub enum LanguageId {
     Twig,
     /// Dart 3.6+ & Flutter 3.x ecosystem (`.dart`, `pubspec.yaml`, `analysis_options.yaml`).
     Dart,
+    /// Minecraft 1.21+ `.mcfunction` Data Pack ecosystem (`.mcfunction`, `pack.mcmeta`).
+    McFunction,
 }
 
 #[rustfmt::skip]
-const LANG_NAMES: [&str; 22] = [
+const LANG_NAMES: [&str; 23] = [
     "rust", "typescript", "python", "shell", "powershell", "yaml", "css",
     "xml", "toml", "markdown", "sql", "astro", "html", "go", "kotlin", "csharp", "plsql",
-    "mermaid", "plantuml", "php", "twig", "dart",
+    "mermaid", "plantuml", "php", "twig", "dart", "mcfunction",
 ];
 #[rustfmt::skip]
 const LANGUAGE_ALIASES: &[(&str, LanguageId)] = &[
@@ -94,6 +96,7 @@ const LANGUAGE_ALIASES: &[(&str, LanguageId)] = &[
     ("mermaid", LanguageId::Mermaid), ("mmd", LanguageId::Mermaid),
     ("plantuml", LanguageId::PlantUml), ("puml", LanguageId::PlantUml),
     ("php", LanguageId::Php), ("twig", LanguageId::Twig), ("dart", LanguageId::Dart),
+    ("mcfunction", LanguageId::McFunction), ("datapack", LanguageId::McFunction),
 ];
 
 impl LanguageId {

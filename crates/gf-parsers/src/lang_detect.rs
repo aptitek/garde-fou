@@ -55,6 +55,8 @@ const EXT_LANGUAGES: &[(&str, Language)] = &[
     ("php", Language::Php),
     ("twig", Language::Twig),
     ("dart", Language::Dart),
+    ("mcfunction", Language::McFunction),
+    ("mcmeta", Language::Json),
     ("sql", Language::Sql),
     ("pls", Language::PlSql),
     ("plb", Language::PlSql),

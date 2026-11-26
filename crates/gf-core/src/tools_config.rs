@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 use crate::compiled_tools::{CSharpToolsConfig, GoToolsConfig, KotlinToolsConfig};
 use crate::dart_tools::DartToolsConfig;
 use crate::format_tools::{CssToolsConfig, MarkdownToolsConfig, TomlToolsConfig, XmlToolsConfig};
+use crate::minecraft_tools::MinecraftToolsConfig;
 use crate::php_tools::PhpToolsConfig;
 use crate::shell_ps_tools::{DockerToolsConfig, PowerShellToolsConfig, ShellToolsConfig};
 use crate::sql_tools::SqlToolsConfig;
@@ -69,6 +70,9 @@ pub struct ToolsConfig {
     /// Dart / Flutter `dart analyze` policy (`[tools.dart]`).
     #[serde(default)]
     pub dart: DartToolsConfig,
+    /// Minecraft `spyglass` datapack policy (`[tools.minecraft]`).
+    #[serde(default)]
+    pub minecraft: MinecraftToolsConfig,
 }
 
 impl ToolsConfig {
@@ -91,6 +95,7 @@ impl ToolsConfig {
         csharp: CSharpToolsConfig::defaults(),
         php: PhpToolsConfig::defaults(),
         dart: DartToolsConfig::defaults(),
+        minecraft: MinecraftToolsConfig::defaults(),
     };
 
     /// Returns strict default `[tools]` policies.
@@ -103,7 +108,7 @@ impl ToolsConfig {
     #[must_use]
     pub fn canonical_fragment(self) -> String {
         format!(
-            "tl({},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{})",
+            "tl({},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{})",
             self.python.canonical_fragment(),
             self.typescript.canonical_fragment(),
             self.shell.canonical_fragment(),
@@ -121,6 +126,7 @@ impl ToolsConfig {
             self.csharp.canonical_fragment(),
             self.php.canonical_fragment(),
             self.dart.canonical_fragment(),
+            self.minecraft.canonical_fragment(),
         )
     }
 }

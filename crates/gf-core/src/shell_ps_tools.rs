@@ -226,6 +226,7 @@ fn is_ecosystem_tool_config(path: &RepoPath) -> bool {
         || crate::toolchain_mern_violations::is_toolchain_audited_file(raw)
         || crate::php_tools::is_php_tool_config_file(raw)
         || crate::dart_tools::is_dart_tool_config_file(raw)
+        || crate::minecraft_tools::is_minecraft_tool_config_file(raw)
 }
 
 #[rustfmt::skip]

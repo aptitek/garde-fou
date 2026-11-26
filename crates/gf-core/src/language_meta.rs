@@ -77,6 +77,8 @@ pub enum Language {
     Twig,
     /// Dart 3.6+ / Flutter 3.x source file (`.dart`).
     Dart,
+    /// Minecraft 1.21+ Brigadier Data Pack function (`.mcfunction`).
+    McFunction,
     /// Non-text binary media or font asset (`.png`, `.woff2`, `.pdf`, etc.).
     BinaryAsset,
     /// Unclassified text or source file.

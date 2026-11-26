@@ -21,6 +21,7 @@ pub mod tool_output_compiled;
 pub mod tool_output_dart;
 pub mod tool_output_formats;
 mod tool_output_gha;
+pub mod tool_output_minecraft;
 pub mod tool_output_php;
 mod tool_output_pssa;
 pub mod tool_output_shell;
@@ -51,6 +52,7 @@ pub use {
         parse_rumdl_or_markdownlint_json, parse_stylelint_json, parse_taplo_output,
         parse_xmllint_output,
     },
+    tool_output_minecraft::parse_spyglass_json,
     tool_output_php::{parse_phpstan_json, parse_psalm_json},
     tool_output_shell::{parse_hadolint_json, parse_psscriptanalyzer_json, parse_shellcheck_json},
     tool_output_sql::{parse_sqlfluff_json, parse_sqruff_json, parse_squawk_json},

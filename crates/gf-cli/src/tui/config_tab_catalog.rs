@@ -4,8 +4,8 @@ use gf_core::{
     ArchetypeSetting, FeatureId, FrameworkId, GovernanceFlag, LanguageId, WorkspaceArchetype,
 };
 
-/// Ordered list of all 22 languages displayed in the Languages checkbox section.
-pub const ALL_LANGUAGES: [LanguageId; 22] = [
+/// Ordered list of all 23 languages displayed in the Languages checkbox section.
+pub const ALL_LANGUAGES: [LanguageId; 23] = [
     LanguageId::Rust,
     LanguageId::TypeScript,
     LanguageId::Python,
@@ -15,6 +15,7 @@ pub const ALL_LANGUAGES: [LanguageId; 22] = [
     LanguageId::Php,
     LanguageId::Twig,
     LanguageId::Dart,
+    LanguageId::McFunction,
     LanguageId::Shell,
     LanguageId::PowerShell,
     LanguageId::Yaml,
@@ -30,8 +31,8 @@ pub const ALL_LANGUAGES: [LanguageId; 22] = [
     LanguageId::Html,
 ];
 
-/// Ordered list of all 25 frameworks displayed in the Frameworks checkbox section.
-pub const ALL_FRAMEWORKS: [FrameworkId; 25] = [
+/// Ordered list of all 28 frameworks displayed in the Frameworks checkbox section.
+pub const ALL_FRAMEWORKS: [FrameworkId; 28] = [
     FrameworkId::CargoWorkspace,
     FrameworkId::DockerCompose,
     FrameworkId::PostgreSql,
@@ -54,6 +55,9 @@ pub const ALL_FRAMEWORKS: [FrameworkId; 25] = [
     FrameworkId::Symfony,
     FrameworkId::Doctrine,
     FrameworkId::Flutter,
+    FrameworkId::MinecraftMod,
+    FrameworkId::Kilt,
+    FrameworkId::DataPack,
     FrameworkId::Obsidian,
     FrameworkId::Quarto,
     FrameworkId::Jupyter,

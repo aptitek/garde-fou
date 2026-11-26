@@ -29,13 +29,11 @@ pub enum MypyConfigIssue {
 }
 
 impl MypyConfigIssue {
+    #[rustfmt::skip]
     const fn key(self) -> &'static str {
         const KEYS: [&str; 5] = [
-            "tool.mypy.strict",
-            "tool.mypy.ignore_errors",
-            "tool.mypy.disallow_untyped_defs",
-            "tool.mypy.warn_return_any",
-            "tool.mypy.overrides",
+            "tool.mypy.strict", "tool.mypy.ignore_errors", "tool.mypy.disallow_untyped_defs",
+            "tool.mypy.warn_return_any", "tool.mypy.overrides",
         ];
         KEYS[self as usize]
     }
@@ -59,14 +57,11 @@ pub enum RuffConfigIssue {
 }
 
 impl RuffConfigIssue {
+    #[rustfmt::skip]
     const fn key(self) -> &'static str {
         const KEYS: [&str; 6] = [
-            "tool.ruff.ignore",
-            "tool.ruff.extend-ignore",
-            "tool.ruff.select",
-            "ignore",
-            "extend-ignore",
-            "select",
+            "tool.ruff.ignore", "tool.ruff.extend-ignore", "tool.ruff.select",
+            "ignore", "extend-ignore", "select",
         ];
         KEYS[self as usize]
     }
@@ -131,12 +126,10 @@ pub enum TsconfigIssue {
 }
 
 impl TsconfigIssue {
+    #[rustfmt::skip]
     const fn key(self) -> &'static str {
-        match self {
-            Self::MissingOrFalseStrict => "compilerOptions.strict",
-            Self::NoImplicitAnyFalse => "compilerOptions.noImplicitAny",
-            Self::StrictNullChecksFalse => "compilerOptions.strictNullChecks",
-        }
+        const KEYS: [&str; 3] = ["compilerOptions.strict", "compilerOptions.noImplicitAny", "compilerOptions.strictNullChecks"];
+        KEYS[self as usize]
     }
 }
 
@@ -175,6 +168,8 @@ pub enum ToolConfigViolation {
     Php(crate::php_tools::PhpConfigIssue),
     /// Dart / Flutter (`pubspec.yaml`, `analysis_options.yaml`) configuration weakened.
     Dart(crate::dart_tools::DartConfigIssue),
+    /// Minecraft (`pack.mcmeta`, `fabric.mod.json`, `*.mixins.json`) configuration weakened.
+    Minecraft(crate::minecraft_tools::MinecraftConfigIssue),
 }
 
 impl ToolConfigViolation {
@@ -187,20 +182,24 @@ impl ToolConfigViolation {
             Self::WebEdge(k) => Some((k.tool(), k.key(), k.remediation())),
             Self::Compiled(k) => Some((k.tool(), k.key(), k.remediation())),
             Self::Toolchain(k) => Some((k.tool(), k.code(), k.remediation())),
+            _ => None,
+        }
+    }
+
+    const fn ext_domain_descriptor(self) -> Option<(ExternalToolKind, &'static str, &'static str)> {
+        match self {
             Self::Php(k) => Some((k.tool(), k.key(), k.remediation())),
             Self::Dart(k) => Some((k.tool(), k.key(), k.remediation())),
-            Self::MypyNotStrict(_)
-            | Self::RuffWeakened(_)
-            | Self::PytestOrCoverageWeakened(_)
-            | Self::TsconfigNotStrict(_)
-            | Self::MutantsScopeWeakened(_)
-            | Self::StrykerWeakened(_)
-            | Self::BiomeLinterDisabled => None,
+            Self::Minecraft(k) => Some((k.tool(), k.key(), k.remediation())),
+            _ => None,
         }
     }
 
     const fn descriptor(self) -> (ExternalToolKind, &'static str, &'static str) {
         if let Some(triple) = self.domain_descriptor() {
+            return triple;
+        }
+        if let Some(triple) = self.ext_domain_descriptor() {
             return triple;
         }
         match self {

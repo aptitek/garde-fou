@@ -11,6 +11,7 @@ use crate::db_procedural_violations::{
 use crate::diagrams_i18n_violations::{
     DiagramI18nViolation, I18nViolation, MermaidViolation, PlantUmlViolation,
 };
+use crate::minecraft_violations::{McFunctionViolation, MinecraftModViolation, MinecraftViolation};
 use crate::php_symfony_violations::{
     PhpSymfonyViolation, PhpViolation, SymfonyViolation, TwigViolation,
 };
@@ -31,6 +32,8 @@ pub enum ExtendedLangViolation {
     PhpSymfony(PhpSymfonyViolation),
     /// Dart 3.6+ and Flutter 3.x (`DART-*`, `FLUTTER-*`).
     DartFlutter(DartFlutterViolation),
+    /// Minecraft Modding (`Kilt`/`Fabric`/`NeoForge`/`Mixin`) and `.mcfunction` Data Packs (`MCMOD-*`, `MCFUNC-*`).
+    Minecraft(MinecraftViolation),
 }
 
 impl ExtendedLangViolation {
@@ -43,6 +46,7 @@ impl ExtendedLangViolation {
             Self::DiagramI18n(v) => v.code(),
             Self::PhpSymfony(v) => v.code(),
             Self::DartFlutter(v) => v.code(),
+            Self::Minecraft(v) => v.code(),
         }
     }
 
@@ -55,6 +59,7 @@ impl ExtendedLangViolation {
             Self::DiagramI18n(v) => v.remediation(),
             Self::PhpSymfony(v) => v.remediation(),
             Self::DartFlutter(v) => v.remediation(),
+            Self::Minecraft(v) => v.remediation(),
         }
     }
 }
@@ -87,6 +92,7 @@ impl_ext_direct!(
     DiagramI18nViolation => DiagramI18n,
     PhpSymfonyViolation => PhpSymfony,
     DartFlutterViolation => DartFlutter,
+    MinecraftViolation => Minecraft,
 );
 impl_ext_nested!(
     PyEcosystem, PyEcosystemViolation;
@@ -117,4 +123,9 @@ impl_ext_nested!(
     DartFlutter, DartFlutterViolation;
     DartViolation => Dart,
     FlutterViolation => Flutter,
+);
+impl_ext_nested!(
+    Minecraft, MinecraftViolation;
+    MinecraftModViolation => Mod,
+    McFunctionViolation => Function,
 );

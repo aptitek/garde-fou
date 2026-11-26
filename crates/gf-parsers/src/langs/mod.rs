@@ -20,6 +20,7 @@ pub mod i18n_icu;
 pub mod jsonc;
 pub mod kotlin;
 pub mod markdown;
+pub mod minecraft;
 pub mod notebook;
 pub mod php;
 pub mod powershell;

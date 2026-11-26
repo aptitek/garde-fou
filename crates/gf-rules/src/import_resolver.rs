@@ -62,6 +62,9 @@ impl<'a> WorkspaceImportResolver<'a> {
             Language::Dart => {
                 resolve_dart_import(raw_from, &imp.module_source, &self.path_index, &mut out);
             }
+            Language::McFunction => {
+                resolve_mcfunction_call(&imp.module_source, &self.path_index, &mut out);
+            }
             _ => {}
         }
         out.retain(|&idx| self.path_index.get(raw_from) != Some(&idx));
@@ -162,4 +165,14 @@ fn resolve_dart_import(
     }
     let joined = normalize_join(dir_of(from_path), spec);
     push_known(&joined, path_index, out);
+}
+
+fn resolve_mcfunction_call(spec: &str, path_index: &BTreeMap<&str, usize>, out: &mut Vec<usize>) {
+    if let Some((ns, rel)) = spec.split_once(':') {
+        push_known(
+            &format!("data/{ns}/function/{rel}.mcfunction"),
+            path_index,
+            out,
+        );
+    }
 }

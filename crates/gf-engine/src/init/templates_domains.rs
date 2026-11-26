@@ -207,36 +207,10 @@ fn infer_init_archetype(ctx: &ProjectContext) -> WorkspaceArchetype {
     if has_sw || !ctx.frameworks.is_empty() { WorkspaceArchetype::Software } else { WorkspaceArchetype::Minimal }
 }
 
-#[rustfmt::skip]
-const fn implied_lang_and_feat(fw: FrameworkId) -> (LanguageId, Option<FeatureId>) {
-    match fw {
-        FrameworkId::CargoWorkspace => (LanguageId::Rust, None),
-        FrameworkId::FastApi | FrameworkId::Django | FrameworkId::Jupyter => (LanguageId::Python, None),
-        FrameworkId::NiceGui => (LanguageId::Python, Some(FeatureId::Ui)),
-        FrameworkId::PyTorch | FrameworkId::TensorFlow | FrameworkId::LangChain => (LanguageId::Python, Some(FeatureId::AiMl)),
-        FrameworkId::DockerCompose => (LanguageId::Yaml, Some(FeatureId::Docker)),
-        FrameworkId::Quarto | FrameworkId::Obsidian => (LanguageId::Markdown, None),
-        FrameworkId::PostgreSql | FrameworkId::MariaDb => (LanguageId::Sql, None),
-        FrameworkId::Symfony | FrameworkId::Doctrine => (LanguageId::Php, None),
-        FrameworkId::Flutter => (LanguageId::Dart, Some(FeatureId::Ui)),
-        _ => (LanguageId::TypeScript, None),
-    }
-}
-
-#[rustfmt::skip]
-fn apply_framework_implied_deps(ctx: &mut ProjectContext) {
-    for &fw in &ctx.frameworks {
-        let (lang, feat) = implied_lang_and_feat(fw);
-        ctx.languages.insert(lang);
-        if fw == FrameworkId::Quarto { ctx.languages.insert(LanguageId::Yaml); }
-        if let Some(f) = feat { ctx.features.insert(f); }
-    }
-}
-
 /// Applies proportional framework-to-language inference and archetype resolution on `ctx`.
 #[rustfmt::skip]
 pub fn finalize_init_context(ctx: &mut ProjectContext, explicit_archetype: Option<WorkspaceArchetype>) {
-    apply_framework_implied_deps(ctx);
+    super::framework_deps::apply_framework_implied_deps(ctx);
     ctx.features.insert(FeatureId::GitHooks);
     ctx.archetype = explicit_archetype.unwrap_or_else(|| infer_init_archetype(ctx));
     if ctx.archetype == WorkspaceArchetype::Software && ctx.languages.contains(&LanguageId::Rust) {

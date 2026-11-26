@@ -127,13 +127,47 @@ fn dispatch_script_or_compiled(
 ) -> Result<UastDocument, ParseError> {
     match lang {
         Language::Go => GoExtractor.extract(path, source),
-        Language::Kotlin => KotlinExtractor.extract(path, source),
+        Language::Kotlin => {
+            let mut doc = KotlinExtractor.extract(path, source)?;
+            langs::minecraft::audit_kotlin_minecraft_mod(path, source, &mut doc);
+            Ok(doc)
+        }
         Language::CSharp => CSharpExtractor.extract(path, source),
         Language::Php => langs::php::PhpExtractor.extract(path, source),
         Language::Twig => langs::php::TwigExtractor.extract(path, source),
         Language::Dart => langs::dart::DartExtractor.extract(path, source),
+        Language::McFunction => langs::minecraft::McFunctionExtractor.extract(path, source),
         other => dispatch_script_or_infra(other, path, source, ctx),
     }
+}
+
+fn dispatch_audited_config(
+    lang: Language,
+    path: &RepoPath,
+    source: &str,
+) -> Result<UastDocument, ParseError> {
+    let raw = path.as_str();
+    if gf_core::is_php_tool_config_file(raw)
+        || gf_core::is_dart_tool_config_file(raw)
+        || gf_core::is_minecraft_tool_config_file(raw)
+    {
+        let (total, effective) = cst::line_metrics(source);
+        let mut doc = UastDocument::new(path.clone(), lang, total, effective)?;
+        if gf_core::is_php_tool_config_file(raw) {
+            langs::php::tool_configs::audit_php_tool_config(path, source, &mut doc);
+        } else if gf_core::is_dart_tool_config_file(raw) {
+            langs::dart::tool_configs::audit_dart_tool_config(path, source, &mut doc);
+        } else {
+            langs::minecraft::manifests::audit_minecraft_tool_config(path, source, &mut doc);
+        }
+        return Ok(doc);
+    }
+    if lang == Language::Xml {
+        let mut doc = XmlExtractor.extract(path, source)?;
+        langs::tool_config_compiled::audit_compiled_tool_config(path, source, &mut doc);
+        return Ok(doc);
+    }
+    extract_tool_config(path, lang, source)
 }
 
 pub fn dispatch_language_extractor(
@@ -143,24 +177,7 @@ pub fn dispatch_language_extractor(
     ctx: DispatchCtx<'_>,
 ) -> Result<UastDocument, ParseError> {
     if is_audited_tool_config_file(path) {
-        if gf_core::is_php_tool_config_file(path.as_str()) {
-            let (total, effective) = cst::line_metrics(source);
-            let mut doc = UastDocument::new(path.clone(), lang, total, effective)?;
-            langs::php::tool_configs::audit_php_tool_config(path, source, &mut doc);
-            return Ok(doc);
-        }
-        if gf_core::is_dart_tool_config_file(path.as_str()) {
-            let (total, effective) = cst::line_metrics(source);
-            let mut doc = UastDocument::new(path.clone(), lang, total, effective)?;
-            langs::dart::tool_configs::audit_dart_tool_config(path, source, &mut doc);
-            return Ok(doc);
-        }
-        if lang == Language::Xml {
-            let mut doc = XmlExtractor.extract(path, source)?;
-            langs::tool_config_compiled::audit_compiled_tool_config(path, source, &mut doc);
-            return Ok(doc);
-        }
-        return extract_tool_config(path, lang, source);
+        return dispatch_audited_config(lang, path, source);
     }
     let domain = classify_path(path, ctx.domains);
     if let Some(dialect) = TsDialect::from_path_and_lang(path, lang) {

@@ -240,5 +240,6 @@ pub fn merge_tools(raw: Option<ToolsSection>) -> Result<ToolsConfig, EngineError
         csharp: merge_csharp_tools(s.csharp, base.csharp)?,
         php: base.php,
         dart: base.dart,
+        minecraft: base.minecraft,
     })
 }

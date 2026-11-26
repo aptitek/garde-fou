@@ -1,5 +1,6 @@
 //! Non-destructive `uv init`-style project bootstrapper (`garde-fou init`).
 
+mod framework_deps;
 mod templates_archetypes;
 mod templates_compiled;
 mod templates_domains;

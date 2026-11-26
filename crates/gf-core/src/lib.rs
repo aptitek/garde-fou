@@ -44,6 +44,8 @@ pub mod language_meta;
 pub mod lcov;
 pub mod managed_blocks;
 pub mod metrics;
+pub mod minecraft_tools;
+pub mod minecraft_violations;
 pub mod mutation;
 pub mod mutation_config_issues;
 pub mod path;
@@ -208,6 +210,8 @@ pub use {
     diagrams_i18n_violations::{
         DiagramI18nViolation, I18nViolation, MermaidViolation, PlantUmlViolation,
     },
+    minecraft_tools::{MinecraftConfigIssue, MinecraftToolsConfig, is_minecraft_tool_config_file},
+    minecraft_violations::{McFunctionViolation, MinecraftModViolation, MinecraftViolation},
     php_symfony_violations::{PhpSymfonyViolation, PhpViolation, SymfonyViolation, TwigViolation},
     php_tools::{PhpConfigIssue, PhpToolsConfig, is_php_tool_config_file},
     py_ecosystems_violations::{

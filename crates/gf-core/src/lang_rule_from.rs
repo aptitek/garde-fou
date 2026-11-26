@@ -10,6 +10,7 @@ use crate::diagrams_i18n_violations::{
 };
 use crate::extended_violations::ExtendedLangViolation;
 use crate::lang_rule_violation::LangRuleViolation;
+use crate::minecraft_violations::{McFunctionViolation, MinecraftModViolation, MinecraftViolation};
 use crate::php_symfony_violations::{
     PhpSymfonyViolation, PhpViolation, SymfonyViolation, TwigViolation,
 };
@@ -46,4 +47,7 @@ impl_from_ext!(
     DartFlutterViolation,
     DartViolation,
     FlutterViolation,
+    MinecraftViolation,
+    MinecraftModViolation,
+    McFunctionViolation,
 );
