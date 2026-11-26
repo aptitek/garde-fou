@@ -8,7 +8,7 @@ use alloc::vec::Vec;
 use gf_core::{
     ArchetypePolicy, Config, DeadExportGate, Diagnostic, DomainKind, ExportDecl, Language,
     ProjectContext, RepoPath, Severity, UastDocument, Validation, classify_path, glob_matches,
-    is_ts_declaration_path,
+    is_django_migration_path, is_ts_declaration_path,
 };
 
 const UNIVERSAL_ENTRYPOINT_GLOBS: &[&str] = &[
@@ -169,6 +169,7 @@ pub fn check_dead_exports(
                 Language::Dockerfile | Language::Notebook | Language::Quarto
             )
             && !is_ts_declaration_path(doc.path.as_str())
+            && !is_django_migration_path(doc.path.as_str())
         {
             let is_entry = is_entrypoint_file(&doc.path, ctx, config);
             check_doc_dead_exports(doc, is_entry, &ref_index, &mut diags);

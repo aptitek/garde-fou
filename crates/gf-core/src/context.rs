@@ -149,46 +149,30 @@ pub enum FeatureId {
     Material3Expressive,
     /// W3C HTML5 content models, WAI-ARIA 1.2 & WCAG 2.2 AA/AAA compliance.
     W3c,
+    /// AI, Machine Learning, Deep Learning & LLM Agent governance (`ML-*`, `LLM-*`).
+    AiMl,
 }
 
 #[rustfmt::skip]
-const FEATURE_NAMES: [&str; 12] = [
+const FEATURE_NAMES: [&str; 13] = [
     "docker", "git-hooks", "ci-github", "task-runner", "ui", "i18n",
-    "content", "tdd", "storybook", "panda-css", "m3e", "w3c",
+    "content", "tdd", "storybook", "panda-css", "m3e", "w3c", "ai-ml",
 ];
 
+#[rustfmt::skip]
 const FEATURE_ALIASES: &[(&str, FeatureId)] = &[
-    ("docker", FeatureId::Docker),
-    ("container", FeatureId::Docker),
-    ("git-hooks", FeatureId::GitHooks),
-    ("githooks", FeatureId::GitHooks),
-    ("ci-github", FeatureId::CiGithub),
-    ("github-actions", FeatureId::CiGithub),
-    ("task-runner", FeatureId::TaskRunner),
-    ("taskrunner", FeatureId::TaskRunner),
-    ("ui", FeatureId::Ui),
-    ("tokens", FeatureId::Ui),
-    ("a11y", FeatureId::Ui),
-    ("i18n", FeatureId::I18n),
-    ("locales", FeatureId::I18n),
-    ("texte", FeatureId::I18n),
-    ("content", FeatureId::Content),
-    ("contenus", FeatureId::Content),
-    ("markdown", FeatureId::Content),
-    ("tdd", FeatureId::Tdd),
-    ("storybook", FeatureId::Storybook),
-    ("stories", FeatureId::Storybook),
-    ("panda-css", FeatureId::PandaCss),
-    ("pandacss", FeatureId::PandaCss),
-    ("panda", FeatureId::PandaCss),
-    ("m3e", FeatureId::Material3Expressive),
-    ("material3-expressive", FeatureId::Material3Expressive),
-    ("material-3-expressive", FeatureId::Material3Expressive),
-    ("md3", FeatureId::Material3Expressive),
-    ("w3c", FeatureId::W3c),
-    ("wcag", FeatureId::W3c),
-    ("wcag22", FeatureId::W3c),
-    ("html5", FeatureId::W3c),
+    ("docker", FeatureId::Docker), ("container", FeatureId::Docker), ("git-hooks", FeatureId::GitHooks),
+    ("githooks", FeatureId::GitHooks), ("ci-github", FeatureId::CiGithub), ("github-actions", FeatureId::CiGithub),
+    ("task-runner", FeatureId::TaskRunner), ("taskrunner", FeatureId::TaskRunner), ("ui", FeatureId::Ui),
+    ("tokens", FeatureId::Ui), ("a11y", FeatureId::Ui), ("i18n", FeatureId::I18n),
+    ("locales", FeatureId::I18n), ("texte", FeatureId::I18n), ("content", FeatureId::Content),
+    ("contenus", FeatureId::Content), ("markdown", FeatureId::Content), ("tdd", FeatureId::Tdd),
+    ("storybook", FeatureId::Storybook), ("stories", FeatureId::Storybook),
+    ("panda-css", FeatureId::PandaCss), ("pandacss", FeatureId::PandaCss), ("panda", FeatureId::PandaCss),
+    ("m3e", FeatureId::Material3Expressive), ("material3-expressive", FeatureId::Material3Expressive),
+    ("material-3-expressive", FeatureId::Material3Expressive), ("md3", FeatureId::Material3Expressive),
+    ("w3c", FeatureId::W3c), ("wcag", FeatureId::W3c), ("wcag22", FeatureId::W3c), ("html5", FeatureId::W3c),
+    ("ai-ml", FeatureId::AiMl), ("ai", FeatureId::AiMl), ("ml", FeatureId::AiMl), ("llm", FeatureId::AiMl),
 ];
 
 impl FeatureId {

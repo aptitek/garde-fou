@@ -38,9 +38,17 @@ pub enum FrameworkId {
     Express,
     /// MongoDB & Mongoose typed ODM (`Schema`, `Model`).
     Mongoose,
+    /// `NiceGUI` reactive Python web UI (`@ui.page`, `run.io_bound`, `app.storage`).
+    NiceGui,
+    /// `PyTorch` deep learning framework (`torch`, `safetensors`).
+    PyTorch,
+    /// `TensorFlow` / `Keras 3` deep learning framework (`keras`, `tf.function`).
+    TensorFlow,
+    /// `LangChain` 1.x & `LangGraph` 1.x LLM agent framework (`StateGraph`).
+    LangChain,
 }
 
-const FRAMEWORK_NAMES: [&str; 16] = [
+const FRAMEWORK_NAMES: [&str; 20] = [
     "cargo-workspace",
     "react",
     "astro",
@@ -57,6 +65,10 @@ const FRAMEWORK_NAMES: [&str; 16] = [
     "nodejs",
     "express",
     "mongoose",
+    "nicegui",
+    "pytorch",
+    "tensorflow",
+    "langchain",
 ];
 
 const FRAMEWORK_ALIASES: &[(&str, FrameworkId)] = &[
@@ -88,6 +100,13 @@ const FRAMEWORK_ALIASES: &[(&str, FrameworkId)] = &[
     ("express", FrameworkId::Express),
     ("mongoose", FrameworkId::Mongoose),
     ("mongodb", FrameworkId::Mongoose),
+    ("nicegui", FrameworkId::NiceGui),
+    ("pytorch", FrameworkId::PyTorch),
+    ("torch", FrameworkId::PyTorch),
+    ("tensorflow", FrameworkId::TensorFlow),
+    ("keras", FrameworkId::TensorFlow),
+    ("langchain", FrameworkId::LangChain),
+    ("langgraph", FrameworkId::LangChain),
 ];
 
 const CARGO_ENTRIES: &[&str] = &[
@@ -153,7 +172,19 @@ const REACT_ENTRIES: &[&str] = &[
     "apps/*/src/App.*",
 ];
 const FASTAPI_ENTRIES: &[&str] = &["main.py", "app/main.py", "src/main.py", "**/routers/**"];
-const DJANGO_ENTRIES: &[&str] = &["manage.py", "**/views.py", "**/urls.py", "**/admin.py"];
+const DJANGO_ENTRIES: &[&str] = &[
+    "manage.py",
+    "**/views.py",
+    "**/urls.py",
+    "**/admin.py",
+    "**/apps.py",
+    "**/models.py",
+    "**/wsgi.py",
+    "**/asgi.py",
+    "**/migrations/**",
+    "**/management/commands/**",
+];
+const NICEGUI_ENTRIES: &[&str] = &["main.py", "src/main.py", "**/pages/**"];
 const NODE_ENTRIES: &[&str] = &[
     "src/server.*",
     "src/main.*",
@@ -163,7 +194,7 @@ const NODE_ENTRIES: &[&str] = &[
     "packages/*/src/index.*",
 ];
 
-const FRAMEWORK_ENTRIES: [&[&str]; 16] = [
+const FRAMEWORK_ENTRIES: [&[&str]; 20] = [
     CARGO_ENTRIES,
     REACT_ENTRIES,
     ASTRO_ENTRIES,
@@ -179,6 +210,10 @@ const FRAMEWORK_ENTRIES: [&[&str]; 16] = [
     &[],
     NODE_ENTRIES,
     NODE_ENTRIES,
+    &[],
+    NICEGUI_ENTRIES,
+    &[],
+    &[],
     &[],
 ];
 

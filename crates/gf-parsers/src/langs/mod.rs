@@ -18,6 +18,7 @@ pub mod kotlin;
 pub mod markdown;
 pub mod notebook;
 pub mod powershell;
+pub mod py_eco;
 pub mod python;
 mod python_calls;
 mod python_exports;

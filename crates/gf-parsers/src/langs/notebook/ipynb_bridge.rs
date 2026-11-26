@@ -149,6 +149,35 @@ fn bridge_python_cell(
     Ok(())
 }
 
+fn check_cross_cell_data_leakage(cells: &[ParsedCell], target: &mut UastDocument) {
+    let mut first_fit: Option<(u32, u32)> = None;
+    let mut first_split: Option<u32> = None;
+    for cell in cells.iter().filter(|c| c.cell_type == "code") {
+        let src = &cell.source;
+        if first_fit.is_none()
+            && (src.contains(".fit_transform(") || src.contains("scaler.fit("))
+            && !src.contains("Pipeline(")
+        {
+            first_fit = Some((cell.cell_index, cell.json_line));
+        }
+        if first_split.is_none() && src.contains("train_test_split(") {
+            first_split = Some(cell.cell_index);
+        }
+    }
+    if let (Some((fit_cell, fit_line)), Some(split_cell)) = (first_fit, first_split)
+        && fit_cell < split_cell
+    {
+        let span = Span::new(fit_line.max(1), fit_line.max(1)).unwrap_or(Span::FIRST);
+        target.lang_rule_findings.push(gf_core::LangRuleFinding::new(
+            gf_core::MlDlViolation::DataLeakageBeforeSplit,
+            span,
+            format!(
+                "[cell #{fit_cell}] preprocessor `.fit()`/`.fit_transform()` before `train_test_split(...)` in cell #{split_cell}"
+            ),
+        ));
+    }
+}
+
 /// Bridges all parsed notebook cells into Python, Shell, SQL, and Markdown AST analyzers,
 /// returning `(cell_index_1based, effective_lines, span)` metrics for each code cell.
 ///
@@ -183,6 +212,7 @@ pub fn bridge_notebook_cells(
             _ => {}
         }
     }
+    check_cross_cell_data_leakage(cells, target);
     if !combined_md.trim().is_empty() {
         let md_doc = MarkdownExtractor.extract(path, &combined_md)?;
         target.asset_refs.extend(md_doc.asset_refs);

@@ -24,8 +24,8 @@ pub const ALL_LANGUAGES: [LanguageId; 16] = [
     LanguageId::Html,
 ];
 
-/// Ordered list of all 16 frameworks displayed in the Frameworks checkbox section.
-pub const ALL_FRAMEWORKS: [FrameworkId; 16] = [
+/// Ordered list of all 20 frameworks displayed in the Frameworks checkbox section.
+pub const ALL_FRAMEWORKS: [FrameworkId; 20] = [
     FrameworkId::CargoWorkspace,
     FrameworkId::DockerCompose,
     FrameworkId::NodeJs,
@@ -39,13 +39,17 @@ pub const ALL_FRAMEWORKS: [FrameworkId; 16] = [
     FrameworkId::Drizzle,
     FrameworkId::FastApi,
     FrameworkId::Django,
+    FrameworkId::NiceGui,
+    FrameworkId::PyTorch,
+    FrameworkId::TensorFlow,
+    FrameworkId::LangChain,
     FrameworkId::Obsidian,
     FrameworkId::Quarto,
     FrameworkId::Jupyter,
 ];
 
-/// Ordered list of all 12 features displayed in the Features checkbox section.
-pub const ALL_FEATURES: [FeatureId; 12] = [
+/// Ordered list of all 13 features displayed in the Features checkbox section.
+pub const ALL_FEATURES: [FeatureId; 13] = [
     FeatureId::Docker,
     FeatureId::GitHooks,
     FeatureId::TaskRunner,
@@ -58,6 +62,7 @@ pub const ALL_FEATURES: [FeatureId; 12] = [
     FeatureId::Content,
     FeatureId::Tdd,
     FeatureId::Storybook,
+    FeatureId::AiMl,
 ];
 
 /// Ordered list of all 7 archetype radio choices (`Auto` + 6 explicit archetypes).

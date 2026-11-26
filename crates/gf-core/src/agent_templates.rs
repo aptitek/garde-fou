@@ -33,7 +33,7 @@ const LANGUAGE_FRAGMENTS: [&str; 16] = [
     include_str!("../../../content/agent-fragments/lang-csharp.md"),
 ];
 
-const FEATURE_FRAGMENTS: [&str; 12] = [
+const FEATURE_FRAGMENTS: [&str; 13] = [
     include_str!("../../../content/agent-fragments/feat-docker.md"),
     include_str!("../../../content/agent-fragments/feat-git-hooks.md"),
     include_str!("../../../content/agent-fragments/feat-ci-github.md"),
@@ -46,9 +46,10 @@ const FEATURE_FRAGMENTS: [&str; 12] = [
     include_str!("../../../content/agent-fragments/feat-panda-css.md"),
     include_str!("../../../content/agent-fragments/feat-m3e.md"),
     include_str!("../../../content/agent-fragments/feat-w3c-a11y.md"),
+    include_str!("../../../content/agent-fragments/feat-ai-ml.md"),
 ];
 
-const FRAMEWORK_FRAGMENTS: [&str; 16] = [
+const FRAMEWORK_FRAGMENTS: [&str; 20] = [
     include_str!("../../../content/agent-fragments/fw-cargo-workspace.md"),
     include_str!("../../../content/agent-fragments/fw-react.md"),
     include_str!("../../../content/agent-fragments/fw-astro.md"),
@@ -65,6 +66,10 @@ const FRAMEWORK_FRAGMENTS: [&str; 16] = [
     include_str!("../../../content/agent-fragments/fw-nodejs.md"),
     include_str!("../../../content/agent-fragments/fw-mern.md"),
     include_str!("../../../content/agent-fragments/fw-mern.md"),
+    include_str!("../../../content/agent-fragments/fw-nicegui.md"),
+    include_str!("../../../content/agent-fragments/feat-ai-ml.md"),
+    include_str!("../../../content/agent-fragments/feat-ai-ml.md"),
+    include_str!("../../../content/agent-fragments/feat-ai-ml.md"),
 ];
 
 const ARCH_MINIMAL_FRAGMENT: &str =

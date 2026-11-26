@@ -9,6 +9,7 @@ use crate::academic_violations::{
 };
 use crate::compiled_violations::CompiledLangViolation;
 use crate::format_violations::{TomlViolation, XmlSvgViolation};
+use crate::py_ecosystems_violations::PyEcosystemViolation;
 use crate::python_violations::PythonViolation;
 use crate::shell_ps_violations::{PowerShellViolation, ShellViolation};
 use crate::sql_violations::{MigrationViolation, SqlViolation};
@@ -57,6 +58,8 @@ pub enum LangRuleViolation {
     Node(NodeViolation),
     /// Native MERN TypeScript (`EXPRESS-*`, `MONGO-*`) violation.
     Mern(MernViolation),
+    /// Native Python ecosystem (`DJ-*`, `NICEGUI-*`, `ML-*`, `LLM-*`) violation.
+    PyEcosystem(PyEcosystemViolation),
 }
 
 impl LangRuleViolation {
@@ -68,9 +71,19 @@ impl LangRuleViolation {
             Self::XmlSvg(v) => Some((v.code(), v.remediation())),
             Self::Toml(v) => Some((v.code(), v.remediation())),
             Self::Academic(v) => Some((v.code(), v.remediation())),
+            _ => None,
+        }
+    }
+
+    const fn stack_descriptor(self) -> Option<(&'static str, &'static str)> {
+        match self {
+            Self::Sql(v) => Some((v.code(), v.remediation())),
+            Self::Migration(v) => Some((v.code(), v.remediation())),
+            Self::WebEdge(v) => Some((v.code(), v.remediation())),
             Self::Compiled(v) => Some((v.code(), v.remediation())),
             Self::Node(v) => Some((v.code(), v.remediation())),
             Self::Mern(v) => Some((v.code(), v.remediation())),
+            Self::PyEcosystem(v) => Some((v.code(), v.remediation())),
             _ => None,
         }
     }
@@ -79,24 +92,16 @@ impl LangRuleViolation {
         if let Some(pair) = self.yaml_or_format_descriptor() {
             return pair;
         }
+        if let Some(pair) = self.stack_descriptor() {
+            return pair;
+        }
         match self {
             Self::Python(v) => (v.code(), v.remediation()),
             Self::TypeScript(v) => (v.code(), v.remediation()),
             Self::React(v) => (v.code(), v.remediation()),
             Self::Shell(v) => (v.code(), v.remediation()),
             Self::PowerShell(v) => (v.code(), v.remediation()),
-            Self::Sql(v) => (v.code(), v.remediation()),
-            Self::Migration(v) => (v.code(), v.remediation()),
-            Self::WebEdge(v) => (v.code(), v.remediation()),
-            Self::Yaml(_)
-            | Self::Compose(_)
-            | Self::Workflow(_)
-            | Self::XmlSvg(_)
-            | Self::Toml(_)
-            | Self::Academic(_)
-            | Self::Compiled(_)
-            | Self::Node(_)
-            | Self::Mern(_) => ("", ""),
+            _ => ("", ""),
         }
     }
 
@@ -132,7 +137,8 @@ impl LangRuleViolation {
             | Self::Academic(_)
             | Self::Compiled(_)
             | Self::Node(_)
-            | Self::Mern(_) => false,
+            | Self::Mern(_)
+            | Self::PyEcosystem(_) => false,
         }
     }
 }
@@ -143,72 +149,6 @@ impl fmt::Display for LangRuleViolation {
     }
 }
 
-impl From<PythonViolation> for LangRuleViolation {
-    fn from(v: PythonViolation) -> Self {
-        Self::Python(v)
-    }
-}
-
-impl From<TypescriptViolation> for LangRuleViolation {
-    fn from(v: TypescriptViolation) -> Self {
-        Self::TypeScript(v)
-    }
-}
-
-impl From<ReactViolation> for LangRuleViolation {
-    fn from(v: ReactViolation) -> Self {
-        Self::React(v)
-    }
-}
-
-impl From<ShellViolation> for LangRuleViolation {
-    fn from(v: ShellViolation) -> Self {
-        Self::Shell(v)
-    }
-}
-
-impl From<PowerShellViolation> for LangRuleViolation {
-    fn from(v: PowerShellViolation) -> Self {
-        Self::PowerShell(v)
-    }
-}
-
-impl From<YamlViolation> for LangRuleViolation {
-    fn from(v: YamlViolation) -> Self {
-        Self::Yaml(v)
-    }
-}
-
-impl From<ComposeViolation> for LangRuleViolation {
-    fn from(v: ComposeViolation) -> Self {
-        Self::Compose(v)
-    }
-}
-
-impl From<WorkflowViolation> for LangRuleViolation {
-    fn from(v: WorkflowViolation) -> Self {
-        Self::Workflow(v)
-    }
-}
-
-impl From<XmlSvgViolation> for LangRuleViolation {
-    fn from(v: XmlSvgViolation) -> Self {
-        Self::XmlSvg(v)
-    }
-}
-
-impl From<TomlViolation> for LangRuleViolation {
-    fn from(v: TomlViolation) -> Self {
-        Self::Toml(v)
-    }
-}
-
-impl From<SqlViolation> for LangRuleViolation {
-    fn from(v: SqlViolation) -> Self {
-        Self::Sql(v)
-    }
-}
-
 macro_rules! impl_from_direct {
     ($($ty:ty => $variant:ident),+ $(,)?) => {
         $(impl From<$ty> for LangRuleViolation { fn from(v: $ty) -> Self { Self::$variant(v) } })+
@@ -216,12 +156,24 @@ macro_rules! impl_from_direct {
 }
 
 impl_from_direct!(
+    PythonViolation => Python,
+    TypescriptViolation => TypeScript,
+    ReactViolation => React,
+    ShellViolation => Shell,
+    PowerShellViolation => PowerShell,
+    YamlViolation => Yaml,
+    ComposeViolation => Compose,
+    WorkflowViolation => Workflow,
+    XmlSvgViolation => XmlSvg,
+    TomlViolation => Toml,
+    SqlViolation => Sql,
     MigrationViolation => Migration,
     WebEdgeViolation => WebEdge,
     AcademicViolation => Academic,
     CompiledLangViolation => Compiled,
     NodeViolation => Node,
     MernViolation => Mern,
+    PyEcosystemViolation => PyEcosystem,
 );
 
 macro_rules! impl_from_nested {
@@ -245,4 +197,11 @@ impl_from_nested!(
     crate::compiled_violations::GoViolation => Go,
     crate::compiled_violations::KotlinViolation => Kotlin,
     crate::compiled_violations::CSharpViolation => CSharp,
+);
+impl_from_nested!(
+    PyEcosystem, PyEcosystemViolation;
+    crate::py_ecosystems_violations::DjangoViolation => Django,
+    crate::py_ecosystems_violations::NiceGuiViolation => NiceGui,
+    crate::py_ecosystems_violations::MlDlViolation => MlDl,
+    crate::py_ecosystems_violations::LlmAgentViolation => LlmAgent,
 );

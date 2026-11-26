@@ -132,7 +132,13 @@ fn detect_features_into(root: &Path, files: &[RepoPath], out: &mut BTreeSet<Feat
 #[rustfmt::skip]
 fn detect_py_frameworks(raw: &str, out: &mut BTreeSet<FrameworkId>) {
     let lower = raw.to_ascii_lowercase();
-    for (needle, fw) in [("fastapi", FrameworkId::FastApi), ("django", FrameworkId::Django)] {
+    for (needle, fw) in [
+        ("fastapi", FrameworkId::FastApi), ("django", FrameworkId::Django),
+        ("nicegui", FrameworkId::NiceGui), ("torch", FrameworkId::PyTorch),
+        ("safetensors", FrameworkId::PyTorch), ("tensorflow", FrameworkId::TensorFlow),
+        ("keras", FrameworkId::TensorFlow), ("langchain", FrameworkId::LangChain),
+        ("langgraph", FrameworkId::LangChain),
+    ] {
         if lower.contains(needle) {
             out.insert(fw);
         }
@@ -141,6 +147,7 @@ fn detect_py_frameworks(raw: &str, out: &mut BTreeSet<FrameworkId>) {
 
 #[rustfmt::skip]
 fn detect_manifest_frameworks(root: &Path, out: &mut BTreeSet<FrameworkId>) {
+    if root.join("manage.py").is_file() { out.insert(FrameworkId::Django); }
     if let Ok(pkg_json) = fs::read_to_string(root.join("package.json")) {
         detect_node_pkg_frameworks(&pkg_json, out);
     }
@@ -228,6 +235,12 @@ pub fn detect_project_context(root: &Path, discovered_files: &[RepoPath], config
     detect_domain_features_into(root, discovered_files, config, &mut ctx.features);
     detect_frameworks_into(root, discovered_files, &mut ctx.frameworks);
     detect_extra_frameworks_into(root, discovered_files, &mut ctx.languages, &mut ctx.frameworks);
+    if ctx.frameworks.contains(&FrameworkId::NiceGui) {
+        ctx.features.insert(FeatureId::Ui);
+    }
+    if [FrameworkId::PyTorch, FrameworkId::TensorFlow, FrameworkId::LangChain].iter().any(|fw| ctx.frameworks.contains(fw)) {
+        ctx.features.insert(FeatureId::AiMl);
+    }
     ctx.archetype = match config.project.archetype {
         ArchetypeSetting::Explicit(arch) => arch,
         ArchetypeSetting::Auto => detect_workspace_archetype(root, discovered_files, &ctx),

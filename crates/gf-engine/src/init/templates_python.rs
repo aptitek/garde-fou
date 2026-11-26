@@ -2,19 +2,32 @@
 
 use gf_core::{FrameworkId, ProjectContext};
 
-fn py_dependencies(ctx: &ProjectContext) -> &'static str {
-    let has_fastapi = ctx.frameworks.contains(&FrameworkId::FastApi);
-    let has_django = ctx.frameworks.contains(&FrameworkId::Django);
-    match (has_fastapi, has_django) {
-        (true, true) => "[\"fastapi>=0.115.0\", \"django>=5.1.0\"]",
-        (true, false) => "[\"fastapi>=0.115.0\"]",
-        (false, true) => "[\"django>=5.1.0\"]",
-        (false, false) => "[]",
+fn py_dependencies(ctx: &ProjectContext) -> String {
+    let mut deps = Vec::new();
+    for (fw, pkg) in [
+        (FrameworkId::FastApi, "\"fastapi>=0.115.0\""),
+        (FrameworkId::Django, "\"django>=5.2.0\""),
+        (FrameworkId::NiceGui, "\"nicegui>=2.10.0\""),
+        (FrameworkId::PyTorch, "\"torch>=2.5.0\""),
+        (FrameworkId::TensorFlow, "\"keras>=3.8.0\""),
+        (FrameworkId::LangChain, "\"langgraph>=0.3.0\""),
+    ] {
+        if ctx.frameworks.contains(&fw) {
+            deps.push(pkg);
+        }
     }
+    format!("[{}]", deps.join(", "))
 }
 
 fn pyproject_toml(project_kebab: &str, ctx: &ProjectContext) -> String {
     let deps = py_dependencies(ctx);
+    let is_dj = ctx.frameworks.contains(&FrameworkId::Django);
+    let ruff_extra = if is_dj { ", \"DJ\"" } else { "" };
+    let mypy_plugins = if is_dj {
+        "plugins = [\"mypy_django_plugin.main\"]\n"
+    } else {
+        ""
+    };
     format!(
         "[project]\n\
          name = \"{project_kebab}\"\n\
@@ -31,13 +44,13 @@ fn pyproject_toml(project_kebab: &str, ctx: &ProjectContext) -> String {
          target-version = \"py312\"\n\
          \n\
          [tool.ruff.lint]\n\
-         select = [\"E\", \"F\", \"I\", \"B\", \"UP\", \"SIM\", \"ANN\", \"S\", \"T20\"]\n\
+         select = [\"E\", \"F\", \"I\", \"B\", \"UP\", \"SIM\", \"ANN\", \"S\", \"T20\"{ruff_extra}]\n\
          \n\
          [tool.mypy]\n\
          python_version = \"3.12\"\n\
          mypy_path = \"src\"\n\
          strict = true\n\
-         \n\
+         {mypy_plugins}\n\
          [tool.pytest.ini_options]\n\
          testpaths = [\"tests\"]\n\
          pythonpath = [\"src\"]\n\
@@ -124,6 +137,20 @@ pub fn python_files(
         files.push((
             format!("src/{pkg_snake}/views.py"),
             django_views_py(project_kebab, pkg_snake),
+        ));
+    }
+    if ctx.frameworks.contains(&FrameworkId::NiceGui) {
+        files.push((
+            String::from("src/main.py"),
+            format!(
+                "\"\"\"NiceGUI entrypoint for `{project_kebab}`.\"\"\"\n\n\
+                 import os\n\
+                 from {pkg_snake}.core import build_health_status\n\n\n\
+                 def render_status() -> dict[str, str]:\n\
+                 \x20   secret = os.environ.get(\"NICEGUI_STORAGE_SECRET\", \"\")\n\
+                 \x20   payload = build_health_status(secret or \"{project_kebab}\")\n\
+                 \x20   return {{\"logo\": \"assets/logo.svg\", **payload}}\n"
+            ),
         ));
     }
     files

@@ -48,3 +48,10 @@ Use this skill whenever working inside a repository governed by `garde-fou.toml`
 - **Python (`uv`)**: Enforce `TOOLCHAIN-UV-ONLY` (`pyproject.toml` + `uv.lock`, `uv sync --locked`, zero `pip`/`poetry`/`pipenv`/`requirements.txt`/`setup.py`).
 - **Kotlin/JVM (`Gradle .kts`)**: Enforce `TOOLCHAIN-GRADLE-KTS-ONLY` (`build.gradle.kts` + `settings.gradle.kts`, HTTPS wrapper, pinned versions) and `GRADLE-USE-VERSION-CATALOG` (`gradle/libs.versions.toml` + `libs.*`).
 - **MERN TypeScript (`Express 5` + `Mongoose`)**: Enforce `EXPRESS-UNVALIDATED-REQUEST-CAST`, `EXPRESS-INSECURE-CORS-OR-ERROR-LEAK`, `EXPRESS-LISTEN-IN-APP-MODULE`, `MONGO-NOSQL-INJECTION`, `MONGO-UNBOUNDED-QUERY-OR-MUTATION`, `MONGO-SCHEMA-STRICTNESS`, and `GF072` frontend/backend isolation.
+
+## Python Ecosystems: Django, NiceGUI, PyTorch/Keras & LangChain/LangGraph (`GF080`–`GF081`)
+
+- **Django (`DJ-*`)**: Enforce `DJ-RAW-SQL-OR-UNSAFE-HTML` (no `.extra`, no dynamic `RawSQL`/`.raw`, no `mark_safe` or `format_html(f"...")`), `DJ-MODEL-AND-FORM-HYGIENE` (`DJ001` with `unique=True, blank=True` exemption, `DJ008` `__str__`, `DJ003`/`DJ007`), `DJ-ORM-N-PLUS-ONE-AND-UNBOUNDED`, and `DJ-SETTINGS-AND-AUTH-HARDENING`; exempt `**/migrations/0*.py` from `GF001`/`GF021`/`GF076` while auditing `migrations.RunSQL`.
+- **NiceGUI (`NICEGUI-*`)**: Enforce `NICEGUI-BLOCKING-EVENT-LOOP`, `NICEGUI-GLOBAL-UI-OR-STATE-LEAK`, `NICEGUI-WORKER-CONTEXT-VIOLATION` (`run.io_bound`/`run.cpu_bound`/`@app.on_exception`), and `NICEGUI-SECURITY-XSS-AND-SECRET`.
+- **Deep Learning (`ML-*`)**: Enforce `ML-UNSAFE-MODEL-DESERIALIZATION`, `ML-TORCH-TRAINING-AND-VRAM-BUGS`, `ML-TF-RETRACING-AND-EAGER`, and cross-cell `ML-DATA-LEAKAGE-BEFORE-SPLIT`.
+- **LLM Agents (`LLM-*`)**: Enforce `LLM-RCE-AND-CVE-VECTORS`, `LLM-SYSTEM-PROMPT-INJECTION`, and `LLM-LANGGRAPH-INFINITE-LOOP-AND-BUDGET` (`StateGraph` -> `END`, `recursion_limit`, `timeout`/`max_retries`).

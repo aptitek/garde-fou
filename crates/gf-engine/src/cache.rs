@@ -12,7 +12,7 @@ static TEMP_COUNTER: AtomicU64 = AtomicU64::new(0);
 const STREAM_CHUNK_BYTES: usize = 64 * 1024;
 
 /// Active on-disk cache schema directory name inside `.garde-fou-cache/`.
-pub const ACTIVE_CACHE_SCHEMA: &str = "v16";
+pub const ACTIVE_CACHE_SCHEMA: &str = "v17";
 
 /// Deterministic `BLAKE3` 256-bit digest used for incremental analysis caching.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -89,7 +89,7 @@ pub struct DiskCache {
 }
 
 impl DiskCache {
-    /// Creates a [`DiskCache`] handle rooted at `<workspace_root>/<cache_dir>/v16`.
+    /// Creates a [`DiskCache`] handle rooted at `<workspace_root>/<cache_dir>/v17`.
     #[must_use]
     pub fn new(workspace_root: &Path, cache_dir: &str) -> Self {
         Self {

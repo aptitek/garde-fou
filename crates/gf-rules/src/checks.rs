@@ -85,11 +85,8 @@ pub fn check_syntax_errors(doc: &UastDocument) -> Validation<(), Diagnostic> {
     Validation::<(), Diagnostic>::from_errors(diags)
 }
 
-pub fn check_file_metrics(doc: &UastDocument, config: &Config) -> Validation<(), Diagnostic> {
-    let mut diags = Vec::new();
-    let limits = config.limits;
-
-    let enforce_line_cap = !matches!(
+fn should_enforce_line_cap(doc: &UastDocument) -> bool {
+    !matches!(
         doc.language,
         Language::Yaml
             | Language::Markdown
@@ -103,8 +100,13 @@ pub fn check_file_metrics(doc: &UastDocument, config: &Config) -> Validation<(),
             | Language::Quarto
             | Language::JsonCanvas
             | Language::BinaryAsset
-    );
-    if enforce_line_cap && doc.total_lines > limits.max_file_lines {
+    ) && !gf_core::is_django_migration_path(doc.path.as_str())
+}
+
+pub fn check_file_metrics(doc: &UastDocument, config: &Config) -> Validation<(), Diagnostic> {
+    let mut diags = Vec::new();
+    let limits = config.limits;
+    if should_enforce_line_cap(doc) && doc.total_lines > limits.max_file_lines {
         diags.push(build_metric_error(MetricErrorSpec {
             rule_id: "GF001",
             message: format!(

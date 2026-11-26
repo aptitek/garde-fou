@@ -90,6 +90,7 @@ fn requires_companion_test(doc: &UastDocument, ctx: &ProjectContext, config: &Co
         && !raw_path.contains(".stories.")
         && !doc.callables.is_empty()
         && !exempt_stem
+        && !gf_core::is_django_migration_path(raw_path)
         && !is_entrypoint_file(&doc.path, ctx, config)
 }
 

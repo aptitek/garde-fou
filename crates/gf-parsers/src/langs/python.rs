@@ -66,6 +66,7 @@ impl PythonExtractor {
         walk_python(root, source, false, &mut doc);
         populate_cst_fortress(root, source, &mut doc);
         extract_python_guardrails(root, source, domain, &mut doc);
+        super::py_eco::extract_py_ecosystem_rules(root, source, domain, &mut doc);
         check_pep723_metadata(source, &mut doc.lang_rule_findings);
         if matches!(
             domain,
@@ -153,6 +154,20 @@ fn extract_py_fn(node: Node<'_>, source: &str, in_class: bool) -> CallableDecl {
     )
 }
 
+fn record_py_asset_ref(node: Node<'_>, source: &str, doc: &mut UastDocument) {
+    let raw = node_text(node, source)
+        .trim_matches(|c| c == '"' || c == '\'')
+        .trim_start_matches("./")
+        .trim_start_matches('/');
+    if ["assets/", "static/", "public/"]
+        .iter()
+        .any(|p| raw.starts_with(p))
+        && !raw.contains('{')
+    {
+        doc.asset_refs.insert(String::from(raw));
+    }
+}
+
 fn walk_python(node: Node<'_>, source: &str, in_class: bool, doc: &mut UastDocument) {
     let mut next_in_class = in_class;
     match node.kind() {
@@ -167,6 +182,7 @@ fn walk_python(node: Node<'_>, source: &str, in_class: bool, doc: &mut UastDocum
             doc.callables.push(extract_py_fn(node, source, in_class));
             next_in_class = false;
         }
+        "string" => record_py_asset_ref(node, source, doc),
         _ => {}
     }
 

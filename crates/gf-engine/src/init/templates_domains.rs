@@ -217,6 +217,8 @@ fn apply_framework_implied_deps(ctx: &mut ProjectContext) {
                 ctx.languages.insert(LanguageId::TypeScript);
             }
             FrameworkId::FastApi | FrameworkId::Django | FrameworkId::Jupyter => { ctx.languages.insert(LanguageId::Python); }
+            FrameworkId::NiceGui => { ctx.languages.insert(LanguageId::Python); ctx.features.insert(FeatureId::Ui); }
+            FrameworkId::PyTorch | FrameworkId::TensorFlow | FrameworkId::LangChain => { ctx.languages.insert(LanguageId::Python); ctx.features.insert(FeatureId::AiMl); }
             FrameworkId::DockerCompose => { ctx.features.insert(FeatureId::Docker); ctx.languages.insert(LanguageId::Yaml); }
             FrameworkId::Quarto => { ctx.languages.insert(LanguageId::Yaml); ctx.languages.insert(LanguageId::Markdown); }
             FrameworkId::Obsidian => { ctx.languages.insert(LanguageId::Markdown); }

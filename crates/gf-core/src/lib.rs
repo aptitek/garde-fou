@@ -43,6 +43,7 @@ pub mod mutation_config_issues;
 pub mod path;
 pub mod policies;
 pub mod project_settings;
+pub mod py_ecosystems_violations;
 pub mod python_violations;
 pub mod shell_ps_tools;
 pub mod shell_ps_violations;
@@ -188,6 +189,10 @@ pub use {
     },
 };
 pub use {
+    py_ecosystems_violations::{
+        DjangoViolation, LlmAgentViolation, MlDlViolation, NiceGuiViolation, PyEcosystemViolation,
+        is_django_migration_path,
+    },
     toolchain_mern_violations::{
         MernViolation, NodeViolation, ToolchainSummary, ToolchainViolation,
         is_toolchain_audited_file,
