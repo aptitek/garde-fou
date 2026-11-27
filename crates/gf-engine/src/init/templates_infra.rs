@@ -60,7 +60,7 @@ jobs:
       - name: Install garde (SHA-256 verified)
         run: |
           set -euo pipefail
-          BASE_URL=\"https://github.com/aptitek/garde-fou/releases/latest/download\"
+          BASE_URL=\"https://github.com/ArchiPiXL/garde-fou/releases/latest/download\"
           ARCHIVE=\"garde-x86_64-unknown-linux-gnu.tar.gz\"
           curl -fsSLO \"${BASE_URL}/${ARCHIVE}\"
           curl -fsSLO \"${BASE_URL}/${ARCHIVE}.sha256\"

@@ -198,7 +198,7 @@ fn markdown_autolinks_nested_fences_frontmatter_slugs_and_mdx_are_exact() -> Res
     let clean_md = concat!(
         "---\ntitle: Guide\n---\n",
         "# Architecture & Design\n\n",
-        "Visit <https://github.com/aptitek/garde-fou> or [Section](#architecture--design).\n\n",
+        "Visit <https://github.com/ArchiPiXL/garde-fou> or [Section](#architecture--design).\n\n",
         "````md\n```html\n<div>example inside nested fence</div>\n```\n````\n",
     );
     assert_eq!(

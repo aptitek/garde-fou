@@ -13,31 +13,31 @@ Le binaire CLI s'appelle **`garde`** (`garde.exe` sous Windows) et lit la config
 En global ou directement dans le `mise.toml` d'un projet :
 
 ```bash
-mise use -g github:aptitek/garde-fou
+mise use -g github:ArchiPiXL/garde-fou
 ```
 
 ```toml
 # mise.toml
 [tools]
-"github:aptitek/garde-fou" = "latest"
+"github:ArchiPiXL/garde-fou" = "latest"
 ```
 
 ### One-Liner Linux & macOS (vérification `SHA256SUMS` obligatoire)
 
 ```bash
-curl -fsSL https://github.com/aptitek/garde-fou/releases/latest/download/install.sh | sh
+curl -fsSL https://github.com/ArchiPiXL/garde-fou/releases/latest/download/install.sh | sh
 ```
 
 Avec options explicites (`--version`, `--install-dir`) :
 
 ```bash
-curl -fsSL https://github.com/aptitek/garde-fou/releases/latest/download/install.sh | sh -s -- --version v0.3.0 --install-dir "$HOME/.local/bin"
+curl -fsSL https://github.com/ArchiPiXL/garde-fou/releases/latest/download/install.sh | sh -s -- --version v0.3.0 --install-dir "$HOME/.local/bin"
 ```
 
 ### One-Liner Windows PowerShell 5.1+ / `pwsh` 7+ (vérification `SHA256SUMS` obligatoire)
 
 ```powershell
-irm https://github.com/aptitek/garde-fou/releases/latest/download/install.ps1 | iex
+irm https://github.com/ArchiPiXL/garde-fou/releases/latest/download/install.ps1 | iex
 ```
 
 ### Installation développeur locale (`task install`)
@@ -49,7 +49,54 @@ task install
 
 ---
 
-## 2. Ségrégation Architecturale des 6 Domaines
+## 2. Langages, Fonctionnalités & Frameworks Supportés
+
+### Langages & Formats Analysés (23 `LanguageId` + formats spécialisés)
+
+| Catégorie | Langages / Formats | Slugs (`--lang` / `garde-fou.toml`) |
+| :--- | :--- | :--- |
+| **Systèmes & Backend** | Rust (Edition 2024), Go, Kotlin / JVM, C# / .NET, PHP 8.4, Python | `rust`, `go`, `kotlin`, `csharp`, `php`, `python` |
+| **Web, UI & Mobile** | TypeScript / JavaScript (`TS`/`TSX`/`JS`/`JSX`), Astro, HTML5, CSS / SCSS, Twig 3, Dart 3.6+ / Flutter 3.x | `typescript`, `astro`, `html`, `css`, `twig`, `dart` |
+| **Bases de Données** | SQL multi-dialectes (`PostgreSQL`, `MariaDB`, `SQLite`), Oracle PL/SQL | `sql`, `plsql` |
+| **Automatisation & Infra** | POSIX Shell / Bash, PowerShell, `Dockerfile` / `Containerfile`, YAML 1.2 (Compose & GitHub Actions), TOML, XML / SVG | `shell`, `powershell`, `yaml`, `toml`, `xml` |
+| **Contenus, Savoir & Diagrammes** | Markdown / GFM / MDX, Jupyter (`.ipynb`), Quarto (`.qmd`), Obsidian Canvas (`.canvas`), Mermaid v11, PlantUML | `markdown`, `mermaid`, `plantuml` |
+| **Localisation & Modding** | JSON / JSONC, GNU Gettext (`.po`/`.pot`), Project Fluent (`.ftl`), ARB / XLIFF, Minecraft 1.21+ `.mcfunction` | `mcfunction` |
+
+### Fonctionnalités Transversales (`features`)
+
+| Feature (`--feature`) | Capacités & Garde-fous |
+| :--- | :--- |
+| `docker` | Sécurité `Dockerfile` / `Containerfile` (`GF030`–`GF034`), `.dockerignore`, bridges AST `RUN` |
+| `git-hooks` | Hooks Git `lefthook` (`pre-commit`, `commit-msg` Conventional Commits `GF077`, `pre-push`) |
+| `ci-github` | Durcissement GitHub Actions (`permissions`, pinning SHA/tag, anti-injection, `actionlint`/`zizmor`) |
+| `task-runner` | Intégration `Taskfile.yml`, `justfile` et verrouillage reproductible `mise.toml` |
+| `ui` | Ségrégation `Code`/`Forme`, Design Tokens (`GF060`–`GF061`) et accessibilité statique `a11y` (`GF066`) |
+| `i18n` | Dictionnaires `Texte` symétriques sans HTML (`GF062`), ICU / Gettext / Fluent / ARB / XLIFF |
+| `content` | Pureté éditoriale Markdown / MDX (`GF063`), frontmatter YAML 1.2, hiérarchie de titres et ancres |
+| `tdd` | Forteresse TDD (`GF076`) : couverture `LCOV` (`GF050`), mutations (`GF052`), parité tests `1:1` |
+| `storybook` | Parité obligatoire `.stories.tsx` (`GF076`) |
+| `panda-css` | Garde-fous Panda CSS zéro-runtime (`panda.config.*`, `styled-system/`) |
+| `m3e` | Material Design 3 Expressive (appariement tonal, ressorts Spatial/Effects, cibles `48dp`) |
+| `w3c` | Modèles de contenu W3C HTML5, WAI-ARIA 1.2 et conformité WCAG 2.2 AA/AAA |
+| `ai-ml` | Gouvernance ML / Deep Learning & Agents LLM (`PyTorch`, `Keras 3`, `LangChain`/`LangGraph`) |
+| `diagrams` | Diagrammes-as-Code (`Mermaid` v11 & `PlantUML`) |
+
+### Frameworks & Écosystèmes (`frameworks`) & Archétypes
+
+- **Web, Edge & Node.js** : `react`, `astro`, `nextjs`, `react-router`, `cloudflare-workers`, `drizzle`, `nodejs`, `express`, `mongoose`
+- **Python & IA/ML** : `fastapi`, `django`, `nicegui`, `pytorch`, `tensorflow`, `langchain`
+- **Backend, Mobile & Bases de Données** : `cargo-workspace`, `symfony`, `doctrine`, `flutter`, `postgresql`, `mariadb`, `docker-compose`
+- **Savoir, Académique & Modding** : `obsidian`, `quarto`, `jupyter`, `minecraft-mod`, `kilt`, `datapack`
+- **6 Archétypes Proportionnels (`[project] archetype`)** : `minimal`, `scripts`, `infra`, `knowledge`, `academic`, `software`
+
+### Fonctionnalités Clés du CLI (`garde`)
+
+- **Analyse polyglotte 3 niveaux** : AST natif zéro-dépendance (`GF080`), audit anti-affaiblissement des configs d'outils (`GF081`), et ingestion unifiée d'outils externes / `SARIF` 2.1.0 (`GF082`, `gitleaks`, `osv-scanner`).
+- **Expérience développeur & agents IA** : TUI interactif (`garde tui`), mode surveillance temps réel (`garde check --watch`), configurateur sans perte (`garde config`), sorties `human` / `agent` Markdown / `sarif`, CLI bilingue FR/EN, synchronisation `AGENTS.md` + `.agents/skills/` (`garde sync`) et scellement cryptographique `BLAKE3` (`garde lock`).
+
+---
+
+## 3. Ségrégation Architecturale des 6 Domaines
 
 `garde` impose une séparation hermétique entre six domaines orthogonaux (configurables via `[domains]` dans `garde-fou.toml`) :
 
@@ -62,7 +109,7 @@ task install
 
 ---
 
-## 3. Utilisation Rapide
+## 4. Utilisation Rapide
 
 ```bash
 # Initialiser un projet clé en main (assistant interactif style Gum sur TTY, ou drapeaux déclaratifs)
@@ -114,7 +161,7 @@ garde commit-msg .git/COMMIT_EDITMSG
 
 ---
 
-## 4. Catalogue des Règles (`GF000`–`GF082`)
+## 5. Catalogue des Règles (`GF000`–`GF082`)
 
 | Règle | Domaine / Portée | Description | Seuil par défaut |
 | :--- | :--- | :--- | :--- |
@@ -161,7 +208,7 @@ garde commit-msg .git/COMMIT_EDITMSG
 
 ---
 
-## 5. Architecture Interne
+## 6. Architecture Interne
 
 | Crate | Environnement | Rôle |
 | :--- | :--- | :--- |

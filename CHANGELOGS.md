@@ -77,7 +77,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 - **Distribution & Multi-OS Release Pipeline**:
   - `garde init` scaffolding, `mise` integration, verified `SHA256SUMS` one-liner installers (`scripts/install.sh`, `scripts/install.ps1`), and multi-OS GitHub Actions release workflow (`x86_64-unknown-linux-musl`, `aarch64-unknown-linux-gnu`, `x86_64-apple-darwin`, `aarch64-apple-darwin`, `x86_64-pc-windows-msvc`).
 
-[0.3.0]: https://github.com/aptitek/garde-fou/compare/v0.2.1...v0.3.0
-[0.2.1]: https://github.com/aptitek/garde-fou/compare/v0.2.0...v0.2.1
-[0.2.0]: https://github.com/aptitek/garde-fou/compare/v0.1.0...v0.2.0
-[0.1.0]: https://github.com/aptitek/garde-fou/releases/tag/v0.1.0
+[0.3.0]: https://github.com/ArchiPiXL/garde-fou/compare/v0.2.1...v0.3.0
+[0.2.1]: https://github.com/ArchiPiXL/garde-fou/compare/v0.2.0...v0.2.1
+[0.2.0]: https://github.com/ArchiPiXL/garde-fou/compare/v0.1.0...v0.2.0
+[0.1.0]: https://github.com/ArchiPiXL/garde-fou/releases/tag/v0.1.0

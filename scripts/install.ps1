@@ -2,7 +2,7 @@
 .SYNOPSIS
     Cryptographic one-liner installer for Garde-fou (`garde.exe`) on Windows.
 .EXAMPLE
-    irm https://github.com/aptitek/garde-fou/releases/latest/download/install.ps1 | iex
+    irm https://github.com/ArchiPiXL/garde-fou/releases/latest/download/install.ps1 | iex
 .EXAMPLE
     pwsh -File scripts/install.ps1 -FromDir .\dist -InstallDir .\bin -NoModifyPath
 #>
@@ -18,7 +18,7 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-$DefaultRepo = "aptitek/garde-fou"
+$DefaultRepo = "ArchiPiXL/garde-fou"
 
 if ([string]::IsNullOrWhiteSpace($InstallDir)) {
     if (-not [string]::IsNullOrWhiteSpace($env:GARDE_INSTALL_DIR)) {

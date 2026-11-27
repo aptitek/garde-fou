@@ -14,7 +14,7 @@ edition = "2024"
 rust-version = "1.100"
 license = "MIT OR Apache-2.0"
 authors = ["Garde-fou Contributors"]
-repository = "https://github.com/aptitek/garde-fou"
+repository = "https://github.com/ArchiPiXL/garde-fou"
 publish = false
 
 [workspace.dependencies]

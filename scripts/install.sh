@@ -1,12 +1,12 @@
 #!/bin/sh
 # Curated cryptographic one-liner installer for Garde-fou (`garde`).
 # Usage:
-#   curl -fsSL https://github.com/aptitek/garde-fou/releases/latest/download/install.sh | sh
+#   curl -fsSL https://github.com/ArchiPiXL/garde-fou/releases/latest/download/install.sh | sh
 #   sh scripts/install.sh [--version <TAG>] [--install-dir <DIR>] [--repo <OWNER/REPO>] [--from-dir <DIR>]
 
 set -eu
 
-DEFAULT_REPO="aptitek/garde-fou"
+DEFAULT_REPO="ArchiPiXL/garde-fou"
 VERSION="latest"
 INSTALL_DIR="${GARDE_INSTALL_DIR:-$HOME/.local/bin}"
 REPO="${GARDE_REPO:-}"
@@ -19,7 +19,7 @@ Install the `garde` static analysis binary with mandatory SHA-256 verification.
 Options:
   --version <TAG>       Release tag to install (default: latest, e.g. v0.1.0)
   --install-dir <DIR>   Target directory (default: $GARDE_INSTALL_DIR or ~/.local/bin)
-  --repo <OWNER/REPO>   GitHub repository slug (default: $GARDE_REPO or aptitek/garde-fou)
+  --repo <OWNER/REPO>   GitHub repository slug (default: $GARDE_REPO or ArchiPiXL/garde-fou)
   --from-dir <DIR>      Offline installation directory containing archive + SHA256SUMS
   -h, --help            Print this help message
 EOF
