@@ -47,7 +47,7 @@ tasks:
 const GITHUB_WORKFLOW_TEMPLATE: &str = "\
 ---
 name: garde-fou
-on:
+\"on\":
   push:
     branches: [main]
   pull_request:
