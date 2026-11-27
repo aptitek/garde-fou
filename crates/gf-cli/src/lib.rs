@@ -165,8 +165,8 @@ mod tests {
         assert!(bad_out.contains("GF077"));
 
         let fresh_check = Cli::try_parse_from(["garde", "check", "--no-cache"])?;
-        let (_, check_code) = execute_with_policy(&fresh_check, &dir, ColorPolicy::Plain)?;
-        assert_eq!(check_code, ExitCode::SUCCESS);
+        let (check_out, check_code) = execute_with_policy(&fresh_check, &dir, ColorPolicy::Plain)?;
+        assert_eq!(check_code, ExitCode::SUCCESS, "{check_out}");
 
         fs::remove_dir_all(&dir)?;
         Ok(())

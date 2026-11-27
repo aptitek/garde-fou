@@ -145,12 +145,12 @@ fn powershell_install_ps1_enforces_strict_mode_and_sha256_verification()
         .is_ok_and(|out| out.status.success())
     {
         let ast_ok = Command::new("pwsh")
+            .env("GARDE_PS1_PATH", &ps1_script)
             .args([
                 "-NoProfile",
                 "-Command",
-                "param($p) $errs = $null; $null = [System.Management.Automation.Language.Parser]::ParseFile($p, [ref]$null, [ref]$errs); if ($errs) { exit 1 }",
+                "$errs = $null; $null = [System.Management.Automation.Language.Parser]::ParseFile($env:GARDE_PS1_PATH, [ref]$null, [ref]$errs); if ($errs) { exit 1 }",
             ])
-            .arg(&ps1_script)
             .status()?;
         assert!(ast_ok.success());
     }
