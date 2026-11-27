@@ -3,7 +3,7 @@
 
 use gf_core::{FrameworkId, ProjectContext};
 
-const PNPM_WORKSPACE: &str = "packages:\n  - \"apps/*\"\n  - \"packages/*\"\n";
+const PNPM_WORKSPACE: &str = "---\npackages:\n  - \"apps/*\"\n  - \"packages/*\"\n";
 
 const CONTRACTS_PKG: &str = "{\n  \"name\": \"@app/contracts\",\n  \"version\": \"0.1.0\",\n  \"private\": true,\n  \"type\": \"module\"\n}\n";
 

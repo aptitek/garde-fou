@@ -1,0 +1,130 @@
+<svg xmlns="http://www.w3.org/2000/svg" role="img" font-family="'JetBrains Mono', 'DejaVu Sans Mono', Consolas, monospace" aria-labelledby="gf-title gf-desc" viewBox="0 0 1000 540" width="1000" height="540">
+  <title id="gf-title">Garde-fou architecture and ecosystem overview</title>
+  <desc id="gf-desc">Hub-and-Spoke polyglot static analyzer covering 23 languages, 14 features, 28 frameworks, 6 architectural domains, and a 5-crate Functional Core / Imperative Shell layout.</desc>
+
+  <!-- Canvas & Top Bar -->
+  <rect x="0" y="0" width="1000" height="540" rx="8" fill="#0b0b0f" />
+  <rect x="0" y="0" width="1000" height="48" rx="8" fill="#090910" />
+  <rect x="0" y="40" width="1000" height="8" fill="#090910" />
+  <rect x="0" y="47" width="1000" height="1" fill="#272733" />
+
+  <rect x="14" y="10" width="206" height="27" rx="3" fill="#e2bc8c" />
+  <text x="117" y="28" fill="#0b0b0f" font-size="14" text-anchor="middle" font-weight="bold">Polyglot Governance</text>
+  <text x="500" y="31" fill="#e2bc8c" font-size="22" text-anchor="middle" font-weight="bold" letter-spacing="4">GARDE-FOU</text>
+  <text x="986" y="29" fill="#6fc7d4" font-size="14" text-anchor="end">v0.3.0 · Rust 2024</text>
+
+  <!-- Hero Card: Hub-and-Spoke Pipeline & Scale -->
+  <g transform="translate(14 62)">
+    <rect x="0" y="0" width="972" height="142" rx="6" fill="#14141d" stroke="#e2bc8c" stroke-width="1" />
+    <text x="18" y="31" fill="#e2bc8c" font-size="20" font-weight="bold">Hub-and-Spoke Static Governance</text>
+    <text x="954" y="31" fill="#6fc7d4" font-size="18" text-anchor="end" font-weight="bold">GF000–GF082</text>
+
+    <!-- Pipeline steps -->
+    <g transform="translate(18 46)">
+      <rect x="0" y="0" width="166" height="32" rx="4" fill="#1b1b27" stroke="#2f2f40" />
+      <text x="83" y="21" fill="#d7d7de" font-size="12.5" text-anchor="middle">Tree-sitter CST</text>
+      <text x="178" y="21" fill="#6fc7d4" font-size="14" text-anchor="middle">→</text>
+
+      <rect x="190" y="0" width="168" height="32" rx="4" fill="#1b1b27" stroke="#2f2f40" />
+      <text x="274" y="21" fill="#e2bc8c" font-size="12.5" text-anchor="middle">#![no_std] UAST</text>
+      <text x="370" y="21" fill="#6fc7d4" font-size="14" text-anchor="middle">→</text>
+
+      <rect x="382" y="0" width="152" height="32" rx="4" fill="#1b1b27" stroke="#2f2f40" />
+      <text x="458" y="21" fill="#d7d7de" font-size="12.5" text-anchor="middle">Pure Rules</text>
+      <text x="546" y="21" fill="#6fc7d4" font-size="14" text-anchor="middle">→</text>
+
+      <rect x="558" y="0" width="184" height="32" rx="4" fill="#1b1b27" stroke="#2f2f40" />
+      <text x="650" y="21" fill="#d7d7de" font-size="12.5" text-anchor="middle">3-Tier Tools + SARIF</text>
+      <text x="754" y="21" fill="#6fc7d4" font-size="14" text-anchor="middle">→</text>
+
+      <rect x="766" y="0" width="170" height="32" rx="4" fill="#1b1b27" stroke="#2ecc71" />
+      <text x="851" y="21" fill="#2ecc71" font-size="12.5" text-anchor="middle">BLAKE3 v22 Cache</text>
+    </g>
+
+    <!-- Metric Strip -->
+    <rect x="18" y="92" width="936" height="1" fill="#272733" />
+    <text x="18" y="121" fill="#6fc7d4" font-size="13.5" font-weight="bold">23</text>
+    <text x="42" y="121" fill="#d7d7de" font-size="13">Languages</text>
+
+    <text x="168" y="121" fill="#6fc7d4" font-size="13.5" font-weight="bold">14</text>
+    <text x="192" y="121" fill="#d7d7de" font-size="13">Features</text>
+
+    <text x="310" y="121" fill="#6fc7d4" font-size="13.5" font-weight="bold">28</text>
+    <text x="334" y="121" fill="#d7d7de" font-size="13">Frameworks</text>
+
+    <text x="472" y="121" fill="#e2bc8c" font-size="13.5" font-weight="bold">6</text>
+    <text x="488" y="121" fill="#d7d7de" font-size="13">Domains</text>
+
+    <text x="606" y="121" fill="#e2bc8c" font-size="13.5" font-weight="bold">6</text>
+    <text x="622" y="121" fill="#d7d7de" font-size="13">Archetypes</text>
+
+    <text x="954" y="121" fill="#2ecc71" font-size="13.5" text-anchor="end" font-weight="bold">91%+ LCOV · 0 unsafe</text>
+  </g>
+
+  <!-- Terminal Card: 6 Domains + 5 Crates -->
+  <g transform="translate(14 218)">
+    <rect x="0" y="0" width="972" height="308" rx="6" fill="#14141d" stroke="#272733" stroke-width="1" />
+    <rect x="1" y="1" width="970" height="32" rx="5" fill="#0d0d15" />
+    <rect x="1" y="26" width="970" height="7" fill="#0d0d15" />
+    <rect x="1" y="33" width="970" height="1" fill="#272733" />
+    <circle cx="16" cy="17" r="4.5" fill="#e74c3c" />
+    <circle cx="32" cy="17" r="4.5" fill="#f1c40f" />
+    <circle cx="48" cy="17" r="4.5" fill="#2ecc71" />
+    <text x="68" y="22" fill="#6fc7d4" font-size="13">~/garde-fou/architecture</text>
+    <text x="954" y="22" fill="#a0a0b1" font-size="12" text-anchor="end">garde check --no-cache</text>
+
+    <!-- Left Column: Six-Domain Segregation -->
+    <text x="18" y="62" fill="#e2bc8c" font-size="15" font-weight="bold">Six-Domain Segregation (GF060–GF066)</text>
+    <rect x="18" y="72" width="454" height="1" fill="#272733" />
+
+    <text x="18" y="96" fill="#6fc7d4" font-size="13" font-weight="bold">Code</text>
+    <text x="108" y="96" fill="#d7d7de" font-size="12.5">Pure logic, zero CSS/SVG leaks, static a11y</text>
+
+    <text x="18" y="124" fill="#6fc7d4" font-size="13" font-weight="bold">Scripts</text>
+    <text x="108" y="124" fill="#d7d7de" font-size="12.5">Standalone CLI/CI tooling, test-covered</text>
+
+    <text x="18" y="152" fill="#6fc7d4" font-size="13" font-weight="bold">Forme</text>
+    <text x="108" y="152" fill="#d7d7de" font-size="12.5">Design Tokens &amp; var(--token), no !important</text>
+
+    <text x="18" y="180" fill="#6fc7d4" font-size="13" font-weight="bold">Texte</text>
+    <text x="108" y="180" fill="#d7d7de" font-size="12.5">Symmetric HTML-free i18n (ICU/PO/FTL/ARB)</text>
+
+    <text x="18" y="208" fill="#6fc7d4" font-size="13" font-weight="bold">Contenus</text>
+    <text x="108" y="208" fill="#d7d7de" font-size="12.5">Pure Markdown/MDX, headings &amp; valid anchors</text>
+
+    <text x="18" y="236" fill="#6fc7d4" font-size="13" font-weight="bold">Asset</text>
+    <text x="108" y="236" fill="#d7d7de" font-size="12.5">Sanitized SVGs, size cap, zero orphans</text>
+
+    <!-- Vertical Divider -->
+    <rect x="492" y="48" width="1" height="202" fill="#272733" />
+
+    <!-- Right Column: Functional Core / Imperative Shell -->
+    <text x="512" y="62" fill="#e2bc8c" font-size="15" font-weight="bold">Functional Core / Imperative Shell</text>
+    <rect x="512" y="72" width="442" height="1" fill="#272733" />
+
+    <text x="512" y="96" fill="#e2bc8c" font-size="13" font-weight="bold">gf-core</text>
+    <text x="614" y="96" fill="#a0a0b1" font-size="12">#![no_std]</text>
+    <text x="702" y="96" fill="#d7d7de" font-size="12.5">UAST, Span, Config, Validation</text>
+
+    <text x="512" y="128" fill="#e2bc8c" font-size="13" font-weight="bold">gf-rules</text>
+    <text x="614" y="128" fill="#a0a0b1" font-size="12">#![no_std]</text>
+    <text x="702" y="128" fill="#d7d7de" font-size="12.5">SRP, Tarjan DAG, KISS/YAGNI/TDD</text>
+
+    <text x="512" y="160" fill="#6fc7d4" font-size="13" font-weight="bold">gf-parsers</text>
+    <text x="614" y="160" fill="#a0a0b1" font-size="12">0 I/O std</text>
+    <text x="702" y="160" fill="#d7d7de" font-size="12.5">23 languages, AST &amp; config audits</text>
+
+    <text x="512" y="192" fill="#6fc7d4" font-size="13" font-weight="bold">gf-engine</text>
+    <text x="614" y="192" fill="#a0a0b1" font-size="12">Shell</text>
+    <text x="702" y="192" fill="#d7d7de" font-size="12.5">BLAKE3 cache, sync, lock, SARIF</text>
+
+    <text x="512" y="224" fill="#2ecc71" font-size="13" font-weight="bold">gf-cli</text>
+    <text x="614" y="224" fill="#a0a0b1" font-size="12">garde</text>
+    <text x="702" y="224" fill="#d7d7de" font-size="12.5">TUI, watch, init, config, reports</text>
+
+    <!-- Bottom Status Strip -->
+    <rect x="18" y="262" width="936" height="1" fill="#272733" />
+    <text x="18" y="289" fill="#2ecc71" font-size="13" font-weight="bold">✓ PASS</text>
+    <text x="86" y="289" fill="#a0a0b1" font-size="12.5">0 unsafe · 0 unwrap/panic · BLAKE3 garde.lock · SLSA provenance · MIT OR Apache-2.0</text>
+  </g>
+</svg>

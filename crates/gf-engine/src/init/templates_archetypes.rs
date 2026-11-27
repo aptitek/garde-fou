@@ -46,6 +46,7 @@ if __name__ == \"__main__\":
 ";
 
 const INFRA_COMPOSE_YAML: &str = "\
+---
 services:
   app:
     image: nginx:1.27-alpine
@@ -120,6 +121,7 @@ const JUPYTER_STARTER_IPYNB: &str = "{\n\
 }\n";
 
 const QUARTO_CONFIG_YML: &str = "\
+---
 project:
   title: \"academic-notes\"
   render:
