@@ -10,6 +10,7 @@ pub const GITATTRIBUTES_TEMPLATE: &str = "* text=auto eol=lf\n\
 *.cmd text eol=crlf\n";
 
 const LEFTHOOK_TEMPLATE: &str = "\
+---
 pre-commit:
   parallel: true
   commands:
@@ -29,6 +30,7 @@ pre-push:
 ";
 
 const TASKFILE_TEMPLATE: &str = "\
+---
 version: \"3\"
 
 tasks:
@@ -43,6 +45,7 @@ tasks:
 ";
 
 const GITHUB_WORKFLOW_TEMPLATE: &str = "\
+---
 name: garde-fou
 on:
   push:

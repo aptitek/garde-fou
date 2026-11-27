@@ -7,6 +7,7 @@ use crate::discovery::peek_extensionless_shebang;
 use gf_core::{
     ArchetypeSetting, Config, DomainKind, FeatureId, FrameworkId, Language, LanguageId,
     ProjectContext, RepoPath, YamlFlavor, classify_path, classify_yaml_flavor,
+    is_root_governance_doc,
 };
 use gf_parsers::detect_language;
 use std::{collections::BTreeSet, fs, path::Path};
@@ -51,7 +52,7 @@ fn resolve_file_lang_id(root: &Path, path: &RepoPath) -> Option<LanguageId> {
         Language::Unknown if path.extension().is_none() => peek_extensionless_shebang(&root.join(path.as_str())).unwrap_or(Language::Unknown),
         known => known,
     };
-    if lang == Language::Markdown { return (!ROOT_EXEMPT_MD.contains(&path.as_str())).then_some(LanguageId::Markdown); }
+    if lang == Language::Markdown { return (!is_root_governance_doc(path) && !ROOT_EXEMPT_MD.contains(&path.as_str())).then_some(LanguageId::Markdown); }
     SOURCE_LANGUAGE_MAP.iter().find_map(|&(src, id)| (src == lang).then_some(id))
 }
 

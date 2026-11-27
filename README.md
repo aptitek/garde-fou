@@ -1,16 +1,18 @@
 # Garde-fou (`garde`)
 
-**Garde-fou** est un orchestrateur et analyseur statique polyglotte ultra-strict inspiré de l'architecture Hub-and-Spoke de Pandoc (`Tree-sitter` -> `UAST` `#![no_std]` -> Règles pures + Ingestion d'outils par langage + Ponts `SARIF` / `LCOV` + Cache incrémental `BLAKE3` `v22`).
+> **English** | [Français](README.fr.md)
 
-Le binaire CLI s'appelle **`garde`** (`garde.exe` sous Windows) et lit la configuration stricte `garde-fou.toml`.
+**Garde-fou** is an ultra-strict polyglot static analyzer and governance orchestrator inspired by Pandoc's Hub-and-Spoke architecture (`Tree-sitter` -> `#![no_std]` `UAST` -> Pure rules + Per-language tool ingestion + `SARIF` / `LCOV` bridges + Incremental `BLAKE3` `v22` cache).
+
+The CLI binary is named **`garde`** (`garde.exe` on Windows) and reads the strict `garde-fou.toml` configuration.
 
 ---
 
 ## 1. Installation
 
-### Via `mise` (recommandé)
+### Via `mise` (recommended)
 
-En global ou directement dans le `mise.toml` d'un projet :
+Globally or directly inside a project's `mise.toml`:
 
 ```bash
 mise use -g github:ArchiPiXL/garde-fou
@@ -22,198 +24,198 @@ mise use -g github:ArchiPiXL/garde-fou
 "github:ArchiPiXL/garde-fou" = "latest"
 ```
 
-### One-Liner Linux & macOS (vérification `SHA256SUMS` obligatoire)
+### Linux & macOS One-Liner (mandatory `SHA256SUMS` verification)
 
 ```bash
 curl -fsSL https://github.com/ArchiPiXL/garde-fou/releases/latest/download/install.sh | sh
 ```
 
-Avec options explicites (`--version`, `--install-dir`) :
+With explicit options (`--version`, `--install-dir`):
 
 ```bash
 curl -fsSL https://github.com/ArchiPiXL/garde-fou/releases/latest/download/install.sh | sh -s -- --version v0.3.0 --install-dir "$HOME/.local/bin"
 ```
 
-### One-Liner Windows PowerShell 5.1+ / `pwsh` 7+ (vérification `SHA256SUMS` obligatoire)
+### Windows PowerShell 5.1+ / `pwsh` 7+ One-Liner (mandatory `SHA256SUMS` verification)
 
 ```powershell
 irm https://github.com/ArchiPiXL/garde-fou/releases/latest/download/install.ps1 | iex
 ```
 
-### Installation développeur locale (`task install`)
+### Local Developer Install (`task install`)
 
 ```bash
 task install
-# équivalent à : cargo install --path crates/gf-cli --locked --force
+# equivalent to: cargo install --path crates/gf-cli --locked --force
 ```
 
 ---
 
-## 2. Langages, Fonctionnalités & Frameworks Supportés
+## 2. Supported Languages, Features & Frameworks
 
-### Langages & Formats Analysés (23 `LanguageId` + formats spécialisés)
+### Analyzed Languages & Formats (23 `LanguageId` + specialized formats)
 
-| Catégorie | Langages / Formats | Slugs (`--lang` / `garde-fou.toml`) |
+| Category | Languages / Formats | Slugs (`--lang` / `garde-fou.toml`) |
 | :--- | :--- | :--- |
-| **Systèmes & Backend** | Rust (Edition 2024), Go, Kotlin / JVM, C# / .NET, PHP 8.4, Python | `rust`, `go`, `kotlin`, `csharp`, `php`, `python` |
+| **Systems & Backend** | Rust (Edition 2024), Go, Kotlin / JVM, C# / .NET, PHP 8.4, Python | `rust`, `go`, `kotlin`, `csharp`, `php`, `python` |
 | **Web, UI & Mobile** | TypeScript / JavaScript (`TS`/`TSX`/`JS`/`JSX`), Astro, HTML5, CSS / SCSS, Twig 3, Dart 3.6+ / Flutter 3.x | `typescript`, `astro`, `html`, `css`, `twig`, `dart` |
-| **Bases de Données** | SQL multi-dialectes (`PostgreSQL`, `MariaDB`, `SQLite`), Oracle PL/SQL | `sql`, `plsql` |
-| **Automatisation & Infra** | POSIX Shell / Bash, PowerShell, `Dockerfile` / `Containerfile`, YAML 1.2 (Compose & GitHub Actions), TOML, XML / SVG | `shell`, `powershell`, `yaml`, `toml`, `xml` |
-| **Contenus, Savoir & Diagrammes** | Markdown / GFM / MDX, Jupyter (`.ipynb`), Quarto (`.qmd`), Obsidian Canvas (`.canvas`), Mermaid v11, PlantUML | `markdown`, `mermaid`, `plantuml` |
-| **Localisation & Modding** | JSON / JSONC, GNU Gettext (`.po`/`.pot`), Project Fluent (`.ftl`), ARB / XLIFF, Minecraft 1.21+ `.mcfunction` | `mcfunction` |
+| **Databases** | Multi-dialect SQL (`PostgreSQL`, `MariaDB`, `SQLite`), Oracle PL/SQL | `sql`, `plsql` |
+| **Automation & Infra** | POSIX Shell / Bash, PowerShell, `Dockerfile` / `Containerfile`, YAML 1.2 (Compose & GitHub Actions), TOML, XML / SVG | `shell`, `powershell`, `yaml`, `toml`, `xml` |
+| **Content, Knowledge & Diagrams** | Markdown / GFM / MDX, Jupyter (`.ipynb`), Quarto (`.qmd`), Obsidian Canvas (`.canvas`), Mermaid v11, PlantUML | `markdown`, `mermaid`, `plantuml` |
+| **Localization & Modding** | JSON / JSONC, GNU Gettext (`.po`/`.pot`), Project Fluent (`.ftl`), ARB / XLIFF, Minecraft 1.21+ `.mcfunction` | `mcfunction` |
 
-### Fonctionnalités Transversales (`features`)
+### Cross-Cutting Features (`features`)
 
-| Feature (`--feature`) | Capacités & Garde-fous |
+| Feature (`--feature`) | Capabilities & Guardrails |
 | :--- | :--- |
-| `docker` | Sécurité `Dockerfile` / `Containerfile` (`GF030`–`GF034`), `.dockerignore`, bridges AST `RUN` |
-| `git-hooks` | Hooks Git `lefthook` (`pre-commit`, `commit-msg` Conventional Commits `GF077`, `pre-push`) |
-| `ci-github` | Durcissement GitHub Actions (`permissions`, pinning SHA/tag, anti-injection, `actionlint`/`zizmor`) |
-| `task-runner` | Intégration `Taskfile.yml`, `justfile` et verrouillage reproductible `mise.toml` |
-| `ui` | Ségrégation `Code`/`Forme`, Design Tokens (`GF060`–`GF061`) et accessibilité statique `a11y` (`GF066`) |
-| `i18n` | Dictionnaires `Texte` symétriques sans HTML (`GF062`), ICU / Gettext / Fluent / ARB / XLIFF |
-| `content` | Pureté éditoriale Markdown / MDX (`GF063`), frontmatter YAML 1.2, hiérarchie de titres et ancres |
-| `tdd` | Forteresse TDD (`GF076`) : couverture `LCOV` (`GF050`), mutations (`GF052`), parité tests `1:1` |
-| `storybook` | Parité obligatoire `.stories.tsx` (`GF076`) |
-| `panda-css` | Garde-fous Panda CSS zéro-runtime (`panda.config.*`, `styled-system/`) |
-| `m3e` | Material Design 3 Expressive (appariement tonal, ressorts Spatial/Effects, cibles `48dp`) |
-| `w3c` | Modèles de contenu W3C HTML5, WAI-ARIA 1.2 et conformité WCAG 2.2 AA/AAA |
-| `ai-ml` | Gouvernance ML / Deep Learning & Agents LLM (`PyTorch`, `Keras 3`, `LangChain`/`LangGraph`) |
-| `diagrams` | Diagrammes-as-Code (`Mermaid` v11 & `PlantUML`) |
+| `docker` | `Dockerfile` / `Containerfile` security (`GF030`–`GF034`), `.dockerignore`, embedded `RUN` AST bridges |
+| `git-hooks` | `lefthook` Git hooks (`pre-commit`, `commit-msg` Conventional Commits `GF077`, `pre-push`) |
+| `ci-github` | GitHub Actions hardening (`permissions`, SHA/tag pinning, anti-injection, `actionlint`/`zizmor`) |
+| `task-runner` | `Taskfile.yml`, `justfile`, and reproducible `mise.toml` toolchain pinning |
+| `ui` | `Code`/`Forme` segregation, Design Tokens (`GF060`–`GF061`), and static `a11y` checks (`GF066`) |
+| `i18n` | Key-symmetric HTML-free `Texte` dictionaries (`GF062`), ICU / Gettext / Fluent / ARB / XLIFF |
+| `content` | Editorial Markdown / MDX purity (`GF063`), YAML 1.2 frontmatter, heading hierarchy, and anchors |
+| `tdd` | TDD Fortress (`GF076`): `LCOV` line coverage (`GF050`), mutation score (`GF052`), `1:1` test parity |
+| `storybook` | Mandatory `.stories.tsx` companion parity (`GF076`) |
+| `panda-css` | Zero-runtime Panda CSS guardrails (`panda.config.*`, `styled-system/`) |
+| `m3e` | Material Design 3 Expressive (tonal pairing, Spatial/Effects springs, `48dp` touch targets) |
+| `w3c` | W3C HTML5 content models, WAI-ARIA 1.2, and WCAG 2.2 AA/AAA compliance |
+| `ai-ml` | ML / Deep Learning & LLM Agent governance (`PyTorch`, `Keras 3`, `LangChain`/`LangGraph`) |
+| `diagrams` | Diagrams-as-Code (`Mermaid` v11 & `PlantUML`) |
 
-### Frameworks & Écosystèmes (`frameworks`) & Archétypes
+### Frameworks & Ecosystems (`frameworks`) & Archetypes
 
-- **Web, Edge & Node.js** : `react`, `astro`, `nextjs`, `react-router`, `cloudflare-workers`, `drizzle`, `nodejs`, `express`, `mongoose`
-- **Python & IA/ML** : `fastapi`, `django`, `nicegui`, `pytorch`, `tensorflow`, `langchain`
-- **Backend, Mobile & Bases de Données** : `cargo-workspace`, `symfony`, `doctrine`, `flutter`, `postgresql`, `mariadb`, `docker-compose`
-- **Savoir, Académique & Modding** : `obsidian`, `quarto`, `jupyter`, `minecraft-mod`, `kilt`, `datapack`
-- **6 Archétypes Proportionnels (`[project] archetype`)** : `minimal`, `scripts`, `infra`, `knowledge`, `academic`, `software`
+- **Web, Edge & Node.js**: `react`, `astro`, `nextjs`, `react-router`, `cloudflare-workers`, `drizzle`, `nodejs`, `express`, `mongoose`
+- **Python & AI/ML**: `fastapi`, `django`, `nicegui`, `pytorch`, `tensorflow`, `langchain`
+- **Backend, Mobile & Databases**: `cargo-workspace`, `symfony`, `doctrine`, `flutter`, `postgresql`, `mariadb`, `docker-compose`
+- **Knowledge, Academic & Modding**: `obsidian`, `quarto`, `jupyter`, `minecraft-mod`, `kilt`, `datapack`
+- **6 Proportional Archetypes (`[project] archetype`)**: `minimal`, `scripts`, `infra`, `knowledge`, `academic`, `software`
 
-### Fonctionnalités Clés du CLI (`garde`)
+### Key CLI Capabilities (`garde`)
 
-- **Analyse polyglotte 3 niveaux** : AST natif zéro-dépendance (`GF080`), audit anti-affaiblissement des configs d'outils (`GF081`), et ingestion unifiée d'outils externes / `SARIF` 2.1.0 (`GF082`, `gitleaks`, `osv-scanner`).
-- **Expérience développeur & agents IA** : TUI interactif (`garde tui`), mode surveillance temps réel (`garde check --watch`), configurateur sans perte (`garde config`), sorties `human` / `agent` Markdown / `sarif`, CLI bilingue FR/EN, synchronisation `AGENTS.md` + `.agents/skills/` (`garde sync`) et scellement cryptographique `BLAKE3` (`garde lock`).
-
----
-
-## 3. Ségrégation Architecturale des 6 Domaines
-
-`garde` impose une séparation hermétique entre six domaines orthogonaux (configurables via `[domains]` dans `garde-fou.toml`) :
-
-1. **`Code` (`src/**`, `crates/**`, `app/**`)** : logique métier et structure sémantique pure (zéro CSS-in-JS, zéro littéral couleur/px, zéro `<svg>` inline, accessibilité statique `a11y` vérifiée).
-2. **`Scripts` (`scripts/**`, `tools/**`)** : outillage autonome soumis aux plafonds SRP/secrets, jamais importé par `Code`, et obligatoirement couvert par des tests automatisés.
-3. **`Forme` (`styles/**`, `tokens/**`, `panda.config.*`)** : Design Tokens primitifs confinés dans `tokens/` et feuilles CSS consommant exclusivement `var(--token)` sans `!important` ni texte traduisible.
-4. **`Texte` (`locales/**`, `i18n/**`, `messages/**`)** : dictionnaires `i18n` purs (zéro HTML), strictement symétriques entre langues et synchronisés avec les appels `t("...")` du `Code`.
-5. **`Contenus` (`content/**`, `courses/**`, `docs/**`)** : Markdown/MDX éditorial pur (zéro HTML brut hors blocs de code, hiérarchie de titres séquentielle, images avec `alt`).
-6. **`Asset` (`assets/**`, `public/**`, `static/**`)** : médias et SVG confinés, sains (SVG sans `<script>` ni `on*=`), sous plafond de taille (`1 MiB`), sans liens brisés ni fichiers orphelins.
+- **3-Tier Polyglot Analysis**: zero-dependency native AST rules (`GF080`), anti-weakening tool config audits (`GF081`), and unified external verifier / `SARIF` 2.1.0 ingestion (`GF082`, `gitleaks`, `osv-scanner`).
+- **Developer & AI Agent Experience**: interactive TUI (`garde tui`), live watch mode (`garde check --watch`), lossless configurator (`garde config`), `human` / `agent` Markdown / `sarif` reporters, bilingual EN/FR CLI, `AGENTS.md` + `.agents/skills/` sync (`garde sync`), and `BLAKE3` cryptographic sealing (`garde lock`).
 
 ---
 
-## 4. Utilisation Rapide
+## 3. Six-Domain Architectural Segregation
+
+`garde` enforces hermetic separation across six orthogonal domains (configurable via `[domains]` in `garde-fou.toml`):
+
+1. **`Code` (`src/**`, `crates/**`, `app/**`)**: pure business logic and semantic structure (zero CSS-in-JS, zero raw `#hex`/`px` literals, zero inline `<svg>`, static `a11y` verified).
+2. **`Scripts` (`scripts/**`, `tools/**`)**: standalone tooling subject to SRP/secret caps, never imported by `Code`, and covered by automated tests.
+3. **`Forme` (`styles/**`, `tokens/**`, `panda.config.*`)**: primitive Design Tokens confined to `tokens/` and stylesheets consuming `var(--token)` exclusively without `!important` or translatable copy.
+4. **`Texte` (`locales/**`, `i18n/**`, `messages/**`)**: pure `i18n` dictionaries (zero HTML), strictly key-symmetric across locales and synchronized with `t("...")` calls in `Code`.
+5. **`Contenus` (`content/**`, `courses/**`, `docs/**`)**: pure editorial Markdown/MDX (zero raw HTML outside code blocks, sequential heading hierarchy, images with `alt`).
+6. **`Asset` (`assets/**`, `public/**`, `static/**`)**: confined media and sanitized SVGs (no `<script>` or `on*=`), within size limits (`1 MiB`), with zero broken links or orphan files.
+
+---
+
+## 4. Quick Start
 
 ```bash
-# Initialiser un projet clé en main (assistant interactif style Gum sur TTY, ou drapeaux déclaratifs)
+# Bootstrap a turnkey project (interactive Gum-style wizard on TTY, or declarative flags)
 garde init
 garde init -i
 garde init -y
-garde init mon-service --lang rust --feature docker,git-hooks
-garde init portail-ui --lang typescript --framework astro --feature ui,i18n,content,docker
-garde init api-commandes --lang python --framework fastapi --feature docker,ci-github
+garde init my-service --lang rust --feature docker,git-hooks
+garde init ui-portal --lang typescript --framework astro --feature ui,i18n,content,docker
+garde init orders-api --lang python --framework fastapi --feature docker,ci-github
 
-# Poste de pilotage interactif 3 onglets (Diagnostics Live, Configurateur cases à cocher, Cache)
+# 3-tab interactive cockpit (Live Diagnostics, Checkbox Configurator, Cache)
 garde tui
 garde check -i
 
-# Surveillance temps réel sur sauvegarde (poll 250 ms + debounce 120 ms, zéro dépendance FFI)
+# Real-time watch mode on save (250 ms poll + 120 ms debounce, zero FFI dependencies)
 garde check --watch
 
-# Configurateur interactif sans perte de garde-fou.toml (archétype radio + cases à cocher)
+# Lossless interactive configurator for garde-fou.toml (radio archetype + checkboxes)
 garde config
 
-# Gestion du cache BLAKE3 (.garde-fou-cache/)
+# BLAKE3 cache management (.garde-fou-cache/)
 garde cache status
 garde cache prune
 garde cache clean
 
-# Désinstallation chirurgicale (projet, binaire ou assistant interactif 3 choix)
+# Surgical uninstall (project, binary, or 3-choice interactive wizard)
 garde uninstall --project --dry-run
 garde eject -y
 garde uninstall --self --dry-run
 
-# Analyse incrémentale ultra-rapide sur les fichiers stagés (idéale en pre-commit + agents IA)
+# Ultra-fast incremental check on staged files (ideal for pre-commit + AI agents)
 garde check --staged --format agent
 
-# Analyse complète sans cache avec exigence stricte des scanners externes, porte LCOV et contrôle couleur
+# Full uncached check with strict external scanners, LCOV gate, and color control
 garde check --no-cache --strict-tools --lcov lcov.info --color auto
 
-# Export OASIS SARIF 2.1.0 pour GitHub Code Scanning
+# OASIS SARIF 2.1.0 export for GitHub Code Scanning
 garde check --format sarif
 
-# Synchroniser le bloc modulaire AGENTS.md, les skills .agents/skills/ (skills.sh) et garde.lock
+# Sync modular AGENTS.md block, .agents/skills/ (skills.sh), and garde.lock
 garde sync
 
-# Sceller cryptographiquement garde-fou.toml dans garde.lock (BLAKE3)
+# Cryptographically seal garde-fou.toml into garde.lock (BLAKE3)
 garde lock
 
-# Valider un message de commit Conventional Commits (hook Git commit-msg)
+# Validate a Conventional Commits message (Git commit-msg hook)
 garde commit-msg .git/COMMIT_EDITMSG
 ```
 
 ---
 
-## 5. Catalogue des Règles (`GF000`–`GF082`)
+## 5. Rule Catalog (`GF000`–`GF082`)
 
-| Règle | Domaine / Portée | Description | Seuil par défaut |
+| Rule | Domain / Scope | Description | Default Threshold |
 | :--- | :--- | :--- | :--- |
-| `GF000` | Fichier | Erreur de syntaxe CST (`ERROR` / `MISSING` `Tree-sitter`, `Dockerfile` ou dictionnaire `i18n`) | `0` |
-| `GF001` | `Code` / `Scripts` | Nombre maximal de lignes par fichier source ou script | `<= 250` |
-| `GF002` | Fonction | Nombre maximal de lignes effectives par fonction / méthode / closure | `<= 50` |
-| `GF003` | Fonction | Nombre maximal de paramètres par signature (hors `self` / `cls`) | `<= 4` |
-| `GF004` | Fonction | Complexité cognitive maximale (avec pénalité d'imbrication) | `<= 10` |
-| `GF005` | Fonction | Complexité cyclomatique `McCabe` maximale | `<= 10` |
-| `GF006` | Fonction | Profondeur maximale d'imbrication de flux de contrôle | `<= 4` |
-| `GF007` | Fichier | Couplage sortant maximal (`imports` / `use` par fichier) | `<= 15` |
-| `GF008` | Type | Nombre maximal de méthodes par `struct` / `impl` / `trait` / `class` | `<= 10` |
-| `GF010` | Fichier | Constructions interdites (`unsafe`, `unwrap`, `expect`, `panic!`, `todo!`, `dbg!`) | `0` |
-| `GF020` | Workspace | Duplication structurelle d'AST Type-2 (empreinte `BLAKE3` 128 bits normalisée `$ID`/`$LIT`) | `>= 15` lignes & `>= 40` nœuds |
-| `GF021` | `Code` | Export public mort (`pub` / `export` / symbole Python public non référencé hors points d'entrée) | `0` |
-| `GF030` | Docker | Image de base `FROM` non épinglée ou utilisant `:latest` | `0` |
-| `GF031` | Docker | Stage final s'exécutant sous `root` (absence de `USER` non-privilégié) | `0` |
-| `GF032` | Docker | Danger de sécurité (`sudo` dans `RUN`, `ADD` local non-archive, secret dans `ENV`/`ARG`) | `0` |
-| `GF033` | Docker | Hygiène de layer (`WORKDIR` relatif, cache `apt`/`pip` non purgé) | `0` |
-| `GF034` | Docker | Absence ou incohérence de `.dockerignore` vis-à-vis des langages détectés | `0` |
-| `GF040` | Fichier | Détection native zéro dépendance de secrets / clés privées PEM (valeur systématiquement masquée) | `0` |
-| `GF041` | Scanner | Secret détecté par `gitleaks` (ingestion `SARIF` 2.1.0 unifiée) | `0` |
-| `GF042` | Scanner | Vulnérabilité dépendance détectée par `osv-scanner` (ingestion `SARIF` 2.1.0 unifiée) | `0` |
-| `GF043` | Scanner | Binaire externe requis (`gitleaks` / `osv-scanner`) introuvable dans `PATH` (`required` / `--strict-tools`) | `0` |
-| `GF050` | Workspace | Couverture de lignes `LCOV` (`lcov.info`) inférieure au seuil minimal exigé | `min_line_coverage` (`85 %`) |
-| `GF060` | `Code` vs `Forme` | Feuille `.css`/`.scss` hors `Forme`, ou fuite CSS-in-JS / `style=` / `#hex` / unité CSS dans `Code` | `0` |
-| `GF061` | `Forme` | Couleur brute, `px` magique ou `!important` hors `tokens/`, ou fuite `content: "Texte"` / `url(data:)` | `0` |
-| `GF062` | `Texte` / `i18n` | HTML dans `Texte`, asymétrie de clés entre langues, clé `t("...")` manquante/morte, ou texte JSX hors `t()` | `0` |
-| `GF063` | `Contenus` | HTML brut hors code fencé/inline, logique/style MDX interdit, saut de titres, image sans `alt`, ou `.md` égaré | `0` |
-| `GF064` | `Asset` | Asset hors `assets/`, `> max_asset_bytes`, SVG dangereux (`<script>`/`on*=`), `<svg>`/`data:` inline, lien cassé ou orphelin | `0` |
-| `GF065` | `Scripts` | Import de `Scripts` depuis `Code`, ou script dans `scripts/`/`tools/` dépourvu de couverture de test | `0` |
-| `GF066` | `Code` (`a11y`) | `<div/span/p onClick>` sans rôle clavier, `<img>` sans `alt`, `<button>` sans `type` ou sans label accessible | `0` |
-| `GF070` | Gouvernance & Intégrité | Bypass linter (`eslint-disable`, `@ts-ignore`, `#[allow]`), `garde.lock` altéré ou dérive du bloc géré `AGENTS.md` / `.agents/skills/` (`garde sync`) | `0` |
-| `GF071` | Architecture | Cycle de dépendances inter-fichiers détecté par l'algorithme SCC de Tarjan (`#![no_std]`) | `0` cycle |
-| `GF072` | Architecture | Violation des frontières déclaratives `[[boundaries]]` ou de la hiérarchie Atomic Design (`atoms -> molecules -> organisms`) | `0` |
-| `GF073` | KISS | Ternaire imbriqué ou train d'accès de propriétés violant la Loi de Déméter (`a.b.c.d.e`) | `0` ternaire imbriqué / `<= 4` segments |
-| `GF074` | YAGNI (local) | Barrel file `export *` / wildcard import, excès de drapeaux booléens ou marqueur `TODO`/`FIXME`/`HACK` dans `Code` | `<= 1` paramètre `bool` |
-| `GF075` | YAGNI (global) | Contrat comportemental (`trait` / `interface` / `Protocol` avec méthodes) hors `entrypoints` ayant `<= 1` implémentation | `>= 2` implémentations |
-| `GF076` | Forteresse TDD | Test sans assertion réelle, assertion tautologique (`assert!(true)`), ou absence de test/`stories` compagnon (`1:1`) | `>= 1` vraie assertion |
-| `GF077` | Git Hygiene | Message de commit non conforme aux Conventional Commits (`<type>(<scope>): <description>`) ou résumé vague (`wip`, `misc`) | `<= 100` caractères |
-| `GF080` | Langage AST (Tier 1) | Idiomes & sécurité AST natifs sans outil externe (`PY-B006`, `PY-E722`/`PY-B001`, `PY-S102`/`PY-S301`/`PY-S602`, `PY-ANN401` `: Any`, `PY-T201` `print`) | `0` |
-| `GF081` | Configs Outils (Tier 2) | Affaiblissement de `pyproject.toml` (`[tool.mypy] strict = false`), `ruff.toml` (`ignore = ["ALL"]`) ou `tsconfig.json` (`"strict": false`) | `0` |
-| `GF082` | Outils Écosystème (Tier 3) | Diagnostic ingéré depuis les vérificateurs externes (`ruff`, `mypy --strict`, `pyright`) résolus via `.venv` / `PATH` / `uv` | `0` |
+| `GF000` | File | CST syntax error (`Tree-sitter` `ERROR` / `MISSING`, `Dockerfile`, or `i18n` dictionary) | `0` |
+| `GF001` | `Code` / `Scripts` | Maximum lines per source file or script | `<= 250` |
+| `GF002` | Function | Maximum effective lines per function / method / closure | `<= 50` |
+| `GF003` | Function | Maximum parameters per signature (excluding `self` / `cls`) | `<= 4` |
+| `GF004` | Function | Maximum cognitive complexity (with nesting penalty) | `<= 10` |
+| `GF005` | Function | Maximum McCabe cyclomatic complexity | `<= 10` |
+| `GF006` | Function | Maximum control-flow nesting depth | `<= 4` |
+| `GF007` | File | Maximum outgoing coupling (`imports` / `use` per file) | `<= 15` |
+| `GF008` | Type | Maximum methods per `struct` / `impl` / `trait` / `class` | `<= 10` |
+| `GF010` | File | Forbidden constructs (`unsafe`, `unwrap`, `expect`, `panic!`, `todo!`, `dbg!`) | `0` |
+| `GF020` | Workspace | Type-2 structural AST duplication (normalized `$ID`/`$LIT` 128-bit `BLAKE3` hash) | `>= 15` lines & `>= 40` nodes |
+| `GF021` | `Code` | Dead public export (`pub` / `export` / public Python symbol unreferenced outside entrypoints) | `0` |
+| `GF030` | Docker | Unpinned `FROM` base image or `:latest` tag | `0` |
+| `GF031` | Docker | Final stage running as `root` (missing non-privileged `USER`) | `0` |
+| `GF032` | Docker | Security hazard (`sudo` in `RUN`, local non-archive `ADD`, secret in `ENV`/`ARG`) | `0` |
+| `GF033` | Docker | Layer hygiene (relative `WORKDIR`, unpurged `apt`/`pip` cache) | `0` |
+| `GF034` | Docker | Missing or inconsistent `.dockerignore` for detected languages | `0` |
+| `GF040` | File | Native zero-dependency secret / PEM private key detection (values always masked) | `0` |
+| `GF041` | Scanner | Secret detected by `gitleaks` (unified `SARIF` 2.1.0 ingestion) | `0` |
+| `GF042` | Scanner | Dependency vulnerability detected by `osv-scanner` (unified `SARIF` 2.1.0 ingestion) | `0` |
+| `GF043` | Scanner | Required external binary (`gitleaks` / `osv-scanner`) missing from `PATH` (`required` / `--strict-tools`) | `0` |
+| `GF050` | Workspace | `LCOV` line coverage (`lcov.info`) below required minimum threshold | `min_line_coverage` (`85%`) |
+| `GF060` | `Code` vs `Forme` | `.css`/`.scss` outside `Forme`, or CSS-in-JS / `style=` / `#hex` / CSS unit leak inside `Code` | `0` |
+| `GF061` | `Forme` | Raw color, magic `px`, or `!important` outside `tokens/`, or `content: "Text"` / `url(data:)` leak | `0` |
+| `GF062` | `Texte` / `i18n` | HTML in `Texte`, cross-locale key asymmetry, missing/dead `t("...")` key, or hardcoded JSX text | `0` |
+| `GF063` | `Contenus` | Raw HTML outside fenced/inline code, forbidden MDX logic/styles, heading skip, image without `alt`, or stray `.md` | `0` |
+| `GF064` | `Asset` | Asset outside `assets/`, `> max_asset_bytes`, unsafe SVG (`<script>`/`on*=`), inline `<svg>`/`data:`, broken link, or orphan | `0` |
+| `GF065` | `Scripts` | Importing `Scripts` from `Code`, or script under `scripts/`/`tools/` lacking automated test coverage | `0` |
+| `GF066` | `Code` (`a11y`) | `<div/span/p onClick>` without keyboard role, `<img>` without `alt`, `<button>` without `type` or accessible label | `0` |
+| `GF070` | Governance & Integrity | Linter bypass (`eslint-disable`, `@ts-ignore`, `#[allow]`), tampered `garde.lock`, or `AGENTS.md`/`.agents/skills/` drift (`garde sync`) | `0` |
+| `GF071` | Architecture | Inter-file dependency cycle detected via `#![no_std]` Tarjan SCC | `0` cycles |
+| `GF072` | Architecture | Declarative `[[boundaries]]` violation or Atomic Design hierarchy breach (`atoms -> molecules -> organisms`) | `0` |
+| `GF073` | KISS | Nested ternary or Law of Demeter property chain (`a.b.c.d.e`) | `0` nested ternaries / `<= 4` segments |
+| `GF074` | YAGNI (local) | Barrel `export *` / wildcard import, excessive boolean flags, or `TODO`/`FIXME`/`HACK` marker in `Code` | `<= 1` `bool` param |
+| `GF075` | YAGNI (global) | Behavioral contract (`trait` / `interface` / `Protocol` with methods) outside `entrypoints` having `<= 1` implementation | `>= 2` implementations |
+| `GF076` | TDD Fortress | Assertion-free test, tautological assertion (`assert!(true)`), or missing `1:1` companion test/`.stories` | `>= 1` real assertion |
+| `GF077` | Git Hygiene | Commit message violating Conventional Commits (`<type>(<scope>): <description>`) or vague summary (`wip`, `misc`) | `<= 100` chars |
+| `GF080` | Language AST (Tier 1) | Native zero-dependency AST idioms & security checks (Rust, TS/React, Python, Go, Kotlin, C#, PHP, Dart, Shell, PowerShell, SQL, YAML, Docker, Markdown, Minecraft, etc.) | `0` |
+| `GF081` | Tool Configs (Tier 2) | Anti-weakening audit of tool configs (`pyproject.toml`, `ruff.toml`, `tsconfig.json`, `.hadolint.yaml`, `.shellcheckrc`, `phpstan.neon`, etc.) | `0` |
+| `GF082` | Ecosystem Tools (Tier 3) | Unified diagnostics ingested from external verifiers (`ruff`, `mypy`, `oxlint`, `tsc`, `shellcheck`, `hadolint`, `phpstan`, `dart analyze`, `golangci-lint`, etc.) | `0` |
 
 ---
 
-## 6. Architecture Interne
+## 6. Internal Architecture
 
-| Crate | Environnement | Rôle |
+| Crate | Environment | Responsibility |
 | :--- | :--- | :--- |
-| `gf-core` | `#![no_std]` + `alloc` | Modèle algébrique pur (`Span`, `RepoPath`, `DomainKind`, `BoundaryRule`, `CommitConfig`, `ToolsConfig`, `UastDocument`, `Validation`) |
-| `gf-rules` | `#![no_std]` + `alloc` | Moteur de règles locales, globales (`GF020`/`GF021`), Tarjan DAG (`GF071`), `[[boundaries]]` (`GF072`), KISS/YAGNI/TDD (`GF073`–`GF076`), écosystème (`GF080`–`GF082`) |
-| `gf-parsers` | `std` pur (0 I/O) | Extracteurs `Tree-sitter` Safe Rust (`Rust`, `TS`/`TSX`/`JS`, `Python` + guardrails `GF080`), audit configs `GF081`, `CSS`, `Markdown`/`MDX`, `i18n`, `SVG`, `Dockerfile` |
-| `gf-engine` | Shell impératif | Cache `BLAKE3` `.garde-fou-cache/v5/`, `garde sync` (`AGENTS.md` + `skills.sh`), `garde.lock`, `garde init`, adaptateurs `uv`-aware (`GF082`), orchestration `SARIF` |
-| `gf-cli` | Binaire `garde` | Sous-commandes `check`, `tui`, `init`, `sync`, `lock`, `commit-msg`, moteur TUI/Lipgloss pur Rust (`ui/`, `tui/`) et formateurs (`human`, `agent` Markdown, `sarif` 2.1.0) |
+| `gf-core` | `#![no_std]` + `alloc` | Pure algebraic model (`Span`, `RepoPath`, `DomainKind`, `BoundaryRule`, `CommitConfig`, `ToolsConfig`, `UastDocument`, `Validation`) |
+| `gf-rules` | `#![no_std]` + `alloc` | Local & global rule engine (`GF020`/`GF021`), Tarjan DAG (`GF071`), `[[boundaries]]` (`GF072`), KISS/YAGNI/TDD (`GF073`–`GF076`), ecosystem (`GF080`–`GF082`) |
+| `gf-parsers` | Pure `std` (0 I/O) | Safe Rust `Tree-sitter` extractors & analyzers for all 23 `LanguageId` + specialized formats (`GF080`/`GF081`) |
+| `gf-engine` | Imperative Shell | `BLAKE3` cache `.garde-fou-cache/v22/`, `garde sync` (`AGENTS.md` + `skills.sh`), `garde.lock`, `garde init`, tool adapters (`GF082`), `SARIF` orchestration |
+| `gf-cli` | `garde` Binary | Subcommands `check`, `tui`, `init`, `config`, `cache`, `sync`, `lock`, `commit-msg`, `uninstall`, pure Rust TUI engine (`ui/`, `tui/`), and reporters (`human`, `agent`, `sarif` 2.1.0) |

@@ -149,6 +149,9 @@ fn domain_predicates_and_classifications_are_exact() -> Result<(), RepoPathError
     let layout = DomainLayoutConfig::strict_defaults();
     assert!(is_root_governance_doc(&RepoPath::new("LICENSE-MIT")?));
     assert!(is_root_governance_doc(&RepoPath::new("README.md")?));
+    assert!(is_root_governance_doc(&RepoPath::new("README.fr.md")?));
+    assert!(is_root_governance_doc(&RepoPath::new("CHANGELOGS.fr.md")?));
+    assert!(!is_root_governance_doc(&RepoPath::new("README.12.md")?));
     assert!(!is_root_governance_doc(&RepoPath::new("docs/README.md")?));
     assert!(!is_root_governance_doc(&RepoPath::new("Cargo.toml")?));
     assert!(is_asset_extension("SVG") && !is_binary_asset_extension("SVG"));

@@ -164,22 +164,37 @@ fn matches_any(globs: &[String], candidate: &str) -> bool {
     globs.iter().any(|pat| glob_matches(pat, candidate))
 }
 
-/// Returns `true` when `path` is a permitted root governance Markdown/license file.
+const ROOT_GOVERNANCE_STEMS: &[&str] = &[
+    "README",
+    "AGENTS",
+    "CHANGELOG",
+    "CHANGELOGS",
+    "CONTRIBUTING",
+    "SECURITY",
+];
+
+/// Returns `true` when `path` is a permitted root governance Markdown/license file
+/// (including localized variants such as `README.fr.md` or `CHANGELOGS.fr.md`).
 #[must_use]
 pub fn is_root_governance_doc(path: &RepoPath) -> bool {
     if path.as_str().contains('/') {
         return false;
     }
     let upper = path.file_name().to_ascii_uppercase();
-    matches!(
-        upper.as_str(),
-        "README.MD"
-            | "AGENTS.MD"
-            | "CHANGELOG.MD"
-            | "CHANGELOGS.MD"
-            | "CONTRIBUTING.MD"
-            | "SECURITY.MD"
-    ) || upper.starts_with("LICENSE")
+    if upper.starts_with("LICENSE") {
+        return true;
+    }
+    let Some(stem) = upper.strip_suffix(".MD") else {
+        return false;
+    };
+    if ROOT_GOVERNANCE_STEMS.contains(&stem) {
+        return true;
+    }
+    stem.split_once('.').is_some_and(|(base, locale)| {
+        ROOT_GOVERNANCE_STEMS.contains(&base)
+            && (2..=5).contains(&locale.len())
+            && locale.bytes().all(|b| b.is_ascii_alphabetic() || b == b'-')
+    })
 }
 
 /// Returns `true` if `ext` (case-insensitive, no leading dot) is a static asset extension.
