@@ -95,7 +95,7 @@ fn verify_boundaries_injectivity(base: &Config, base_s: &str, seen: &mut BTreeSe
 }
 
 fn verify_fortress_injectivity(base: &Config, base_s: &str, seen: &mut BTreeSet<String>) {
-    let fort_fns: [fn(&mut Config); 13] = [
+    let fort_fns: [fn(&mut Config); 15] = [
         |c| c.integrity.require_lock = true,
         |c| _ = c.architecture.no_std_crates.insert(String::from("core_a")),
         |c| _ = c.architecture.io_allowed_crates.insert(String::from("io")),
@@ -108,7 +108,9 @@ fn verify_fortress_injectivity(base: &Config, base_s: &str, seen: &mut BTreeSet<
         |c| c.clean_code.max_nested_ternaries = 2,
         |c| c.clean_code.max_property_chain = 9,
         |c| c.clean_code.max_bool_parameters = 3,
+        |c| c.clean_code.max_tuple_arity = 0,
         |c| c.clean_code.forbid_todos = false,
+        |c| c.clean_code.forbid_global_tuple_unpacking = false,
         |c| _ = c.clean_code.yagni_rules.remove(&YagniRule::WildcardExports),
         |c| {
             _ = c

@@ -19,7 +19,7 @@ fn runner() -> TestRunner {
     })
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 struct DocMetrics {
     file_lines: u32,
     fn_lines: u32,
@@ -135,36 +135,36 @@ fn property_metrics_at_or_below_thresholds_produce_zero_diagnostics() -> Result<
     let cfg = Config::strict_defaults();
     let l = cfg.limits;
     let mut tr = runner();
-    let within_bounds = (
-        1..=l.max_file_lines,
-        1..=l.max_function_lines,
-        0..=l.max_parameters,
-        1..=l.max_cyclomatic_complexity,
-        0..=l.max_cognitive_complexity,
-        0..=l.max_nesting_depth,
-        0..=l.max_imports_per_file,
-        0..=l.max_methods_per_type,
-        0..=l.max_struct_bools,
+    let part_a = (
+        (1..=l.max_file_lines, 1..=l.max_function_lines),
+        (0..=l.max_parameters, 1..=l.max_cyclomatic_complexity),
+    );
+    let part_b = (
+        (0..=l.max_cognitive_complexity, 0..=l.max_nesting_depth),
+        (0..=l.max_imports_per_file, 0..=l.max_methods_per_type),
+    );
+    let within_bounds = ((part_a, part_b), 0..=l.max_struct_bools).prop_map(
+        |(
+            (((file_lines, fn_lines), (params, cyc)), ((cog, nest), (imports, methods))),
+            bool_fields,
+        )| DocMetrics {
+            file_lines,
+            fn_lines,
+            params,
+            cyc,
+            cog,
+            nest,
+            imports,
+            methods,
+            bool_fields,
+        },
     );
 
-    tr.run(
-        &within_bounds,
-        |(file_lines, fn_lines, params, cyc, cog, nest, imports, methods, bool_fields)| {
-            let doc = build_synthetic_doc(DocMetrics {
-                file_lines,
-                fn_lines,
-                params,
-                cyc,
-                cog,
-                nest,
-                imports,
-                methods,
-                bool_fields,
-            })?;
-            prop_assert_eq!(evaluate_document(&doc, &cfg), Vec::new());
-            Ok(())
-        },
-    )
+    tr.run(&within_bounds, |metrics| {
+        let doc = build_synthetic_doc(metrics)?;
+        prop_assert_eq!(evaluate_document(&doc, &cfg), Vec::new());
+        Ok(())
+    })
     .map_err(|e| e.to_string())
 }
 
@@ -173,39 +173,44 @@ fn property_exceeding_any_threshold_monotonically_triggers_rule() -> Result<(), 
     let cfg = Config::strict_defaults();
     let l = cfg.limits;
     let mut tr = runner();
-    let over_bounds = (
-        (l.max_file_lines + 1)..600,
-        (l.max_function_lines + 1)..200,
-        (l.max_parameters + 1)..20,
-        (l.max_cyclomatic_complexity + 1)..50,
-        (l.max_cognitive_complexity + 1)..50,
-        (l.max_nesting_depth + 1)..15,
+    let part_a = (
+        ((l.max_file_lines + 1)..600, (l.max_function_lines + 1)..200),
+        (
+            (l.max_parameters + 1)..20,
+            (l.max_cyclomatic_complexity + 1)..50,
+        ),
+    );
+    let part_b = (
+        (
+            (l.max_cognitive_complexity + 1)..50,
+            (l.max_nesting_depth + 1)..15,
+        ),
         (l.max_struct_bools + 1)..10,
     );
-
-    tr.run(
-        &over_bounds,
-        |(file_lines, fn_lines, params, cyc, cog, nest, bool_fields)| {
-            let doc = build_synthetic_doc(DocMetrics {
-                file_lines,
-                fn_lines,
-                params,
-                cyc,
-                cog,
-                nest,
-                imports: 0,
-                methods: 0,
-                bool_fields,
-            })?;
-            let diags = evaluate_document(&doc, &cfg);
-            prop_assert_eq!(diags.len(), 7);
-            for diag in &diags {
-                prop_assert!(diag.measured > diag.threshold);
-                prop_assert_ne!(&diag.remediation, "");
-            }
-            Ok(())
+    let over_bounds = (part_a, part_b).prop_map(
+        |(((file_lines, fn_lines), (params, cyc)), ((cog, nest), bool_fields))| DocMetrics {
+            file_lines,
+            fn_lines,
+            params,
+            cyc,
+            cog,
+            nest,
+            imports: 0,
+            methods: 0,
+            bool_fields,
         },
-    )
+    );
+
+    tr.run(&over_bounds, |metrics| {
+        let doc = build_synthetic_doc(metrics)?;
+        let diags = evaluate_document(&doc, &cfg);
+        prop_assert_eq!(diags.len(), 7);
+        for diag in &diags {
+            prop_assert!(diag.measured > diag.threshold);
+            prop_assert_ne!(&diag.remediation, "");
+        }
+        Ok(())
+    })
     .map_err(|e| e.to_string())
 }
 

@@ -214,13 +214,11 @@ fn pyproject_strict_vs_weakened_guaranteed_detection_law() -> Result<(), String>
     let mut cfg = Config::strict_defaults();
     cfg.coverage.min_line_coverage = Some(85);
     let strat = (
-        "[a-z][a-z0-9_-]{2,12}",
-        79u32..120u32,
-        85u32..100u32,
-        0usize..ALL_MUTATIONS.len(),
+        ("[a-z][a-z0-9_-]{2,12}", 79u32..120u32),
+        (85u32..100u32, 0usize..ALL_MUTATIONS.len()),
     );
 
-    tr.run(&strat, |(pkg, line_len, fail_under, mut_idx)| {
+    tr.run(&strat, |((pkg, line_len), (fail_under, mut_idx))| {
         let path =
             RepoPath::new("pyproject.toml").map_err(|e| TestCaseError::fail(e.to_string()))?;
         let clean = parse_source(&path, &render_pyproject(&pkg, line_len, fail_under, None))

@@ -102,14 +102,18 @@ pub use metrics::{
     CallableDecl, CallableKind, EffectSighting, EffectSightingKind, ExportDecl, ImportDecl,
     SecretFinding, SyntaxErrorNode, TypeDecl, TypeKind,
 };
-pub use mutation::{MutationConfig, MutationSummary, SurvivedMutant, truncate_replacement};
+pub use mutation::{
+    DEFAULT_MIN_MUTATION_SCORE, MutationConfig, MutationStackSpec, MutationSummary, SurvivedMutant,
+    mutation_stack_for, render_mutation_stack_markdown, supports_mutation_testing,
+    truncate_replacement,
+};
 pub use path::{RepoPath, RepoPathError};
 pub use project_settings::{GovernanceFlag, GovernanceFlags, ProjectSettingsState};
 pub use validation::Validation;
 pub use {
     academic_violations::{
-        AcademicSummary, AcademicViolation, NotebookConfig, NotebookViolation, ObsidianViolation,
-        QuartoViolation, WorkspaceRefItem,
+        AcademicSummary, AcademicViolation, NotebookCellMetrics, NotebookConfig, NotebookViolation,
+        ObsidianViolation, QuartoViolation, WorkspaceRefItem,
     },
     archetype_policy::{
         ArchetypePolicy, ArchetypeSetting, DeadExportGate, ScriptTestGate, WorkspaceArchetype,

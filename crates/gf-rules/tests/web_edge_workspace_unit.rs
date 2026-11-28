@@ -45,7 +45,9 @@ fn sample_wrangler_summary(sp2: Span, sp5: Span, nodejs_compat: bool) -> Wrangle
 #[rustfmt::skip]
 #[test]
 fn wrangler_bindings_unused_d1_r2_and_nodejs_compat_guards_are_exact() -> TestResult {
-    let (sp2, sp5, sp9) = (Span::new(2, 2)?, Span::new(5, 5)?, Span::new(9, 9)?);
+    let sp2 = Span::new(2, 2)?;
+    let sp5 = Span::new(5, 5)?;
+    let sp9 = Span::new(9, 9)?;
     let wrangler_doc = make_doc("wrangler.toml", Language::Toml, WebEdgeSummary {
         wrangler: Some(sample_wrangler_summary(sp2, sp5, false)),
         ..WebEdgeSummary::default()

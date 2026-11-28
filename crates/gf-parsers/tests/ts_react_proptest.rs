@@ -103,12 +103,10 @@ fn tsx_component_type2_structural_hash_is_invariant_under_identifier_renaming() 
 
     r.run(
         &(
-            "[A-Z][a-zA-Z0-9]{2,10}",
-            "[A-Z][a-zA-Z0-9]{2,10}",
-            "[a-z][a-zA-Z0-9]{2,10}",
-            "[a-z][a-zA-Z0-9]{2,10}",
+            ("[A-Z][a-zA-Z0-9]{2,10}", "[A-Z][a-zA-Z0-9]{2,10}"),
+            ("[a-z][a-zA-Z0-9]{2,10}", "[a-z][a-zA-Z0-9]{2,10}"),
         ),
-        |(comp_a, comp_b, var_a, var_b)| {
+        |((comp_a, comp_b), (var_a, var_b))| {
             let render = |comp: &str, v: &str, lit: &str| {
                 format!(
                     "export function {comp}(items: string[]) {{\n\

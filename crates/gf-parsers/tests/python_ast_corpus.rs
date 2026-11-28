@@ -14,50 +14,65 @@ use gf_rules::{evaluate_document, evaluate_workspace_sorted};
 
 type TestRes = Result<(), Box<dyn std::error::Error>>;
 
-const EXPECTED_SECURITY_FINDINGS: &[(PythonViolation, &str, u32)] = &[
-    (PythonViolation::ForbiddenAny, "PY-ANN401", 3),
-    (PythonViolation::ForbiddenAny, "PY-ANN401", 4),
-    (
+#[derive(Debug, PartialEq, Eq)]
+struct PyFinding {
+    violation: PythonViolation,
+    code: &'static str,
+    line: u32,
+}
+
+const fn py_finding(violation: PythonViolation, code: &'static str, line: u32) -> PyFinding {
+    PyFinding {
+        violation,
+        code,
+        line,
+    }
+}
+
+const EXPECTED_SECURITY_FINDINGS: &[PyFinding] = &[
+    py_finding(PythonViolation::ForbiddenAny, "PY-ANN401", 3),
+    py_finding(PythonViolation::ForbiddenAny, "PY-ANN401", 4),
+    py_finding(
         PythonViolation::UnsafeExecution(UnsafeExecKind::DynamicEval),
         "PY-S102",
         5,
     ),
-    (
+    py_finding(
         PythonViolation::UnsafeExecution(UnsafeExecKind::UnsafePickle),
         "PY-S301",
         6,
     ),
-    (
+    py_finding(
         PythonViolation::UnsafeExecution(UnsafeExecKind::UnsafeYamlLoad),
         "PY-S506",
         7,
     ),
-    (
+    py_finding(
         PythonViolation::UnsafeExecution(UnsafeExecKind::ShellSubprocess),
         "PY-S602",
         8,
     ),
-    (
+    py_finding(
         PythonViolation::LeftoverDebugArtifact(DebugArtifactKind::PrintCall),
         "PY-T201",
         9,
     ),
-    (
+    py_finding(
         PythonViolation::LeftoverDebugArtifact(DebugArtifactKind::DebuggerTrace),
         "PY-T100",
         10,
     ),
-    (
+    py_finding(
         PythonViolation::LeftoverDebugArtifact(DebugArtifactKind::DebuggerTrace),
         "PY-T100",
         11,
     ),
-    (
+    py_finding(
         PythonViolation::BareOrSilentExcept(ExceptViolationKind::Silent),
         "PY-B001",
         14,
     ),
-    (
+    py_finding(
         PythonViolation::BareOrSilentExcept(ExceptViolationKind::Bare),
         "PY-E722",
         16,
@@ -68,11 +83,13 @@ fn parse_py(rel: &str, src: &str) -> Result<UastDocument, Box<dyn std::error::Er
     Ok(parse_source(&RepoPath::new(rel)?, src)?)
 }
 
-fn py_codes_and_lines(doc: &UastDocument) -> Vec<(PythonViolation, &'static str, u32)> {
+fn py_codes_and_lines(doc: &UastDocument) -> Vec<PyFinding> {
     doc.lang_rule_findings
         .iter()
         .filter_map(|f| match f.violation {
-            gf_core::LangRuleViolation::Python(pv) => Some((pv, f.code(), f.span.start_line())),
+            gf_core::LangRuleViolation::Python(pv) => {
+                Some(py_finding(pv, f.code(), f.span.start_line()))
+            }
             _ => None,
         })
         .collect()
@@ -91,8 +108,8 @@ fn symmetric_mutable_defaults_and_public_annotations() -> TestRes {
     assert_eq!(
         py_codes_and_lines(&parse_py("src/bad.py", bad)?),
         vec![
-            (PythonViolation::MutableDefaultArg, "PY-B006", 1),
-            (PythonViolation::MutableDefaultArg, "PY-B006", 4),
+            py_finding(PythonViolation::MutableDefaultArg, "PY-B006", 1),
+            py_finding(PythonViolation::MutableDefaultArg, "PY-B006", 4),
         ]
     );
 
@@ -106,10 +123,10 @@ fn symmetric_mutable_defaults_and_public_annotations() -> TestRes {
     assert_eq!(
         py_codes_and_lines(&parse_py("src/ann.py", bad_ann)?),
         vec![
-            (PythonViolation::MissingPublicTypeAnnotation, "PY-ANN201", 1),
-            (PythonViolation::MissingPublicTypeAnnotation, "PY-ANN201", 3),
-            (PythonViolation::MissingPublicTypeAnnotation, "PY-ANN201", 3),
-            (PythonViolation::MissingPublicTypeAnnotation, "PY-ANN201", 3),
+            py_finding(PythonViolation::MissingPublicTypeAnnotation, "PY-ANN201", 1),
+            py_finding(PythonViolation::MissingPublicTypeAnnotation, "PY-ANN201", 3),
+            py_finding(PythonViolation::MissingPublicTypeAnnotation, "PY-ANN201", 3),
+            py_finding(PythonViolation::MissingPublicTypeAnnotation, "PY-ANN201", 3),
         ]
     );
     Ok(())

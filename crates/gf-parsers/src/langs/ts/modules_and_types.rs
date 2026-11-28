@@ -84,22 +84,28 @@ pub(super) fn extract_ts_import(node: Node<'_>, source: &str) -> ImportDecl {
     }
 }
 
+struct TsExportSpec {
+    orig: String,
+    exported: String,
+    is_type: bool,
+}
+
 fn collect_export_specifiers(
     node: Node<'_>,
     stmt_is_type: bool,
     source: &str,
-    out: &mut Vec<(String, String, bool)>,
+    out: &mut Vec<TsExportSpec>,
 ) {
     if node.kind() == "export_specifier" {
         let orig = field_name_string(node, "name", "", source);
         let exported = field_name_string(node, "alias", &orig, source);
         let is_type = stmt_is_type || has_unnamed_type_modifier(node);
         if !orig.trim().is_empty() {
-            out.push((
-                String::from(orig.trim()),
-                String::from(exported.trim()),
+            out.push(TsExportSpec {
+                orig: String::from(orig.trim()),
+                exported: String::from(exported.trim()),
                 is_type,
-            ));
+            });
         }
         return;
     }
@@ -181,17 +187,17 @@ pub(super) fn record_ts_export_stmt(
         let module_source = unquote_module_specifier(node_text(src_node, source));
         if !module_source.is_empty() {
             let reexport_type_only =
-                stmt_is_type || (!specs.is_empty() && specs.iter().all(|(_, _, is_t)| *is_t));
+                stmt_is_type || (!specs.is_empty() && specs.iter().all(|s| s.is_type));
             doc.imports.push(ImportDecl {
                 module_source,
-                symbols: specs.iter().map(|(orig, _, _)| orig.clone()).collect(),
+                symbols: specs.iter().map(|s| s.orig.clone()).collect(),
                 is_type_only: reexport_type_only,
                 span,
             });
         }
     }
-    for (_, exported, is_t) in &specs {
-        push_ts_export(&mut doc.exports, exported, *is_t, span);
+    for spec in &specs {
+        push_ts_export(&mut doc.exports, &spec.exported, spec.is_type, span);
     }
     if let Some(decl) = node.child_by_field_name("declaration") {
         record_exported_decl(decl, source, span, &mut doc.exports);
@@ -234,9 +240,7 @@ pub(super) fn merge_declaration_exports(exports: &mut Vec<ExportDecl>) {
     let mut deduped: Vec<ExportDecl> = Vec::with_capacity(exports.len());
     for exp in exports.drain(..) {
         if let Some(&idx) = merged.get(&exp.symbol) {
-            if !exp.is_type_only {
-                deduped[idx].is_type_only = false;
-            }
+            deduped[idx].is_type_only &= exp.is_type_only;
         } else {
             merged.insert(exp.symbol.clone(), deduped.len());
             deduped.push(exp);

@@ -81,45 +81,40 @@ fn count_struct_bool_fields(body: Option<Node<'_>>, source: &str) -> u32 {
 fn extract_type(node: Node<'_>, source: &str) -> Option<TypeDecl> {
     let span = node_span(node);
     let body = node.child_by_field_name("body");
-    let (kind, name, field_count, bool_field_count, method_count) = match node.kind() {
-        "struct_item" => (
-            TypeKind::Struct,
-            field_name_string(node, "name", "<anon>", source),
-            count_children_of_kind(body, &["field_declaration", "ordered_field_declaration"]),
-            count_struct_bool_fields(body, source),
-            0,
-        ),
-        "enum_item" => (
-            TypeKind::Enum,
-            field_name_string(node, "name", "<anon>", source),
-            count_children_of_kind(body, &["enum_variant"]),
-            0,
-            0,
-        ),
-        "trait_item" => (
-            TypeKind::Interface,
-            field_name_string(node, "name", "<anon>", source),
-            0,
-            0,
-            count_children_of_kind(body, &["function_item", "function_signature_item"]),
-        ),
-        "impl_item" => (
-            TypeKind::Impl,
-            field_name_string(node, "type", "<impl>", source),
-            0,
-            0,
-            count_children_of_kind(body, &["function_item"]),
-        ),
-        _ => return None,
-    };
-    Some(TypeDecl {
-        name,
-        kind,
+    let mut decl = TypeDecl {
+        name: String::new(),
+        kind: TypeKind::Struct,
         span,
-        field_count,
-        bool_field_count,
-        method_count,
-    })
+        field_count: 0,
+        bool_field_count: 0,
+        method_count: 0,
+    };
+    match node.kind() {
+        "struct_item" => {
+            decl.name = field_name_string(node, "name", "<anon>", source);
+            decl.field_count =
+                count_children_of_kind(body, &["field_declaration", "ordered_field_declaration"]);
+            decl.bool_field_count = count_struct_bool_fields(body, source);
+        }
+        "enum_item" => {
+            decl.kind = TypeKind::Enum;
+            decl.name = field_name_string(node, "name", "<anon>", source);
+            decl.field_count = count_children_of_kind(body, &["enum_variant"]);
+        }
+        "trait_item" => {
+            decl.kind = TypeKind::Interface;
+            decl.name = field_name_string(node, "name", "<anon>", source);
+            decl.method_count =
+                count_children_of_kind(body, &["function_item", "function_signature_item"]);
+        }
+        "impl_item" => {
+            decl.kind = TypeKind::Impl;
+            decl.name = field_name_string(node, "type", "<impl>", source);
+            decl.method_count = count_children_of_kind(body, &["function_item"]);
+        }
+        _ => return None,
+    }
+    Some(decl)
 }
 
 fn extract_fn(node: Node<'_>, source: &str) -> CallableDecl {

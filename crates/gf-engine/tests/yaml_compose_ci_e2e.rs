@@ -59,6 +59,12 @@ fn compose_auto_enables_docker_feature_and_evaluates_yaml_and_gha_end_to_end()
     Ok(())
 }
 
+struct YamlAdapterCase {
+    adapter: ExternalAdapter,
+    kind: ExternalToolKind,
+    expected_policy: ScannerPolicy,
+}
+
 #[test]
 fn external_yaml_adapters_classify_kinds_and_policies() {
     let mut cfg = Config::strict_defaults();
@@ -67,31 +73,32 @@ fn external_yaml_adapters_classify_kinds_and_policies() {
     cfg.tools.yaml.actionlint = ScannerPolicy::Required;
     cfg.tools.yaml.zizmor = ScannerPolicy::Off;
 
-    for (adapter, kind, expected_policy) in [
-        (
-            ExternalAdapter::Yamllint,
-            ExternalToolKind::Yamllint,
-            ScannerPolicy::Required,
-        ),
-        (
-            ExternalAdapter::Dclint,
-            ExternalToolKind::Dclint,
-            ScannerPolicy::Off,
-        ),
-        (
-            ExternalAdapter::Actionlint,
-            ExternalToolKind::Actionlint,
-            ScannerPolicy::Required,
-        ),
-        (
-            ExternalAdapter::Zizmor,
-            ExternalToolKind::Zizmor,
-            ScannerPolicy::Off,
-        ),
-    ] {
-        assert_eq!(adapter.tool_kind(), kind);
-        assert_eq!(adapter.configured_policy(&cfg), expected_policy);
-        assert_ne!(adapter.install_hint(), "");
+    let cases = [
+        YamlAdapterCase {
+            adapter: ExternalAdapter::Yamllint,
+            kind: ExternalToolKind::Yamllint,
+            expected_policy: ScannerPolicy::Required,
+        },
+        YamlAdapterCase {
+            adapter: ExternalAdapter::Dclint,
+            kind: ExternalToolKind::Dclint,
+            expected_policy: ScannerPolicy::Off,
+        },
+        YamlAdapterCase {
+            adapter: ExternalAdapter::Actionlint,
+            kind: ExternalToolKind::Actionlint,
+            expected_policy: ScannerPolicy::Required,
+        },
+        YamlAdapterCase {
+            adapter: ExternalAdapter::Zizmor,
+            kind: ExternalToolKind::Zizmor,
+            expected_policy: ScannerPolicy::Off,
+        },
+    ];
+    for case in cases {
+        assert_eq!(case.adapter.tool_kind(), case.kind);
+        assert_eq!(case.adapter.configured_policy(&cfg), case.expected_policy);
+        assert_ne!(case.adapter.install_hint(), "");
     }
     assert!(ExternalAdapter::Yamllint.is_python());
     assert!(ExternalAdapter::Zizmor.is_python());

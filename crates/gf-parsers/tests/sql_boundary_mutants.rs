@@ -103,30 +103,59 @@ fn d1_sqlite_and_destructive_ddl_tx_commit_rollback_boundaries() -> Res {
     Ok(())
 }
 
+struct MigrationRoleCase {
+    path: &'static str,
+    exp_ver: Option<&'static str>,
+    exp_stem: &'static str,
+    exp_down: bool,
+}
+
+const MIGRATION_ROLE_CASES: [MigrationRoleCase; 5] = [
+    MigrationRoleCase {
+        path: "migrations/up.sql",
+        exp_ver: None,
+        exp_stem: "migration",
+        exp_down: false,
+    },
+    MigrationRoleCase {
+        path: "migrations/migration.sql",
+        exp_ver: None,
+        exp_stem: "migration",
+        exp_down: false,
+    },
+    MigrationRoleCase {
+        path: "migrations/0001_users.up.sql",
+        exp_ver: Some("0001"),
+        exp_stem: "0001_users",
+        exp_down: false,
+    },
+    MigrationRoleCase {
+        path: "sql/custom.up.sql",
+        exp_ver: None,
+        exp_stem: "custom",
+        exp_down: false,
+    },
+    MigrationRoleCase {
+        path: "sql/custom.down.sql",
+        exp_ver: None,
+        exp_stem: "custom",
+        exp_down: true,
+    },
+];
+
 #[test]
 fn dialect_role_suffixes_sqlite_signatures_and_suppression_spans() -> Res {
-    for (p, exp_ver, exp_stem, exp_down) in [
-        ("migrations/up.sql", None, "migration", false),
-        ("migrations/migration.sql", None, "migration", false),
-        (
-            "migrations/0001_users.up.sql",
-            Some("0001"),
-            "0001_users",
-            false,
-        ),
-        ("sql/custom.up.sql", None, "custom", false),
-        ("sql/custom.down.sql", None, "custom", true),
-    ] {
-        let doc = parse_source(&RepoPath::new(p)?, "SELECT 1;")?;
+    for case in MIGRATION_ROLE_CASES {
+        let doc = parse_source(&RepoPath::new(case.path)?, "SELECT 1;")?;
         let Some(sql_doc) = doc.sql_doc else {
             return Err("missing sql_doc".into());
         };
         assert_eq!(
             sql_doc.role,
             SqlRole::Migration {
-                version_prefix: exp_ver.map(String::from),
-                migration_stem: String::from(exp_stem),
-                is_down: exp_down,
+                version_prefix: case.exp_ver.map(String::from),
+                migration_stem: String::from(case.exp_stem),
+                is_down: case.exp_down,
             }
         );
     }

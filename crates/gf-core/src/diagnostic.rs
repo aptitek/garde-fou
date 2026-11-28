@@ -125,12 +125,11 @@ pub struct Diagnostic {
 
 impl Ord for Diagnostic {
     fn cmp(&self, other: &Self) -> Ordering {
-        (&self.path, self.span, &self.rule_id, &self.message).cmp(&(
-            &other.path,
-            other.span,
-            &other.rule_id,
-            &other.message,
-        ))
+        self.path
+            .cmp(&other.path)
+            .then_with(|| self.span.cmp(&other.span))
+            .then_with(|| self.rule_id.cmp(&other.rule_id))
+            .then_with(|| self.message.cmp(&other.message))
     }
 }
 

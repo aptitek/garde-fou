@@ -51,22 +51,46 @@ fn arbitrary_utf8_never_panics_across_css_xml_svg_toml_markdown_and_tool_parsers
     assert!(res.is_ok(), "{res:?}");
 }
 
+struct ShiftCase {
+    path: &'static str,
+    comment_line: &'static str,
+    body: &'static str,
+}
+
+const SHIFT_CASES: [ShiftCase; 4] = [
+    ShiftCase {
+        path: "styles/a.css",
+        comment_line: "/* pad */\n",
+        body: "#hero {\n  color: red;\n}\n",
+    },
+    ShiftCase {
+        path: "assets/a.svg",
+        comment_line: "<!-- pad -->\n",
+        body: "<svg xmlns=\"http://www.w3.org/2000/svg\"><script>1</script></svg>\n",
+    },
+    ShiftCase {
+        path: "mise.toml",
+        comment_line: "# pad\n",
+        body: "[tools]\njq = \"latest\"\n",
+    },
+    ShiftCase {
+        path: "docs/a.md",
+        comment_line: "<!-- pad -->\n",
+        body: "# Title\n\n<div>raw</div>\n",
+    },
+];
+
 #[test]
 fn prepending_k_comment_lines_shifts_css_xml_toml_and_markdown_spans_by_k() {
     let mut runner = TestRunner::new(PropConfig::with_cases(32));
     let res = runner.run(&(1_u32..=25_u32), |k| {
         let cfg = Config::strict_defaults();
-        let cases: [(&str, &str, &str); 4] = [
-            ("styles/a.css", "/* pad */\n", "#hero {\n  color: red;\n}\n"),
-            (
-                "assets/a.svg",
-                "<!-- pad -->\n",
-                "<svg xmlns=\"http://www.w3.org/2000/svg\"><script>1</script></svg>\n",
-            ),
-            ("mise.toml", "# pad\n", "[tools]\njq = \"latest\"\n"),
-            ("docs/a.md", "<!-- pad -->\n", "# Title\n\n<div>raw</div>\n"),
-        ];
-        for (path, comment_line, body) in cases {
+        for ShiftCase {
+            path,
+            comment_line,
+            body,
+        } in SHIFT_CASES
+        {
             let rp = RepoPath::new(path).map_err(|e| TestCaseError::fail(e.to_string()))?;
             let base_doc =
                 parse_source(&rp, body).map_err(|e| TestCaseError::fail(e.to_string()))?;

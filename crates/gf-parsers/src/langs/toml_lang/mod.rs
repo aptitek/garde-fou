@@ -47,17 +47,27 @@ fn check_inline_tables_in_value(source: &str, val: &Value, out: &mut Vec<LangRul
     }
 }
 
-fn collect_aot_headers(aot: &ArrayOfTables, full: &str, headers: &mut Vec<(usize, String, usize)>) {
+struct TomlHeaderPos {
+    pos: usize,
+    full_name: String,
+    byte_off: usize,
+}
+
+fn collect_aot_headers(aot: &ArrayOfTables, full: &str, headers: &mut Vec<TomlHeaderPos>) {
     for entry in aot {
         if let Some(pos) = entry.position() {
             let byte_off = entry.span().map_or(0, |r| r.start);
-            headers.push((pos, String::from(full), byte_off));
+            headers.push(TomlHeaderPos {
+                pos,
+                full_name: String::from(full),
+                byte_off,
+            });
         }
         collect_explicit_headers(entry, full, headers);
     }
 }
 
-fn collect_explicit_headers(tbl: &Table, prefix: &str, headers: &mut Vec<(usize, String, usize)>) {
+fn collect_explicit_headers(tbl: &Table, prefix: &str, headers: &mut Vec<TomlHeaderPos>) {
     for (k, item) in tbl {
         let full = if prefix.is_empty() {
             String::from(k)
@@ -69,7 +79,11 @@ fn collect_explicit_headers(tbl: &Table, prefix: &str, headers: &mut Vec<(usize,
                 if !sub.is_dotted()
                     && let Some(pos) = sub.position()
                 {
-                    headers.push((pos, full.clone(), sub.span().map_or(0, |r| r.start)));
+                    headers.push(TomlHeaderPos {
+                        pos,
+                        full_name: full.clone(),
+                        byte_off: sub.span().map_or(0, |r| r.start),
+                    });
                 }
                 collect_explicit_headers(sub, &full, headers);
             }
@@ -148,16 +162,17 @@ fn walk_table_dotted_and_inline(source: &str, tbl: &Table, out: &mut Vec<LangRul
 fn check_out_of_order_headers(source: &str, root: &Table, out: &mut Vec<LangRuleFinding>) {
     let mut headers = Vec::new();
     collect_explicit_headers(root, "", &mut headers);
-    headers.sort_by_key(|(pos, _, _)| *pos);
+    headers.sort_by_key(|h| h.pos);
 
     let mut closed_roots: BTreeSet<String> = BTreeSet::new();
     let mut current_root: Option<String> = None;
-    for (_, full_name, byte_off) in headers {
+    for header in headers {
+        let full_name = header.full_name;
         let top_seg = full_name.split('.').next().unwrap_or(&full_name);
         if closed_roots.contains(top_seg) {
             out.push(LangRuleFinding::new(
                 TomlViolation::ConfusingTableReopen,
-                span_from_byte_offset(source, byte_off),
+                span_from_byte_offset(source, header.byte_off),
                 format!(
                     "table `[{full_name}]` reopens top-level hierarchy `{top_seg}` after switching sections"
                 ),

@@ -10,38 +10,52 @@ use gf_core::{
     is_ts_declaration_path, is_tsconfig_filename,
 };
 
-const TS_CASES: &[(TypescriptViolation, &str, bool)] = &[
-    (
+struct TsCase {
+    violation: TypescriptViolation,
+    code: &'static str,
+    exempt: bool,
+}
+
+const fn ts_case(violation: TypescriptViolation, code: &'static str, exempt: bool) -> TsCase {
+    TsCase {
+        violation,
+        code,
+        exempt,
+    }
+}
+
+const TS_CASES: &[TsCase] = &[
+    ts_case(
         TypescriptViolation::ExplicitAny,
         "TS-NO-EXPLICIT-ANY",
         false,
     ),
-    (
+    ts_case(
         TypescriptViolation::DoubleOrAngleAssertion,
         "TS-NO-DOUBLE-ASSERTION",
         false,
     ),
-    (
+    ts_case(
         TypescriptViolation::NonNullOptionalChain,
         "TS-NO-NON-NULL-OPTIONAL-CHAIN",
         false,
     ),
-    (
+    ts_case(
         TypescriptViolation::AsyncHazard(AsyncHazardKind::AsyncPromiseExecutor),
         "TS-NO-ASYNC-PROMISE-EXECUTOR",
         false,
     ),
-    (
+    ts_case(
         TypescriptViolation::AsyncHazard(AsyncHazardKind::AsyncEffectCallback),
         "TS-NO-ASYNC-EFFECT",
         false,
     ),
-    (
+    ts_case(
         TypescriptViolation::ConsoleOrDebugger(TsDebugKind::ConsoleCall),
         "TS-NO-CONSOLE-DEBUG",
         true,
     ),
-    (
+    ts_case(
         TypescriptViolation::ConsoleOrDebugger(TsDebugKind::DebuggerStmt),
         "TS-NO-CONSOLE-DEBUG",
         false,
@@ -61,15 +75,15 @@ const REACT_CASES: &[(ReactViolation, &str)] = &[
 #[test]
 fn ts_and_react_violation_codes_remediations_and_exemptions_are_exact() {
     let mut rem_set = BTreeSet::new();
-    for &(v, expected_code, expected_exempt) in TS_CASES {
-        let wrapped: LangRuleViolation = v.into();
-        assert_eq!(wrapped.code(), expected_code);
-        assert_eq!(wrapped.to_string(), expected_code);
-        assert_eq!(wrapped.is_entrypoint_exempt(), expected_exempt);
+    for c in TS_CASES {
+        let wrapped: LangRuleViolation = c.violation.into();
+        assert_eq!(wrapped.code(), c.code);
+        assert_eq!(wrapped.to_string(), c.code);
+        assert_eq!(wrapped.is_entrypoint_exempt(), c.exempt);
         assert!(wrapped.remediation().len() > 20);
         rem_set.insert(wrapped.remediation());
-        let finding = LangRuleFinding::new(v, Span::FIRST, "ts msg");
-        assert_eq!(finding.code(), expected_code);
+        let finding = LangRuleFinding::new(c.violation, Span::FIRST, "ts msg");
+        assert_eq!(finding.code(), c.code);
     }
     assert_eq!(rem_set.len(), TS_CASES.len());
 

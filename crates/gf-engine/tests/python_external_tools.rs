@@ -197,24 +197,38 @@ fn scaffold_and_check_python_variant(
     Ok(report.diagnostics)
 }
 
+struct PythonVariantCase {
+    slug: &'static str,
+    features: &'static [FeatureId],
+    frameworks: &'static [FrameworkId],
+}
+
 #[test]
 fn golden_invariant_init_offline_python_plain_fastapi_docker_tdd_and_django() -> TestRes {
     let cases = [
-        ("py-plain", BTreeSet::new(), BTreeSet::new()),
-        (
-            "py-fastapi-docker-tdd",
-            BTreeSet::from([FeatureId::Docker, FeatureId::Tdd]),
-            BTreeSet::from([FrameworkId::FastApi]),
-        ),
-        (
-            "py-django",
-            BTreeSet::new(),
-            BTreeSet::from([FrameworkId::Django]),
-        ),
+        PythonVariantCase {
+            slug: "py-plain",
+            features: &[],
+            frameworks: &[],
+        },
+        PythonVariantCase {
+            slug: "py-fastapi-docker-tdd",
+            features: &[FeatureId::Docker, FeatureId::Tdd],
+            frameworks: &[FrameworkId::FastApi],
+        },
+        PythonVariantCase {
+            slug: "py-django",
+            features: &[],
+            frameworks: &[FrameworkId::Django],
+        },
     ];
-    for (slug, features, frameworks) in cases {
-        let diagnostics = scaffold_and_check_python_variant(slug, features, frameworks)?;
-        assert_eq!(diagnostics, Vec::new(), "failed for `{slug}`");
+    for case in cases {
+        let diagnostics = scaffold_and_check_python_variant(
+            case.slug,
+            case.features.iter().copied().collect(),
+            case.frameworks.iter().copied().collect(),
+        )?;
+        assert_eq!(diagnostics, Vec::new(), "failed for `{}`", case.slug);
     }
     Ok(())
 }

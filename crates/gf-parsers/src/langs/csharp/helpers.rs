@@ -108,11 +108,22 @@ fn inspect_cs_param_type(p: Node<'_>, source: &str) -> (bool, Option<String>) {
     (ttxt == "bool", ct)
 }
 
-pub fn extract_cs_params(node: Node<'_>, source: &str) -> (u32, u32, Option<String>) {
+/// Extracted C# parameter counts and optional `CancellationToken` name.
+#[derive(Default)]
+pub(super) struct CsParamsInfo {
+    /// Total non-extension parameters.
+    pub(super) total: u32,
+    /// Number of `bool` parameters.
+    pub(super) bools: u32,
+    /// Name of the `CancellationToken` parameter, if any.
+    pub(super) ct_name: Option<String>,
+}
+
+pub(super) fn extract_cs_params(node: Node<'_>, source: &str) -> CsParamsInfo {
     let Some(plist) = node.child_by_field_name("parameters") else {
-        return (0, 0, None);
+        return CsParamsInfo::default();
     };
-    let (mut total, mut bools, mut ct_name) = (0_u32, 0_u32, None);
+    let mut info = CsParamsInfo::default();
     let mut c = plist.walk();
     for (idx, p) in plist
         .named_children(&mut c)
@@ -120,14 +131,14 @@ pub fn extract_cs_params(node: Node<'_>, source: &str) -> (u32, u32, Option<Stri
         .enumerate()
     {
         let is_ext_this = idx == 0 && node_text(p, source).trim_start().starts_with("this ");
-        total += u32::from(!is_ext_this);
+        info.total += u32::from(!is_ext_this);
         let (is_bool, ct) = inspect_cs_param_type(p, source);
-        bools += u32::from(is_bool);
+        info.bools += u32::from(is_bool);
         if ct.is_some() {
-            ct_name = ct;
+            info.ct_name = ct;
         }
     }
-    (total, bools, ct_name)
+    info
 }
 
 fn contains_ident(haystack: &str, ident: &str) -> bool {

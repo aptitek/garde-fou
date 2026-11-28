@@ -6,6 +6,10 @@ use alloc::vec::Vec;
 use serde::{Deserialize, Serialize};
 
 use crate::diagnostic::Span;
+pub use crate::mutation_config_issues::{
+    DEFAULT_MIN_MUTATION_SCORE, MutationStackSpec, mutation_stack_for,
+    render_mutation_stack_markdown, supports_mutation_testing,
+};
 use crate::path::RepoPath;
 
 const MAX_REPLACEMENT_CHARS: usize = 120;

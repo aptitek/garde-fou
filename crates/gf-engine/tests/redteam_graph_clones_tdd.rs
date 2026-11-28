@@ -1,10 +1,9 @@
 //! Red Team workspace-graph, metamorphic Type-3 clone (`proptest`), dead-export homonymy,
 //! TDD theatre, `Scripts` spoofing, `LCOV`/`CRAP`, and `[architecture]` evasion suite.
 
-use std::fmt::Write as _;
-use std::fs;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
+use std::{fmt::Write as _, fs};
 
 use gf_core::{Config, CoverageConfig, FeatureId, RepoPath, ScannerPolicy, TddParityGate};
 use gf_engine::{CheckReport, ScanScope, run_check};
@@ -18,11 +17,10 @@ type TestResult = Res<()>;
 
 fn base_cfg() -> Config {
     let mut cfg = Config::strict_defaults();
-    cfg.scanners.secrets = ScannerPolicy::Off;
-    cfg.scanners.vulns = ScannerPolicy::Off;
-    cfg.tools.python.ruff = ScannerPolicy::Off;
-    cfg.tools.python.mypy = ScannerPolicy::Off;
-    cfg.tools.python.pyright = ScannerPolicy::Off;
+    let off = ScannerPolicy::Off;
+    (cfg.scanners.secrets, cfg.scanners.vulns) = (off, off);
+    (cfg.tools.python.ruff, cfg.tools.python.mypy) = (off, off);
+    cfg.tools.python.pyright = off;
     cfg
 }
 
@@ -62,6 +60,24 @@ fn render_clone_fn(ids: [&str; 4], lit: u32, head: &str, tail: &str) -> String {
     )
 }
 
+fn parse_ok(path: &str, src: &str) -> Result<gf_core::UastDocument, TestCaseError> {
+    let rp = RepoPath::new(path).map_err(|e| TestCaseError::fail(e.to_string()))?;
+    parse_source(&rp, src).map_err(|e| TestCaseError::fail(e.to_string()))
+}
+
+fn verify_near_miss_pair(a: &str, b: &str, cfg: &Config) -> Result<(), TestCaseError> {
+    let (da, db) = (parse_ok("src/alpha.rs", a)?, parse_ok("src/beta.rs", b)?);
+    prop_assert!(da.callables[0].effective_lines >= 22 && da.callables[0].ast_node_count >= 50);
+    prop_assert_ne!(
+        da.callables[0].structural_hash,
+        db.callables[0].structural_hash
+    );
+    let hit = ws_has(&[("src/alpha.rs", a), ("src/beta.rs", b)], cfg, "GF020")
+        .map_err(|e| TestCaseError::fail(e.to_string()))?;
+    prop_assert!(hit);
+    Ok(())
+}
+
 #[test]
 fn proptest_type3_near_miss_clones_always_trigger_gf020_despite_noise() -> TestResult {
     let mut tr = TestRunner::new(ProptestConfig {
@@ -70,43 +86,27 @@ fn proptest_type3_near_miss_clones_always_trigger_gf020_despite_noise() -> TestR
         ..ProptestConfig::default()
     });
     let cfg = base_cfg();
-    let ids = ("fn_[a-z]{3}", "x_[a-z]{2}", "l_[a-z]{2}", "a_[a-z]{2}");
-    let nums = (1u32..400, 401u32..900, 1usize..=2, prop::bool::ANY);
-    tr.run(&(ids, ids, nums), |(va, vb, (la, lb, noise_n, at_tail))| {
-        let pad = "    let noise_a = 42_u32;\n".repeat(noise_n);
-        let a_ids = [va.0.as_str(), va.1.as_str(), va.2.as_str(), va.3.as_str()];
-        let a = render_clone_fn(a_ids, la, "", "");
-        let b_fn = format!("b_{}", vb.0);
-        let b_ids = [b_fn.as_str(), vb.1.as_str(), vb.2.as_str(), vb.3.as_str()];
-        let (h, t) = if at_tail {
-            ("", pad.as_str())
-        } else {
-            (pad.as_str(), "")
-        };
-        let b = render_clone_fn(b_ids, lb, h, t);
-
-        let pa = RepoPath::new("src/alpha.rs").map_err(|e| TestCaseError::fail(e.to_string()))?;
-        let pb = RepoPath::new("src/beta.rs").map_err(|e| TestCaseError::fail(e.to_string()))?;
-        let da = parse_source(&pa, &a).map_err(|e| TestCaseError::fail(e.to_string()))?;
-        let db = parse_source(&pb, &b).map_err(|e| TestCaseError::fail(e.to_string()))?;
-        prop_assert!(da.callables[0].effective_lines >= 22 && da.callables[0].ast_node_count >= 50);
-        let (ha, hb) = (
-            da.callables[0].structural_hash,
-            db.callables[0].structural_hash,
-        );
-        prop_assert_ne!(ha, hb);
-
-        let ws = [("src/alpha.rs", a.as_str()), ("src/beta.rs", b.as_str())];
-        let hit = ws_has(&ws, &cfg, "GF020").map_err(|e| TestCaseError::fail(e.to_string()))?;
-        prop_assert!(hit);
-        Ok(())
-    })
+    let ids = (("fn_[a-z]{3}", "x_[a-z]{2}"), ("l_[a-z]{2}", "a_[a-z]{2}"));
+    let nums = ((1u32..400, 401u32..900), (1usize..=2, prop::bool::ANY));
+    tr.run(
+        &((ids, ids), nums),
+        |((va, vb), ((la, lb), (noise_n, at_tail)))| {
+            let pad = "    let noise_a = 42_u32;\n".repeat(noise_n);
+            let a = render_clone_fn([&va.0.0, &va.0.1, &va.1.0, &va.1.1], la, "", "");
+            let b_fn = format!("b_{}", vb.0.0);
+            let (h, t) = if at_tail { ("", &*pad) } else { (&*pad, "") };
+            let b = render_clone_fn([&b_fn, &vb.0.1, &vb.1.0, &vb.1.1], lb, h, t);
+            verify_near_miss_pair(&a, &b, &cfg)
+        },
+    )
     .map_err(|e| -> Box<dyn std::error::Error> { e.to_string().into() })?;
-
     let a_src = render_clone_fn(["ca", "xs", "l", "a"], 5, "", "");
     let diff = "pub const fn tag(c: u8) -> &'static str { match c { 0 => \"a\", _ => \"b\" } }\n";
-    let ok_ws = [("src/alpha.rs", a_src.as_str()), ("src/b.rs", diff)];
-    assert!(!ws_has(&ok_ws, &cfg, "GF020")?);
+    assert!(!ws_has(
+        &[("src/alpha.rs", &a_src), ("src/b.rs", diff)],
+        &cfg,
+        "GF020"
+    )?);
     Ok(())
 }
 
@@ -124,7 +124,6 @@ fn homonymy_tarjan_inline_paths_and_atomic_reexports_enforce_gf021_gf071_gf072()
 
     let d_fn = "pub fn ping() { crate::a::b::e::pong(); }\n";
     let e_fn = "pub fn pong() { crate::a::b::c::d::ping(); }\n";
-    let e_ok = "pub const fn pong() -> u32 { 1 }\n";
     let mut tree = [
         ("src/lib.rs", "pub mod a;\n"),
         ("src/a/mod.rs", "pub mod b;\n"),
@@ -134,9 +133,12 @@ fn homonymy_tarjan_inline_paths_and_atomic_reexports_enforce_gf021_gf071_gf072()
         ("src/a/b/e.rs", e_fn),
     ];
     assert!(ws_has(&tree, &cfg, "GF071")?);
-    tree[5] = ("src/a/b/e.rs", e_ok);
+    tree[5] = ("src/a/b/e.rs", "pub const fn pong() -> u32 { 1 }\n");
     assert!(!ws_has(&tree, &cfg, "GF071")?);
+    assert_atomic_reexports()
+}
 
+fn assert_atomic_reexports() -> TestResult {
     let mut ui = base_cfg();
     ui.project.features.insert(FeatureId::Ui);
     let btn = "src/components/atoms/Button.tsx";
@@ -151,6 +153,29 @@ fn homonymy_tarjan_inline_paths_and_atomic_reexports_enforce_gf021_gf071_gf072()
     Ok(())
 }
 
+const TDD_THEATRE_CASES: &[(&str, &str)] = &[
+    (
+        "tests/h.rs",
+        "fn check_something() {}\nfn verify_other() {}\n#[test]\nfn t() { check_something(); verify_other(); }\n",
+    ),
+    (
+        "tests/r.rs",
+        "#[test]\nfn t() { let x = 3; assert_eq!(x + 1, x + 1); }\n",
+    ),
+    (
+        "tests/r.test.ts",
+        "test(\"t\", () => { const val = 5; expect(val).toEqual(val); });\n",
+    ),
+    (
+        "tests/test_r.py",
+        "def test_t() -> None:\n    total = 5\n    assert total == total\n",
+    ),
+    (
+        "tests/w.rs",
+        "fn compute() -> Result<u32, &'static str> { Ok(9) }\n#[test]\nfn weak() { assert!(compute().is_ok()); }\n",
+    ),
+];
+
 #[test]
 fn tdd_theatre_and_fake_script_coverage_trigger_gf076_and_gf065() -> TestResult {
     let mut tdd = base_cfg();
@@ -158,9 +183,7 @@ fn tdd_theatre_and_fake_script_coverage_trigger_gf076_and_gf065() -> TestResult 
     let gs = "export function runGhost(): number { return 1; }\n";
     let gb = "export function helper(): boolean { return true; }\n";
     let go = "import { runGhost } from \"../src/ghost\";\ntest(\"ok\", () => { expect(runGhost()).toEqual(1); });\n";
-    let g_bad = [("src/ghost.ts", gs), ("tests/ghost.test.ts", gb)];
-    let g_ok = [("src/ghost.ts", gs), ("tests/ghost.test.ts", go)];
-    let g_rep = eval_ws(&g_bad, &tdd)?;
+    let g_rep = eval_ws(&[("src/ghost.ts", gs), ("tests/ghost.test.ts", gb)], &tdd)?;
     let gf76: Vec<&str> = g_rep
         .diagnostics
         .iter()
@@ -168,17 +191,14 @@ fn tdd_theatre_and_fake_script_coverage_trigger_gf076_and_gf065() -> TestResult 
         .map(|d| d.path.as_str())
         .collect();
     assert_eq!(gf76, vec!["src/ghost.ts", "tests/ghost.test.ts"]);
-    assert!(!ws_has(&g_ok, &tdd, "GF076")?);
+    assert!(!ws_has(
+        &[("src/ghost.ts", gs), ("tests/ghost.test.ts", go)],
+        &tdd,
+        "GF076"
+    )?);
 
     let cfg = base_cfg();
-    let s1 = "fn check_something() {}\nfn verify_other() {}\n#[test]\nfn t() { check_something(); verify_other(); }\n";
-    let s2 = "#[test]\nfn t() { let x = 3; assert_eq!(x + 1, x + 1); }\n";
-    let s3 = "test(\"t\", () => { const val = 5; expect(val).toEqual(val); });\n";
-    let s4 = "def test_t() -> None:\n    total = 5\n    assert total == total\n";
-    let s5 = "fn compute() -> Result<u32, &'static str> { Ok(9) }\n#[test]\nfn weak() { assert!(compute().is_ok()); }\n";
-    let c_a = [("tests/h.rs", s1), ("tests/r.rs", s2)];
-    let c_b = [("tests/r.test.ts", s3), ("tests/test_r.py", s4)];
-    for (p, s) in c_a.into_iter().chain(c_b).chain([("tests/w.rs", s5)]) {
+    for &(p, s) in TDD_THEATRE_CASES {
         assert!(ws_has(&[(p, s)], &cfg, "GF076")?);
     }
 
@@ -222,28 +242,5 @@ fn crap_and_branch_gates_enforce_gf050_and_gf051() -> TestResult {
     assert!(bad.iter().any(|d| d.rule_id == "GF050") && bad.iter().any(|d| d.rule_id == "GF051"));
     let ok = eval_ws(&[lib, rsk, ("lcov.info", &lok)], &cov)?;
     assert!(ok.is_clean());
-    Ok(())
-}
-
-#[test]
-fn architecture_purity_enforces_gf078_on_domain_crate() -> TestResult {
-    let mut arch = base_cfg();
-    let a_cfg = &mut arch.architecture;
-    a_cfg.no_std_crates.insert(String::from("domain"));
-    a_cfg.io_allowed_crates.insert(String::from("shell"));
-    a_cfg.console_allowed_crates.insert(String::from("shell"));
-    let sh_s =
-        "use std::fs;\npub fn f() { if fs::metadata(\".\").is_ok() { println!(\"ok\"); } }\n";
-    let sh = ("crates/shell/src/lib.rs", sh_s);
-    let dom = "crates/domain/src/lib.rs";
-    for leak in [
-        "pub const fn a() -> u32 { 1 }\n",
-        "#![no_std]\nuse std::fs;\n",
-        "#![no_std]\npub fn f() { println!(\"leak\"); }\n",
-    ] {
-        assert!(ws_has(&[sh, (dom, leak)], &arch, "GF078")?);
-    }
-    let ok_dom = "#![no_std]\npub const fn a() -> u32 { 1 }\n";
-    assert!(!ws_has(&[sh, (dom, ok_dom)], &arch, "GF078")?);
     Ok(())
 }

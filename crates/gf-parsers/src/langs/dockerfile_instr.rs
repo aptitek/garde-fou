@@ -6,8 +6,8 @@ use gf_core::{
 };
 
 use super::dockerfile_args::{
-    classify_shell_argv, parse_add, parse_arg, parse_copy, parse_docker_command_form, parse_env,
-    parse_non_empty, split_image_ref,
+    ImageRefParts, classify_shell_argv, parse_add, parse_arg, parse_copy,
+    parse_docker_command_form, parse_env, parse_non_empty, split_image_ref,
 };
 use super::dockerfile_run_bridge::{
     ExtractedRunScript, RunBuildEnv, analyze_and_remap_run_script, build_run_script,
@@ -57,16 +57,17 @@ fn parse_from(
         None
     };
 
-    let (image, tag, digest) = split_image_ref(spec);
-    let parent_stage = (tag.is_none() && digest.is_none() && !image.contains('/'))
-        .then(|| {
-            doc.stages.iter().rfind(|s| {
-                s.alias
-                    .as_deref()
-                    .is_some_and(|a| a.eq_ignore_ascii_case(&image))
+    let parts: ImageRefParts = split_image_ref(spec);
+    let parent_stage =
+        (parts.tag.is_none() && parts.digest.is_none() && !parts.image.contains('/'))
+            .then(|| {
+                doc.stages.iter().rfind(|s| {
+                    s.alias
+                        .as_deref()
+                        .is_some_and(|a| a.eq_ignore_ascii_case(&parts.image))
+                })
             })
-        })
-        .flatten();
+            .flatten();
 
     let effective_user = parent_stage.and_then(|s| s.effective_user.clone());
     let effective_shell = parent_stage.map_or_else(DockerStageShell::default_posix, |s| {
@@ -75,9 +76,9 @@ fn parse_from(
 
     let stage_index = doc.stages.len();
     doc.stages.push(FromStage {
-        image,
-        tag,
-        digest,
+        image: parts.image,
+        tag: parts.tag,
+        digest: parts.digest,
         alias,
         effective_user,
         effective_shell,

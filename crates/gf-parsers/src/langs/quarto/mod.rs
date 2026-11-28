@@ -49,13 +49,23 @@ struct ActiveFence<'a> {
     body_lines: Vec<&'a str>,
 }
 
-fn fence_open(trimmed: &str) -> Option<(char, usize, &str)> {
+struct FenceOpen<'a> {
+    marker: char,
+    len: usize,
+    info: &'a str,
+}
+
+fn fence_open(trimmed: &str) -> Option<FenceOpen<'_>> {
     let ch = trimmed.chars().next()?;
     if ch != '`' && ch != '~' {
         return None;
     }
     let len = trimmed.chars().take_while(|&c| c == ch).count();
-    (len >= 3).then_some((ch, len, &trimmed[len..]))
+    (len >= 3).then_some(FenceOpen {
+        marker: ch,
+        len,
+        info: &trimmed[len..],
+    })
 }
 
 #[derive(Default)]
@@ -123,8 +133,10 @@ impl<'a> QmdRunCtx<'a> {
     ) -> Result<(), ParseError> {
         let trimmed = raw.trim();
         if let Some(active) = self.fence.as_mut() {
-            let is_close = fence_open(trimmed).is_some_and(|(ch, len, rest)| {
-                ch == active.marker && len >= active.len && rest.trim().is_empty()
+            let is_close = fence_open(trimmed).is_some_and(|open| {
+                open.marker == active.marker
+                    && open.len >= active.len
+                    && open.info.trim().is_empty()
             });
             if !is_close {
                 active.body_lines.push(raw);
@@ -132,11 +144,11 @@ impl<'a> QmdRunCtx<'a> {
             }
             return self.close_active_fence(doc);
         }
-        if let Some((marker, len, info)) = fence_open(trimmed) {
+        if let Some(open) = fence_open(trimmed) {
             self.fence = Some(ActiveFence {
-                marker,
-                len,
-                exec_lang: parse_qmd_executable_lang(info),
+                marker: open.marker,
+                len: open.len,
+                exec_lang: parse_qmd_executable_lang(open.info),
                 body_start_line: lno.saturating_add(1),
                 body_lines: Vec::new(),
             });

@@ -95,33 +95,20 @@ struct GoVetDiag {
     message: String,
 }
 
-fn parse_go_vet_posn(posn: &str) -> Option<(RepoPath, u32, u32)> {
-    let mut parts = posn.rsplitn(3, ':');
+fn build_go_vet_finding(analyzer: &str, d: GoVetDiag) -> Option<ExternalToolFinding> {
+    let mut parts = d.posn.rsplitn(3, ':');
     let col = parts.next()?.parse::<u32>().ok().unwrap_or(1);
     let line = parts.next()?.parse::<u32>().ok()?;
-    let file = parts.next()?;
-    Some((normalize_tool_path(file)?, line.max(1), col.max(1)))
-}
-
-fn push_vet_analyzer_diags(
-    analyzer: &str,
-    diags: Vec<GoVetDiag>,
-    out: &mut Vec<ExternalToolFinding>,
-) {
-    for d in diags {
-        let Some((path, line, column)) = parse_go_vet_posn(&d.posn) else {
-            continue;
-        };
-        out.push(ExternalToolFinding {
-            tool: ExternalToolKind::GoVet,
-            path,
-            line,
-            column,
-            native_code: String::from(analyzer),
-            message: d.message,
-            remediation: String::from("Fix the `go vet` static analysis issue reported here."),
-        });
-    }
+    let path = normalize_tool_path(parts.next()?)?;
+    Some(ExternalToolFinding {
+        tool: ExternalToolKind::GoVet,
+        path,
+        line: line.max(1),
+        column: col.max(1),
+        native_code: String::from(analyzer),
+        message: d.message,
+        remediation: String::from("Fix the `go vet` static analysis issue reported here."),
+    })
 }
 
 /// Parses concatenated JSON objects emitted by `go vet -json ./...`.
@@ -142,7 +129,11 @@ pub fn parse_go_vet_json(raw: &str) -> Result<Vec<ExternalToolFinding>, ToolPars
             detail: e.to_string(),
         })?;
         for (analyzer, diags) in pkg_map.into_values().flatten() {
-            push_vet_analyzer_diags(&analyzer, diags, &mut out);
+            out.extend(
+                diags
+                    .into_iter()
+                    .filter_map(|d| build_go_vet_finding(&analyzer, d)),
+            );
         }
     }
     Ok(out)

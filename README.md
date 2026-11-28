@@ -17,9 +17,9 @@
 
 Garde-fou compiles every supported language into a single `#![no_std]` Universal AST (`UAST`) and evaluates deterministic rules across three layers:
 
-- **Tier 1 — Native AST (`GF000`–`GF080`):** structural SRP metrics, Type-2 clone detection, dead exports, Tarjan DAG cycles, KISS/YAGNI/TDD checks, six-domain segregation, and native security/idiom rules across 23 languages.
-- **Tier 2 — Config hardening (`GF081`):** blocks weakening of `pyproject.toml`, `ruff.toml`, `tsconfig.json`, `.hadolint.yaml`, `.shellcheckrc`, `phpstan.neon`, and toolchains (`pnpm`/`uv`/Gradle `.kts`).
-- **Tier 3 — Ecosystem & SARIF (`GF041`–`GF082`):** ingests `gitleaks`, `osv-scanner`, `ruff`, `mypy`, `oxlint`, `tsc`, `shellcheck`, `hadolint`, `yamllint`, `golangci-lint`, `phpstan`, and `dart analyze`.
+- **Tier 1 — Native AST (`GF000`–`GF080`):** structural SRP metrics, Type-2 clone detection, dead exports, Tarjan DAG cycles, KISS/YAGNI/TDD checks (including anonymous tuple arity & global tuple unpacking), six-domain segregation, and native security/idiom rules across 23 languages.
+- **Tier 2 — Config hardening (`GF081`):** blocks weakening of `pyproject.toml`, `ruff.toml`, `tsconfig.json`, `mutants.toml`, `stryker*.json`, `infection.json5`, `.hadolint.yaml`, `.shellcheckrc`, `phpstan.neon`, and toolchains (`pnpm`/`uv`/Gradle `.kts`).
+- **Tier 3 — Ecosystem, Mutation & SARIF (`GF041`–`GF082`):** enforces 100% mutation testing (`cargo-mutants`, `Stryker`, `mutmut`, `gremlins`, `PITest`, `Stryker.NET`, `Infection`, `mutation_test`) and ingests `gitleaks`, `osv-scanner`, `ruff`, `mypy`, `oxlint`, `tsc`, `shellcheck`, `hadolint`, `yamllint`, `golangci-lint`, `phpstan`, and `dart analyze`.
 - **Agentic governance (`GF070`):** seals `garde-fou.toml` in `garde.lock` (`BLAKE3`) and synchronizes `AGENTS.md` + `.agents/skills/` via `garde sync`.
 
 [Supported stack](https://github.com/ArchiPiXL/garde-fou/wiki/Supported-Stack) · [Six domains](https://github.com/ArchiPiXL/garde-fou/wiki/Six-Domains) · [Rule catalog (`GF000`–`GF082`)](https://github.com/ArchiPiXL/garde-fou/wiki/Rule-Catalog)

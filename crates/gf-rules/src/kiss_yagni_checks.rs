@@ -36,6 +36,38 @@ fn measured_diag(spec: MeasuredSpec<'_>) -> Diagnostic {
     }
 }
 
+fn evaluate_tuple_kiss(
+    item: &KissYagniFinding,
+    loc: SourceLoc<'_>,
+    config: &Config,
+) -> Option<Diagnostic> {
+    let cc = &config.clean_code;
+    match item.kind {
+        KissYagniKind::AnonymousTuple if item.measured > cc.max_tuple_arity => {
+            Some(measured_diag(MeasuredSpec {
+                rule_id: "GF073",
+                message: format!(
+                    "KISS anonymous tuple violation: {} (max arity {})",
+                    item.detail, cc.max_tuple_arity
+                ),
+                remediation: "Replace anonymous tuples with a named domain struct, dataclass, interface, or record class with self-documenting fields.",
+                loc,
+                measured: item.measured,
+                threshold: cc.max_tuple_arity,
+            }))
+        }
+        KissYagniKind::GlobalTupleUnpacking if cc.forbid_global_tuple_unpacking => {
+            Some(rule_error(
+                "GF073",
+                format!("KISS unsafe global tuple unpacking: {}", item.detail),
+                "Avoid positional tuple unpacking at module/global scope; bind a named struct/object or unpack inside a cohesive function with explicit validation.",
+                loc,
+            ))
+        }
+        _ => None,
+    }
+}
+
 fn evaluate_kiss_item(
     doc: &UastDocument,
     item: &KissYagniFinding,
@@ -69,6 +101,9 @@ fn evaluate_kiss_item(
                 measured: item.measured,
                 threshold: cc.max_property_chain,
             }))
+        }
+        KissYagniKind::AnonymousTuple | KissYagniKind::GlobalTupleUnpacking => {
+            evaluate_tuple_kiss(item, loc, config)
         }
         _ => None,
     }

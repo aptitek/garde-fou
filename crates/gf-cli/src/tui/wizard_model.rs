@@ -47,7 +47,7 @@ fn step_archetype(m: &mut WizardModel, key: Key) -> WizardTransition {
     if !move_cursor(&mut m.cursor, ARCHETYPE_CHOICES.len(), key) && key == Key::Enter {
         let arch = ARCHETYPE_CHOICES
             .get(m.cursor)
-            .map_or(WorkspaceArchetype::Minimal, |(a, _, _)| *a);
+            .map_or(WorkspaceArchetype::Minimal, |choice| choice.archetype);
         m.selected_archetype = arch;
         m.stack_options = stack_choices_for(arch);
         m.selected_stack.clear();

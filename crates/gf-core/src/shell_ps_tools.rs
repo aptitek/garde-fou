@@ -232,7 +232,8 @@ fn is_ecosystem_tool_config(path: &RepoPath) -> bool {
 #[rustfmt::skip]
 const CORE_TOOL_CONFIGS: &[&str] = &[
     "pyproject.toml", "ruff.toml", ".ruff.toml", "biome.json", "biome.jsonc",
-    "mutants.toml", "stryker.config.json", "stryker.conf.json", ".shellcheckrc",
+    "mutants.toml", "stryker.config.json", "stryker.conf.json", "stryker-config.json",
+    "infection.json", "infection.json5", ".shellcheckrc",
     "shellcheckrc", ".hadolint.yaml", ".hadolint.yml", "hadolint.yaml", "hadolint.yml",
 ];
 

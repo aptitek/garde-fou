@@ -192,7 +192,8 @@ fn collect_php_callables(lines: &[&str], doc: &mut UastDocument) {
 }
 
 fn scan_brace_body(lines: &[&str], start: usize) -> (usize, bool) {
-    let (mut depth, mut opened, mut has_assert) = (0i32, false, false);
+    let mut depth = 0i32;
+    let (mut opened, mut has_assert) = (false, false);
     for (idx, line) in lines.iter().enumerate().skip(start) {
         has_assert |= line.contains("assert") || line.contains("expectException");
         let opens = i32::try_from(line.bytes().filter(|&b| b == b'{').count()).unwrap_or(0);

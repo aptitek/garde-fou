@@ -3,6 +3,7 @@
 
 pub mod gitleaks;
 pub mod mutation_ingest;
+mod mutation_polyglot;
 mod mutation_schema;
 pub mod osv;
 pub mod sarif_ingest;

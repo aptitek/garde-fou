@@ -1,7 +1,9 @@
 //! `IPython` magic neutralization and multi-AST cell bridging (`Python`, `Shell`, `SQL`, `Markdown`)
 //! for Jupyter Notebooks (`.ipynb`).
 
-use gf_core::{DomainKind, RepoPath, Span, SqlDialectKind, SyntaxErrorNode, UastDocument};
+use gf_core::{
+    DomainKind, NotebookCellMetrics, RepoPath, Span, SqlDialectKind, SyntaxErrorNode, UastDocument,
+};
 
 use super::ipynb_parser::ParsedCell;
 use crate::cst::line_metrics;
@@ -189,7 +191,7 @@ pub fn bridge_notebook_cells(
     cells: &[ParsedCell],
     sql_dialect: Option<SqlDialectKind>,
     target: &mut UastDocument,
-) -> Result<Vec<(u32, u32, Span)>, ParseError> {
+) -> Result<Vec<NotebookCellMetrics>, ParseError> {
     let mut cell_lines = Vec::new();
     let mut combined_md = String::new();
     for cell in cells {
@@ -201,7 +203,11 @@ pub fn bridge_notebook_cells(
             "code" => {
                 let (_, eff) = line_metrics(&cell.source);
                 let span = Span::new(cell.json_line, cell.json_line).unwrap_or(Span::FIRST);
-                cell_lines.push((cell.cell_index, eff, span));
+                cell_lines.push(NotebookCellMetrics {
+                    cell_index: cell.cell_index,
+                    effective_lines: eff,
+                    span,
+                });
                 match classify_code_cell(&cell.source) {
                     CellBridgeKind::Python => bridge_python_cell(path, cell, target)?,
                     CellBridgeKind::Shell => bridge_shell_cell(path, cell, target)?,

@@ -12,7 +12,7 @@ use gf_core::{
 use super::{
     format_tool_config::{audit_markdownlint_config, audit_stylelint_config, audit_svgo_config},
     format_tool_toml::{audit_rumdl_toml, audit_taplo_toml},
-    jsonc::{audit_stryker_json, line_span_containing, push_cfg_violation},
+    jsonc::{audit_infection_json, audit_stryker_json, line_span_containing, push_cfg_violation},
     powershell::psd1_config::audit_psscriptanalyzer_psd1,
     shell_docker_config::{audit_hadolint_yaml, audit_shellcheckrc},
     sql::sql_tool_config::audit_sql_tool_config,
@@ -237,8 +237,11 @@ pub fn extract_tool_config(
             audit_hadolint_yaml(source, &mut doc.tool_config_findings);
         }
         name @ ("biome.json" | "biome.jsonc") => audit_biome_jsonc(name, source, &mut doc),
-        name @ ("stryker.config.json" | "stryker.conf.json") => {
+        name @ ("stryker.config.json" | "stryker.conf.json" | "stryker-config.json") => {
             audit_stryker_json(name, source, &mut doc);
+        }
+        name @ ("infection.json" | "infection.json5") => {
+            audit_infection_json(name, source, &mut doc);
         }
         name => audit_toml_tool_config(path, name, source, &mut doc),
     }

@@ -42,27 +42,13 @@ pub enum NotebookViolation {
     DirtyOutputs,
 }
 
+#[rustfmt::skip]
 const NB_SPECS: [(&str, &str); 5] = [
-    (
-        "NB-SECRET-IN-OUTPUT",
-        "Strip or rotate the leaked credential, clear notebook cell outputs, and never print secrets to stdout/display.",
-    ),
-    (
-        "NB-COMMITTED-ERROR-TRACEBACK",
-        "Fix the failing cell and re-run the notebook top-to-bottom (or clear outputs) before committing.",
-    ),
-    (
-        "NB-OUT-OF-ORDER-EXECUTION",
-        "Run 'Restart Kernel & Run All Cells' so `execution_count` increases strictly top-to-bottom (or clear all execution counts).",
-    ),
-    (
-        "NB-OVERSIZED-CELL",
-        "Split this code cell into smaller focused cells or extract reusable logic into a dedicated `.py` module.",
-    ),
-    (
-        "NB-DIRTY-OUTPUTS",
-        "Clear cell outputs before committing (e.g. `jupyter nbconvert --clear-output --inplace`) or disable `notebook.require_clean_outputs`.",
-    ),
+    ("NB-SECRET-IN-OUTPUT", "Strip or rotate the leaked credential, clear notebook cell outputs, and never print secrets to stdout/display."),
+    ("NB-COMMITTED-ERROR-TRACEBACK", "Fix the failing cell and re-run the notebook top-to-bottom (or clear outputs) before committing."),
+    ("NB-OUT-OF-ORDER-EXECUTION", "Run 'Restart Kernel & Run All Cells' so `execution_count` increases strictly top-to-bottom (or clear all execution counts)."),
+    ("NB-OVERSIZED-CELL", "Split this code cell into smaller focused cells or extract reusable logic into a dedicated `.py` module."),
+    ("NB-DIRTY-OUTPUTS", "Clear cell outputs before committing (e.g. `jupyter nbconvert --clear-output --inplace`) or disable `notebook.require_clean_outputs`."),
 ];
 
 impl NotebookViolation {
@@ -216,6 +202,17 @@ pub struct WorkspaceRefItem {
     pub span: Span,
 }
 
+/// Effective line metrics for a single Jupyter Notebook code cell.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct NotebookCellMetrics {
+    /// 1-based cell index within the notebook.
+    pub cell_index: u32,
+    /// Number of effective code lines in this cell.
+    pub effective_lines: u32,
+    /// 1-based line span of this cell in the `.ipynb` file.
+    pub span: Span,
+}
+
 /// Workspace-resolved metadata extracted from Jupyter, Quarto, or Obsidian documents.
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
 pub struct AcademicSummary {
@@ -234,9 +231,9 @@ pub struct AcademicSummary {
     /// File paths referenced by `"type": "file"` nodes in a `.canvas` file.
     #[serde(default)]
     pub canvas_file_refs: Vec<WorkspaceRefItem>,
-    /// Code cell effective line counts `(cell_index_1based, effective_lines, span)` in `.ipynb`.
+    /// Code cell effective line metrics in `.ipynb`.
     #[serde(default)]
-    pub notebook_cell_lines: Vec<(u32, u32, Span)>,
+    pub notebook_cell_lines: Vec<NotebookCellMetrics>,
     /// Non-empty output spans `(cell_index_1based, span)` in `.ipynb` for `require_clean_outputs`.
     #[serde(default)]
     pub notebook_output_spans: Vec<(u32, Span)>,

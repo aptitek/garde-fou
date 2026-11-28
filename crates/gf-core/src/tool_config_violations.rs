@@ -172,66 +172,64 @@ pub enum ToolConfigViolation {
     Minecraft(crate::minecraft_tools::MinecraftConfigIssue),
 }
 
+#[rustfmt::skip]
+#[derive(Clone, Copy)]
+struct ToolConfigDesc { tool: ExternalToolKind, key: &'static str, remediation: &'static str }
+
+#[rustfmt::skip]
+impl ToolConfigDesc {
+    const fn new(tool: ExternalToolKind, key: &'static str, remediation: &'static str) -> Self { Self { tool, key, remediation } }
+}
+
+#[rustfmt::skip]
 impl ToolConfigViolation {
-    const fn domain_descriptor(self) -> Option<(ExternalToolKind, &'static str, &'static str)> {
+    const fn domain_descriptor(self) -> Option<ToolConfigDesc> {
         match self {
-            Self::ShellInfra(k) => Some((k.tool(), k.key(), k.remediation())),
-            Self::YamlCi(k) => Some((k.tool(), k.key(), k.remediation())),
-            Self::Formats(k) => Some((k.tool(), k.key(), k.remediation())),
-            Self::Sql(k) => Some((k.tool(), k.key(), k.remediation())),
-            Self::WebEdge(k) => Some((k.tool(), k.key(), k.remediation())),
-            Self::Compiled(k) => Some((k.tool(), k.key(), k.remediation())),
-            Self::Toolchain(k) => Some((k.tool(), k.code(), k.remediation())),
+            Self::ShellInfra(k) => Some(ToolConfigDesc::new(k.tool(), k.key(), k.remediation())),
+            Self::YamlCi(k) => Some(ToolConfigDesc::new(k.tool(), k.key(), k.remediation())),
+            Self::Formats(k) => Some(ToolConfigDesc::new(k.tool(), k.key(), k.remediation())),
+            Self::Sql(k) => Some(ToolConfigDesc::new(k.tool(), k.key(), k.remediation())),
+            Self::WebEdge(k) => Some(ToolConfigDesc::new(k.tool(), k.key(), k.remediation())),
+            Self::Compiled(k) => Some(ToolConfigDesc::new(k.tool(), k.key(), k.remediation())),
+            Self::Toolchain(k) => Some(ToolConfigDesc::new(k.tool(), k.code(), k.remediation())),
             _ => None,
         }
     }
 
-    const fn ext_domain_descriptor(self) -> Option<(ExternalToolKind, &'static str, &'static str)> {
+    const fn ext_domain_descriptor(self) -> Option<ToolConfigDesc> {
         match self {
-            Self::Php(k) => Some((k.tool(), k.key(), k.remediation())),
-            Self::Dart(k) => Some((k.tool(), k.key(), k.remediation())),
-            Self::Minecraft(k) => Some((k.tool(), k.key(), k.remediation())),
+            Self::Php(k) => Some(ToolConfigDesc::new(k.tool(), k.key(), k.remediation())),
+            Self::Dart(k) => Some(ToolConfigDesc::new(k.tool(), k.key(), k.remediation())),
+            Self::Minecraft(k) => Some(ToolConfigDesc::new(k.tool(), k.key(), k.remediation())),
             _ => None,
         }
     }
 
-    const fn descriptor(self) -> (ExternalToolKind, &'static str, &'static str) {
-        if let Some(triple) = self.domain_descriptor() {
-            return triple;
-        }
-        if let Some(triple) = self.ext_domain_descriptor() {
-            return triple;
-        }
+    const fn descriptor(self) -> ToolConfigDesc {
+        if let Some(desc) = self.domain_descriptor() { return desc; }
+        if let Some(desc) = self.ext_domain_descriptor() { return desc; }
         match self {
-            Self::MypyNotStrict(k) => (ExternalToolKind::Mypy, k.key(), REM_CFG_MYPY),
-            Self::RuffWeakened(k) => (ExternalToolKind::Ruff, k.key(), k.remediation()),
-            Self::PytestOrCoverageWeakened(k) => (k.tool(), k.key(), k.remediation()),
-            Self::TsconfigNotStrict(k) => (ExternalToolKind::Tsc, k.key(), REM_CFG_TSCONFIG),
-            Self::MutantsScopeWeakened(k) => {
-                (ExternalToolKind::CargoMutants, k.key(), REM_CFG_MUTANTS)
-            }
-            Self::StrykerWeakened(k) => (ExternalToolKind::Stryker, k.key(), REM_CFG_STRYKER),
-            _ => (ExternalToolKind::Biome, "linter.enabled", REM_CFG_BIOME),
+            Self::MypyNotStrict(k) => ToolConfigDesc::new(ExternalToolKind::Mypy, k.key(), REM_CFG_MYPY),
+            Self::RuffWeakened(k) => ToolConfigDesc::new(ExternalToolKind::Ruff, k.key(), k.remediation()),
+            Self::PytestOrCoverageWeakened(k) => ToolConfigDesc::new(k.tool(), k.key(), k.remediation()),
+            Self::TsconfigNotStrict(k) => ToolConfigDesc::new(ExternalToolKind::Tsc, k.key(), REM_CFG_TSCONFIG),
+            Self::MutantsScopeWeakened(k) => ToolConfigDesc::new(ExternalToolKind::CargoMutants, k.key(), REM_CFG_MUTANTS),
+            Self::StrykerWeakened(k) => ToolConfigDesc::new(ExternalToolKind::Stryker, k.key(), REM_CFG_STRYKER),
+            _ => ToolConfigDesc::new(ExternalToolKind::Biome, "linter.enabled", REM_CFG_BIOME),
         }
     }
 
     /// Ecosystem tool affected by this configuration violation.
     #[must_use]
-    pub const fn tool(self) -> ExternalToolKind {
-        self.descriptor().0
-    }
+    pub const fn tool(self) -> ExternalToolKind { self.descriptor().tool }
 
     /// Canonical dotted key path inside the configuration file.
     #[must_use]
-    pub const fn key(self) -> &'static str {
-        self.descriptor().1
-    }
+    pub const fn key(self) -> &'static str { self.descriptor().key }
 
     /// Actionable root-cause remediation snippet.
     #[must_use]
-    pub const fn remediation(self) -> &'static str {
-        self.descriptor().2
-    }
+    pub const fn remediation(self) -> &'static str { self.descriptor().remediation }
 }
 
 const REM_CFG_MYPY: &str = "Enforce `strict = true` in `[tool.mypy]` without `ignore_errors = true` or weakened production overrides.";

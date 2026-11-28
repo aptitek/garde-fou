@@ -124,32 +124,32 @@ pub struct SkillEntry {
 }
 
 #[rustfmt::skip]
-const BUILTINS: [(&str, &str, &str, &str); 11] = [
-    ("property-based-testing", "trailofbits/skills", "plugins/property-based-testing/skills/property-based-testing", "Property-based testing invariants (proptest, Hypothesis, fast-check)."),
-    ("ast-grep", "ast-grep/agent-skill", "skills/ast-grep", "Structural AST search and refactoring rules with ast-grep."),
-    ("rust-best-practices", "apollographql/skills", "skills/rust-best-practices", "Idiomatic Safe Rust ownership, Clippy, and error-handling patterns."),
-    ("rust-review", "trailofbits/skills", "plugins/rust-review/skills/rust-review", "Security & panic-DoS auditing for Rust crates and workspaces."),
-    ("web-design-guidelines", "vercel-labs/agent-skills", "skills/web-design-guidelines", "UI accessibility (a11y), design tokens, and semantic HTML guidelines."),
-    ("vercel-react-best-practices", "vercel-labs/agent-skills", "skills/react-best-practices", "React & Next.js component composition and rendering performance."),
-    ("workers-best-practices", "cloudflare/skills", "skills/workers-best-practices", "Cloudflare Workers, D1, R2, and Wrangler production edge best practices."),
-    ("modern-python", "trailofbits/skills", "plugins/modern-python/skills/modern-python", "Modern Python workflows with uv, ruff, pytest, and strict type checking."),
-    ("obsidian-markdown", "kepano/obsidian-skills", "plugins/obsidian/skills/obsidian-markdown", "Obsidian Flavored Markdown wikilinks, embeds, callouts, and properties."),
-    ("obsidian-bases", "kepano/obsidian-skills", "plugins/obsidian/skills/obsidian-bases", "Obsidian Bases structured view and filter definitions."),
-    ("json-canvas", "kepano/obsidian-skills", "plugins/obsidian/skills/json-canvas", "JSON Canvas 1.0 (.canvas) node and edge graph authoring."),
+const fn builtin(id: &'static str, repo: &'static str, skill_path: &'static str, summary: &'static str) -> RemoteSkillSpec { RemoteSkillSpec { id, repo, skill_path, summary } }
+
+#[rustfmt::skip]
+const BUILTINS: [RemoteSkillSpec; 11] = [
+    builtin("property-based-testing", "trailofbits/skills", "plugins/property-based-testing/skills/property-based-testing", "Property-based testing invariants (proptest, Hypothesis, fast-check)."),
+    builtin("ast-grep", "ast-grep/agent-skill", "skills/ast-grep", "Structural AST search and refactoring rules with ast-grep."),
+    builtin("rust-best-practices", "apollographql/skills", "skills/rust-best-practices", "Idiomatic Safe Rust ownership, Clippy, and error-handling patterns."),
+    builtin("rust-review", "trailofbits/skills", "plugins/rust-review/skills/rust-review", "Security & panic-DoS auditing for Rust crates and workspaces."),
+    builtin("web-design-guidelines", "vercel-labs/agent-skills", "skills/web-design-guidelines", "UI accessibility (a11y), design tokens, and semantic HTML guidelines."),
+    builtin("vercel-react-best-practices", "vercel-labs/agent-skills", "skills/react-best-practices", "React & Next.js component composition and rendering performance."),
+    builtin("workers-best-practices", "cloudflare/skills", "skills/workers-best-practices", "Cloudflare Workers, D1, R2, and Wrangler production edge best practices."),
+    builtin("modern-python", "trailofbits/skills", "plugins/modern-python/skills/modern-python", "Modern Python workflows with uv, ruff, pytest, and strict type checking."),
+    builtin("obsidian-markdown", "kepano/obsidian-skills", "plugins/obsidian/skills/obsidian-markdown", "Obsidian Flavored Markdown wikilinks, embeds, callouts, and properties."),
+    builtin("obsidian-bases", "kepano/obsidian-skills", "plugins/obsidian/skills/obsidian-bases", "Obsidian Bases structured view and filter definitions."),
+    builtin("json-canvas", "kepano/obsidian-skills", "plugins/obsidian/skills/json-canvas", "JSON Canvas 1.0 (.canvas) node and edge graph authoring."),
 ];
 
 /// Returns `true` when `skill_id` is part of the built-in Garde-fou `skills.sh` catalog
 /// (excluding user-authored custom skills under `.agents/skills/`).
 #[must_use]
 pub fn is_catalog_skill_id(skill_id: &str) -> bool {
-    skill_id == "garde-fou" || BUILTINS.iter().any(|(id, _, _, _)| *id == skill_id)
+    skill_id == "garde-fou" || BUILTINS.iter().any(|s| s.id == skill_id)
 }
 
 #[rustfmt::skip]
-fn builtin_spec(idx: usize) -> ResolvedSkillSpec {
-    let (id, repo, skill_path, summary) = BUILTINS[idx];
-    RemoteSkillSpec { id, repo, skill_path, summary }.into()
-}
+fn builtin_spec(idx: usize) -> ResolvedSkillSpec { BUILTINS[idx].into() }
 
 fn split_pinned_rev(tail: &str) -> Result<(&str, Option<String>), &'static str> {
     let Some((id, sha)) = tail.split_once('#') else {

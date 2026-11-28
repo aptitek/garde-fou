@@ -119,7 +119,7 @@ io_allowed_crates = ["gf-engine", "gf-cli"]
 console_allowed_crates = ["gf-cli"]
 
 [mutation]
-min_mutation_score = 95
+min_mutation_score = 100
 
 [cache]
 enabled = true

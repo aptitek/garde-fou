@@ -35,8 +35,10 @@ pub struct CleanCodeSection {
     pub max_nested_ternaries: Option<u32>,
     pub max_property_chain: Option<u32>,
     pub max_bool_parameters: Option<u32>,
+    pub max_tuple_arity: Option<u32>,
     pub forbid_wildcard_exports: Option<bool>,
     pub forbid_todos: Option<bool>,
+    pub forbid_global_tuple_unpacking: Option<bool>,
     pub forbid_single_impl_traits: Option<bool>,
 }
 
@@ -136,14 +138,10 @@ pub fn parse_mutation_section(raw: Option<MutationSection>) -> Result<MutationCo
 }
 
 fn toggle_set_flag<T: Ord>(set: &mut BTreeSet<T>, flag: T, opt: Option<bool>) {
-    match opt {
-        Some(true) => {
-            set.insert(flag);
-        }
-        Some(false) => {
-            set.remove(&flag);
-        }
-        None => {}
+    if opt == Some(true) {
+        set.insert(flag);
+    } else if opt == Some(false) {
+        set.remove(&flag);
     }
 }
 
@@ -167,13 +165,15 @@ pub fn merge_boundaries(raw: Vec<BoundarySection>) -> Vec<BoundaryRule> {
 
 pub fn merge_clean_code(raw: Option<CleanCodeSection>) -> CleanCodeConfig {
     let mut cfg = CleanCodeConfig::strict_defaults();
-    let Some(s) = raw else {
-        return cfg;
-    };
+    let Some(s) = raw else { return cfg };
     cfg.max_nested_ternaries = s.max_nested_ternaries.unwrap_or(cfg.max_nested_ternaries);
     cfg.max_property_chain = s.max_property_chain.unwrap_or(cfg.max_property_chain);
     cfg.max_bool_parameters = s.max_bool_parameters.unwrap_or(cfg.max_bool_parameters);
+    cfg.max_tuple_arity = s.max_tuple_arity.unwrap_or(cfg.max_tuple_arity);
     cfg.forbid_todos = s.forbid_todos.unwrap_or(cfg.forbid_todos);
+    cfg.forbid_global_tuple_unpacking = s
+        .forbid_global_tuple_unpacking
+        .unwrap_or(cfg.forbid_global_tuple_unpacking);
     toggle_set_flag(
         &mut cfg.yagni_rules,
         YagniRule::WildcardExports,

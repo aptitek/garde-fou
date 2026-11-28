@@ -17,9 +17,9 @@
 
 Garde-fou projette chaque langage supporté dans un AST universel `#![no_std]` (`UAST`) et applique des règles déterministes sur trois niveaux :
 
-- **Tier 1 — AST natif (`GF000`–`GF080`) :** métriques structurelles SRP, détection de clones Type-2, exports morts, cycles DAG Tarjan, KISS/YAGNI/TDD, ségrégation 6 domaines et garde-fous de sécurité natifs sur 23 langages.
-- **Tier 2 — Durcissement des configs (`GF081`) :** empêche l'affaiblissement de `pyproject.toml`, `ruff.toml`, `tsconfig.json`, `.hadolint.yaml`, `.shellcheckrc`, `phpstan.neon` et des toolchains (`pnpm`/`uv`/Gradle `.kts`).
-- **Tier 3 — Écosystème & SARIF (`GF041`–`GF082`) :** ingère `gitleaks`, `osv-scanner`, `ruff`, `mypy`, `oxlint`, `tsc`, `shellcheck`, `hadolint`, `yamllint`, `golangci-lint`, `phpstan` et `dart analyze`.
+- **Tier 1 — AST natif (`GF000`–`GF080`) :** métriques structurelles SRP, détection de clones Type-2, exports morts, cycles DAG Tarjan, KISS/YAGNI/TDD (dont l'arité des tuples anonymes et le dépaquetage global), ségrégation 6 domaines et garde-fous de sécurité natifs sur 23 langages.
+- **Tier 2 — Durcissement des configs (`GF081`) :** empêche l'affaiblissement de `pyproject.toml`, `ruff.toml`, `tsconfig.json`, `mutants.toml`, `stryker*.json`, `infection.json5`, `.hadolint.yaml`, `.shellcheckrc`, `phpstan.neon` et des toolchains (`pnpm`/`uv`/Gradle `.kts`).
+- **Tier 3 — Écosystème, Mutation & SARIF (`GF041`–`GF082`) :** impose les tests de mutation à 100% (`cargo-mutants`, `Stryker`, `mutmut`, `gremlins`, `PITest`, `Stryker.NET`, `Infection`, `mutation_test`) et ingère `gitleaks`, `osv-scanner`, `ruff`, `mypy`, `oxlint`, `tsc`, `shellcheck`, `hadolint`, `yamllint`, `golangci-lint`, `phpstan` et `dart analyze`.
 - **Gouvernance agentique (`GF070`) :** scelle `garde-fou.toml` dans `garde.lock` (`BLAKE3`) et synchronise `AGENTS.md` + `.agents/skills/` via `garde sync`.
 
 [Stack supportée](https://github.com/ArchiPiXL/garde-fou/wiki/Stack-Supportee-FR) · [Six domaines](https://github.com/ArchiPiXL/garde-fou/wiki/Six-Domaines-FR) · [Catalogue des règles (`GF000`–`GF082`)](https://github.com/ArchiPiXL/garde-fou/wiki/Catalogue-Regles-FR)

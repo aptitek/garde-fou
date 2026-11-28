@@ -12,6 +12,7 @@ use gf_core::{
 };
 use gf_rules::evaluate_mutation_summary;
 
+use super::mutation_polyglot::{ingest_gremlins_json, ingest_mutmut_json, ingest_pitest_xml};
 use super::mutation_schema::{
     CargoMutantDetail, CargoMutantOutcome, CargoMutantScenario, CargoMutantsReport,
     NormalizedRawSurvivor, StrykerFileEntry, StrykerMutant, StrykerReport,
@@ -25,6 +26,12 @@ const WELL_KNOWN_MUTATION_REPORTS: &[&str] = &[
     "mutants.out/mutants.out/outcomes.json",
     "mutation.json",
     "reports/mutation/mutation.json",
+    "StrykerOutput/reports/mutation-report.json",
+    "reports/mutation/mutmut.json",
+    "mutmut-report.json",
+    "reports/mutation/gremlins.json",
+    "gremlins-report.json",
+    "build/reports/pitest/mutations.xml",
 ];
 
 fn build_survived_mutant(
@@ -103,24 +110,32 @@ fn ingest_stryker_elements(
     Ok(out)
 }
 
-/// Auto-detects and parses `cargo-mutants` (`outcomes.json`) or `Stryker` (`mutation.json`).
+/// Auto-detects and parses `cargo-mutants` (`outcomes.json`), `Stryker`/`Infection`/`Stryker.NET`
+/// (`mutation.json`), Go `gremlins` JSON, Python `mutmut` JSON, or Kotlin/JVM `PITest` XML.
 ///
 /// # Errors
 ///
-/// Returns [`EngineError::InvalidConfig`] if `raw_json` is malformed or matches neither schema.
+/// Returns [`EngineError::InvalidConfig`] if `raw_json` is malformed or matches no known schema.
 pub fn ingest_mutation_json(
     raw_json: &str,
     workspace_root: &Path,
 ) -> Result<MutationSummary, EngineError> {
+    if raw_json.trim_start().starts_with('<') {
+        return ingest_pitest_xml(raw_json, workspace_root);
+    }
     let val: serde_json::Value = serde_json::from_str(raw_json)
         .map_err(|e| EngineError::InvalidConfig(format!("invalid mutation JSON: {e}")))?;
     if val.get("outcomes").is_some() {
         ingest_cargo_mutants(val, workspace_root)
+    } else if val.get("go_module").is_some() {
+        ingest_gremlins_json(val, workspace_root)
+    } else if val.get("mutants").is_some() {
+        ingest_mutmut_json(val, workspace_root)
     } else if val.get("files").is_some() {
         ingest_stryker_elements(val, workspace_root)
     } else {
         Err(EngineError::InvalidConfig(String::from(
-            "unrecognized mutation report schema (expected `outcomes` or `files` root key)",
+            "unrecognized mutation report schema (expected `outcomes`, `files`, `go_module`, `mutants`, or PITest XML)",
         )))
     }
 }
@@ -165,13 +180,19 @@ fn check_committed_mutation_reports(
 }
 
 fn resolve_default_report_rel(root: &Path) -> &'static str {
-    if !root.join("mutants.out/outcomes.json").is_file()
-        && root.join("reports/mutation/mutation.json").is_file()
-    {
-        "reports/mutation/mutation.json"
-    } else {
-        "mutants.out/outcomes.json"
+    for &candidate in &[
+        "mutants.out/outcomes.json",
+        "reports/mutation/mutation.json",
+        "StrykerOutput/reports/mutation-report.json",
+        "reports/mutation/mutmut.json",
+        "reports/mutation/gremlins.json",
+        "build/reports/pitest/mutations.xml",
+    ] {
+        if root.join(candidate).is_file() {
+            return candidate;
+        }
     }
+    "mutants.out/outcomes.json"
 }
 
 pub(super) fn evaluate_workspace_mutation(
@@ -185,7 +206,8 @@ pub(super) fn evaluate_workspace_mutation(
 
     let has_explicit =
         mut_cfg.min_mutation_score.is_some() || !mut_cfg.zero_survivor_globs.is_empty();
-    let default_cli_score = (!has_explicit && mutants_override.is_some()).then_some(85);
+    let default_cli_score = (!has_explicit && mutants_override.is_some())
+        .then_some(gf_core::DEFAULT_MIN_MUTATION_SCORE);
     let effective = MutationConfig {
         min_mutation_score: mut_cfg.min_mutation_score.or(default_cli_score),
         zero_survivor_globs: mut_cfg.zero_survivor_globs.clone(),

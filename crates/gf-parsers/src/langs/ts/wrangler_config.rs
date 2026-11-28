@@ -23,11 +23,10 @@ fn is_valid_yyyy_mm_dd(raw: &str) -> bool {
     if bytes.len() != 10 || bytes[4] != b'-' || bytes[7] != b'-' {
         return false;
     }
-    let (Ok(yr), Ok(mo), Ok(day)) = (
-        trimmed[0..4].parse::<u32>(),
-        trimmed[5..7].parse::<u32>(),
-        trimmed[8..10].parse::<u32>(),
-    ) else {
+    let (Ok(yr), Ok(mo)) = (trimmed[0..4].parse::<u32>(), trimmed[5..7].parse::<u32>()) else {
+        return false;
+    };
+    let Ok(day) = trimmed[8..10].parse::<u32>() else {
         return false;
     };
     (2020..=2100).contains(&yr) && (1..=12).contains(&mo) && (1..=31).contains(&day)

@@ -1,7 +1,10 @@
 //! Infrastructure & governance templates (`garde-fou.toml`, `AGENTS.md`, `.gitattributes`,
 //! hardened multi-stage `Dockerfile`, `lefthook.yml`, `Taskfile.yml`, `.github/workflows/garde-fou.yml`).
 
-use gf_core::{FeatureId, LanguageId, ProjectContext, WorkspaceArchetype};
+use gf_core::{
+    DEFAULT_MIN_MUTATION_SCORE, FeatureId, LanguageId, ProjectContext, WorkspaceArchetype,
+    mutation_stack_for,
+};
 
 /// Default cross-OS line-ending policy written to `.gitattributes` by `garde init`.
 pub const GITATTRIBUTES_TEMPLATE: &str = "* text=auto eol=lf\n\
@@ -9,40 +12,35 @@ pub const GITATTRIBUTES_TEMPLATE: &str = "* text=auto eol=lf\n\
 *.bat text eol=crlf\n\
 *.cmd text eol=crlf\n";
 
-const LEFTHOOK_TEMPLATE: &str = "\
----
-pre-commit:
-  parallel: true
-  commands:
-    garde:
-      run: garde check --staged --format agent
+const LEFTHOOK_TEMPLATE: &str = "---\npre-commit:\n  parallel: true\n  commands:\n    garde:\n      run: garde check --staged --format agent\n\ncommit-msg:\n  commands:\n    conventional:\n      run: garde commit-msg {1}\n\npre-push:\n  parallel: true\n  commands:\n    garde-full:\n      run: garde check --no-cache\n";
 
-commit-msg:
-  commands:
-    conventional:
-      run: garde commit-msg {1}
-
-pre-push:
-  parallel: true
-  commands:
-    garde-full:
-      run: garde check --no-cache
-";
-
-const TASKFILE_TEMPLATE: &str = "\
----
-version: \"3\"
-
-tasks:
-  check:
-    desc: Run full Garde-fou static analysis and security gates
-    cmds:
-      - garde check
-  check:staged:
-    desc: Run fast incremental check on staged Git changes
-    cmds:
-      - garde check --staged --format agent
-";
+fn render_taskfile(ctx: &ProjectContext) -> String {
+    let mut out = String::from(
+        "---\nversion: \"3\"\n\ntasks:\n  check:\n    desc: Run full Garde-fou static analysis and security gates\n    cmds:\n      - garde check\n  check:staged:\n    desc: Run fast incremental check on staged Git changes\n    cmds:\n      - garde check --staged --format agent\n",
+    );
+    if ctx.archetype != WorkspaceArchetype::Software {
+        return out;
+    }
+    let cmds: Vec<String> = ctx
+        .languages
+        .iter()
+        .filter_map(|&l| mutation_stack_for(l))
+        .flat_map(|spec| {
+            [
+                format!("      - {}", spec.command),
+                format!("      - garde check --mutants {}", spec.report_path),
+            ]
+        })
+        .collect();
+    if !cmds.is_empty() {
+        out.push_str(
+            "  mutate:\n    desc: Run mutation testing and enforce GF052 score gate\n    cmds:\n",
+        );
+        out.push_str(&cmds.join("\n"));
+        out.push('\n');
+    }
+    out
+}
 
 const GITHUB_WORKFLOW_TEMPLATE: &str = "\
 ---
@@ -122,6 +120,23 @@ max_methods_per_type = 10\n\
 min_clone_lines = 15\n\
 min_clone_nodes = 40\n";
 
+fn render_mutation_toml_block(ctx: &ProjectContext) -> String {
+    if ctx.archetype != WorkspaceArchetype::Software {
+        return String::new();
+    }
+    ctx.languages
+        .iter()
+        .find_map(|&l| mutation_stack_for(l))
+        .map_or_else(String::new, |spec| {
+            format!(
+                "# [mutation] — enforced via `task mutate` / `garde check --mutants {}`\n\
+                 # min_mutation_score = {DEFAULT_MIN_MUTATION_SCORE}\n\
+                 # report_path = \"{}\"\n\n",
+                spec.report_path, spec.report_path
+            )
+        })
+}
+
 /// Renders a strict `garde-fou.toml` tailored to `project_name` and `ctx`.
 pub fn render_garde_fou_toml(project_name: &str, ctx: &ProjectContext) -> String {
     let langs = format_quoted_list(ctx.languages.iter().map(|l| l.as_str()));
@@ -139,6 +154,7 @@ pub fn render_garde_fou_toml(project_name: &str, ctx: &ProjectContext) -> String
         ""
     };
 
+    let mutation_block = render_mutation_toml_block(ctx);
     let archetype_line = format!("archetype = \"{}\"\n", ctx.archetype.as_str());
     format!(
         "# Garde-fou configuration\n\
@@ -155,6 +171,7 @@ pub fn render_garde_fou_toml(project_name: &str, ctx: &ProjectContext) -> String
          [agents]\n\
          sync_policy = \"auto\"\n\
          remote_skills = true\n\n\
+         {mutation_block}\
          {py_tools_block}\
          {ts_tools_block}\
          [scanners]\n\
@@ -171,19 +188,7 @@ pub fn render_garde_fou_toml(project_name: &str, ctx: &ProjectContext) -> String
 
 const PYTHON_DOCKERFILE: &str = "# syntax=docker/dockerfile:1\nFROM python:3.13-slim AS builder\nCOPY --from=ghcr.io/astral-sh/uv:0.6.14 /uv /uvx /bin/\nWORKDIR /build\nCOPY pyproject.toml ./\nCOPY src ./src\nRUN uv sync --locked --no-dev\n\nFROM python:3.13-slim AS runtime\nWORKDIR /app\nRUN useradd --system --uid 10001 --no-create-home appuser\nCOPY --from=builder /build/.venv /app/.venv\nCOPY src ./src\nUSER appuser\nCMD [\"python3\", \"-c\", \"print('ready')\"]\n";
 
-const NODE_DOCKERFILE: &str = "# syntax=docker/dockerfile:1\n\
-FROM node:22-slim AS builder\n\
-WORKDIR /build\n\
-COPY package.json tsconfig.json ./\n\
-COPY src ./src\n\
-\n\
-FROM node:22-slim AS runtime\n\
-WORKDIR /app\n\
-RUN useradd --system --uid 10001 --no-create-home appuser\n\
-COPY --from=builder /build/package.json /app/package.json\n\
-COPY --from=builder /build/src /app/src\n\
-USER appuser\n\
-CMD [\"node\", \"--version\"]\n";
+const NODE_DOCKERFILE: &str = "# syntax=docker/dockerfile:1\nFROM node:22-slim AS builder\nWORKDIR /build\nCOPY package.json tsconfig.json ./\nCOPY src ./src\n\nFROM node:22-slim AS runtime\nWORKDIR /app\nRUN useradd --system --uid 10001 --no-create-home appuser\nCOPY --from=builder /build/package.json /app/package.json\nCOPY --from=builder /build/src /app/src\nUSER appuser\nCMD [\"node\", \"--version\"]\n";
 
 fn hardened_dockerfile(project_kebab: &str, ctx: &ProjectContext) -> String {
     if ctx.languages.contains(&LanguageId::Rust) {
@@ -225,10 +230,7 @@ pub fn infra_feature_files(project_kebab: &str, ctx: &ProjectContext) -> Vec<(St
         ));
     }
     if ctx.features.contains(&FeatureId::TaskRunner) {
-        files.push((
-            String::from("Taskfile.yml"),
-            String::from(TASKFILE_TEMPLATE),
-        ));
+        files.push((String::from("Taskfile.yml"), render_taskfile(ctx)));
     }
     if ctx.features.contains(&FeatureId::CiGithub) {
         files.push((

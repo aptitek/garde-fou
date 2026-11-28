@@ -46,7 +46,8 @@ fn is_utplsql_block_stop(low: &str, has_body: bool) -> bool {
 fn parse_utplsql_block(lines: &[&str], start_idx: usize) -> (usize, Option<TestCaseSummary>) {
     let start_ln = u32::try_from(start_idx + 1).unwrap_or(u32::MAX);
     let mut name = format!("utplsql_test_{start_ln}");
-    let (mut assertions, mut end_ln, mut has_body) = (0u32, start_ln, false);
+    let mut assertions = 0u32;
+    let (mut end_ln, mut has_body) = (start_ln, false);
     let mut j = start_idx + 1;
     while j < lines.len() {
         let low = lines[j].trim().to_ascii_lowercase();

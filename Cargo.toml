@@ -9,7 +9,7 @@ members = [
 ]
 
 [workspace.package]
-version = "0.3.0"
+version = "0.4.0"
 edition = "2024"
 rust-version = "1.100"
 license = "MIT OR Apache-2.0"
@@ -18,10 +18,10 @@ repository = "https://github.com/ArchiPiXL/garde-fou"
 publish = false
 
 [workspace.dependencies]
-gf-core = { version = "0.3.0", path = "crates/gf-core", default-features = false }
-gf-rules = { version = "0.3.0", path = "crates/gf-rules", default-features = false }
-gf-parsers = { version = "0.3.0", path = "crates/gf-parsers" }
-gf-engine = { version = "0.3.0", path = "crates/gf-engine" }
+gf-core = { version = "0.4.0", path = "crates/gf-core", default-features = false }
+gf-rules = { version = "0.4.0", path = "crates/gf-rules", default-features = false }
+gf-parsers = { version = "0.4.0", path = "crates/gf-parsers" }
+gf-engine = { version = "0.4.0", path = "crates/gf-engine" }
 blake3 = { version = "1.8", default-features = true }
 clap = { version = "4.5", features = ["derive"] }
 globset = { version = "0.4" }

@@ -73,6 +73,62 @@ fn formats_discover_context_and_evaluate_clean_vs_violating_workspace()
     Ok(())
 }
 
+struct AdapterExpectation {
+    adapter: ExternalAdapter,
+    kind: ExternalToolKind,
+    expected_policy: ScannerPolicy,
+    reads_stderr: bool,
+}
+
+impl AdapterExpectation {
+    const fn new(
+        adapter: ExternalAdapter,
+        kind: ExternalToolKind,
+        expected_policy: ScannerPolicy,
+        reads_stderr: bool,
+    ) -> Self {
+        Self {
+            adapter,
+            kind,
+            expected_policy,
+            reads_stderr,
+        }
+    }
+}
+
+const FORMAT_ADAPTER_CASES: [AdapterExpectation; 5] = [
+    AdapterExpectation::new(
+        ExternalAdapter::Stylelint,
+        ExternalToolKind::Stylelint,
+        ScannerPolicy::Required,
+        false,
+    ),
+    AdapterExpectation::new(
+        ExternalAdapter::Rumdl,
+        ExternalToolKind::Rumdl,
+        ScannerPolicy::Auto,
+        false,
+    ),
+    AdapterExpectation::new(
+        ExternalAdapter::Markdownlint,
+        ExternalToolKind::Markdownlint,
+        ScannerPolicy::Required,
+        false,
+    ),
+    AdapterExpectation::new(
+        ExternalAdapter::Taplo,
+        ExternalToolKind::Taplo,
+        ScannerPolicy::Off,
+        true,
+    ),
+    AdapterExpectation::new(
+        ExternalAdapter::Xmllint,
+        ExternalToolKind::Xmllint,
+        ScannerPolicy::Required,
+        true,
+    ),
+];
+
 #[test]
 fn external_format_adapters_classify_kinds_policies_and_stderr_routing() {
     let mut cfg = Config::strict_defaults();
@@ -82,42 +138,14 @@ fn external_format_adapters_classify_kinds_policies_and_stderr_routing() {
     cfg.tools.toml.taplo = ScannerPolicy::Off;
     cfg.tools.xml.xmllint = ScannerPolicy::Required;
 
-    for (adapter, kind, expected_policy, reads_stderr) in [
-        (
-            ExternalAdapter::Stylelint,
-            ExternalToolKind::Stylelint,
-            ScannerPolicy::Required,
-            false,
-        ),
-        (
-            ExternalAdapter::Rumdl,
-            ExternalToolKind::Rumdl,
-            ScannerPolicy::Auto,
-            false,
-        ),
-        (
-            ExternalAdapter::Markdownlint,
-            ExternalToolKind::Markdownlint,
-            ScannerPolicy::Required,
-            false,
-        ),
-        (
-            ExternalAdapter::Taplo,
-            ExternalToolKind::Taplo,
-            ScannerPolicy::Off,
-            true,
-        ),
-        (
-            ExternalAdapter::Xmllint,
-            ExternalToolKind::Xmllint,
-            ScannerPolicy::Required,
-            true,
-        ),
-    ] {
-        assert_eq!(adapter.tool_kind(), kind);
-        assert_eq!(adapter.configured_policy(&cfg), expected_policy);
-        assert_eq!(adapter.reads_stderr_when_stdout_empty(), reads_stderr);
-        assert_ne!(adapter.install_hint(), "");
+    for case in FORMAT_ADAPTER_CASES {
+        assert_eq!(case.adapter.tool_kind(), case.kind);
+        assert_eq!(case.adapter.configured_policy(&cfg), case.expected_policy);
+        assert_eq!(
+            case.adapter.reads_stderr_when_stdout_empty(),
+            case.reads_stderr
+        );
+        assert_ne!(case.adapter.install_hint(), "");
     }
     assert!(ExternalAdapter::Stylelint.is_typescript());
     assert!(ExternalAdapter::Markdownlint.is_typescript());

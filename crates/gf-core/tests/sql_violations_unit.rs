@@ -7,25 +7,57 @@ use gf_core::{
     ToolConfigFinding, ToolConfigViolation, is_audited_tool_config_file, is_sql_tool_config_file,
 };
 
+struct DialectCase {
+    raw: &'static str,
+    expected: SqlDialectKind,
+    canon: &'static str,
+}
+
+const fn dialect_case(
+    raw: &'static str,
+    expected: SqlDialectKind,
+    canon: &'static str,
+) -> DialectCase {
+    DialectCase {
+        raw,
+        expected,
+        canon,
+    }
+}
+
+struct SqlIssueCase {
+    issue: SqlToolConfigIssue,
+    tool: ExternalToolKind,
+    key: &'static str,
+}
+
+const fn issue_case(
+    issue: SqlToolConfigIssue,
+    tool: ExternalToolKind,
+    key: &'static str,
+) -> SqlIssueCase {
+    SqlIssueCase { issue, tool, key }
+}
+
 #[test]
 fn sql_dialect_and_setting_roundtrip_and_cache_fragments_are_distinct() {
     #[rustfmt::skip]
     let dialect_cases = [
-        ("postgres", SqlDialectKind::Postgres, "postgres"), ("PostgreSQL", SqlDialectKind::Postgres, "postgres"),
-        ("pg", SqlDialectKind::Postgres, "postgres"), ("sqlite", SqlDialectKind::Sqlite, "sqlite"),
-        ("sqlite3", SqlDialectKind::Sqlite, "sqlite"), ("d1", SqlDialectKind::CloudflareD1, "d1"),
-        ("cloudflare-d1", SqlDialectKind::CloudflareD1, "d1"), ("mysql", SqlDialectKind::MySql, "mysql"),
-        ("mariadb", SqlDialectKind::MariaDb, "mariadb"), ("plsql", SqlDialectKind::OraclePlSql, "plsql"),
-        ("oracle", SqlDialectKind::OraclePlSql, "plsql"), ("duckdb", SqlDialectKind::DuckDb, "duckdb"),
-        ("generic", SqlDialectKind::Generic, "generic"), ("ansi", SqlDialectKind::Generic, "generic"),
+        dialect_case("postgres", SqlDialectKind::Postgres, "postgres"), dialect_case("PostgreSQL", SqlDialectKind::Postgres, "postgres"),
+        dialect_case("pg", SqlDialectKind::Postgres, "postgres"), dialect_case("sqlite", SqlDialectKind::Sqlite, "sqlite"),
+        dialect_case("sqlite3", SqlDialectKind::Sqlite, "sqlite"), dialect_case("d1", SqlDialectKind::CloudflareD1, "d1"),
+        dialect_case("cloudflare-d1", SqlDialectKind::CloudflareD1, "d1"), dialect_case("mysql", SqlDialectKind::MySql, "mysql"),
+        dialect_case("mariadb", SqlDialectKind::MariaDb, "mariadb"), dialect_case("plsql", SqlDialectKind::OraclePlSql, "plsql"),
+        dialect_case("oracle", SqlDialectKind::OraclePlSql, "plsql"), dialect_case("duckdb", SqlDialectKind::DuckDb, "duckdb"),
+        dialect_case("generic", SqlDialectKind::Generic, "generic"), dialect_case("ansi", SqlDialectKind::Generic, "generic"),
     ];
-    for (raw, expected, canon) in dialect_cases {
-        assert_eq!(SqlDialectKind::from_config_str(raw), Some(expected));
-        assert_eq!(expected.as_str(), canon);
-        assert_eq!(expected.to_string(), canon);
+    for c in dialect_cases {
+        assert_eq!(SqlDialectKind::from_config_str(c.raw), Some(c.expected));
+        assert_eq!(c.expected.as_str(), c.canon);
+        assert_eq!(c.expected.to_string(), c.canon);
         assert_eq!(
-            SqlDialectSetting::from_config_str(raw),
-            Some(SqlDialectSetting::Explicit(expected))
+            SqlDialectSetting::from_config_str(c.raw),
+            Some(SqlDialectSetting::Explicit(c.expected))
         );
     }
     assert_eq!(SqlDialectKind::from_config_str("unknown-db"), None);
@@ -132,40 +164,40 @@ fn migration_violation_codes_and_remediations_are_exact() {
 
 #[test]
 fn sql_tool_config_issues_map_to_expected_tools_and_keys() {
-    for (issue, tool, key) in [
-        (
+    for c in [
+        issue_case(
             SqlToolConfigIssue::Squawk(SquawkConfigIssue::CriticalRuleExcluded),
             ExternalToolKind::Squawk,
             "excluded_rules",
         ),
-        (
+        issue_case(
             SqlToolConfigIssue::Squawk(SquawkConfigIssue::BlanketExcludedPaths),
             ExternalToolKind::Squawk,
             "excluded_paths",
         ),
-        (
+        issue_case(
             SqlToolConfigIssue::Sqruff(SqruffSqlfluffConfigIssue::ExcludeAllRules),
             ExternalToolKind::Sqruff,
             "sqlfluff.exclude_rules",
         ),
-        (
+        issue_case(
             SqlToolConfigIssue::Sqlfluff(SqruffSqlfluffConfigIssue::CriticalRuleExcluded),
             ExternalToolKind::Sqlfluff,
             "sqlfluff.exclude_rules",
         ),
-        (
+        issue_case(
             SqlToolConfigIssue::Drizzle(DrizzleConfigIssue::HardcodedDatabaseCredentials),
             ExternalToolKind::Sqruff,
             "dbCredentials.url",
         ),
     ] {
         let f = ToolConfigFinding {
-            violation: ToolConfigViolation::Sql(issue),
+            violation: ToolConfigViolation::Sql(c.issue),
             span: Span::FIRST,
             message: String::from("weak"),
         };
-        assert_eq!(f.tool(), tool);
-        assert_eq!(f.key(), key);
+        assert_eq!(f.tool(), c.tool);
+        assert_eq!(f.key(), c.key);
         assert!(f.remediation().len() >= 25, "{}", f.remediation());
     }
 }

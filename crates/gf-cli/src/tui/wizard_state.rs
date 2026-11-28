@@ -30,7 +30,7 @@ impl WizardModel {
     /// Creates a new [`WizardModel`] rooted at `root`.
     #[must_use]
     pub fn new(root: PathBuf, project_name: Option<String>, run_git_init: bool) -> Self {
-        let default_arch = ARCHETYPE_CHOICES[0].0;
+        let default_arch = ARCHETYPE_CHOICES[0].archetype;
         Self {
             root,
             project_name,

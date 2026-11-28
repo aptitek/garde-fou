@@ -14,8 +14,8 @@ use gf_core::{
 use tree_sitter::Node;
 
 use self::helpers::{
-    CS_COMPLEXITY, check_cs_ct_propagation, check_primary_ctor_capture, extract_cs_params,
-    has_cs_modifier, has_cs_test_attr, inspect_cs_bypasses, record_cs_test_case,
+    CS_COMPLEXITY, CsParamsInfo, check_cs_ct_propagation, check_primary_ctor_capture,
+    extract_cs_params, has_cs_modifier, has_cs_test_attr, inspect_cs_bypasses, record_cs_test_case,
 };
 use self::quirks::{CS_FLAG_ASYNC, CS_FLAG_ENTRY, CS_FLAG_TEST, CsWalkFlags, walk_cs_body};
 use crate::anti_cheat::populate_cst_fortress;
@@ -119,22 +119,22 @@ impl CsWalker<'_> {
                 format!("`async void {name}` swallows exceptions; return `Task` or `ValueTask`"),
             ));
         }
-        let (param_count, bool_params, ct_name) = extract_cs_params(node, self.source);
+        let params: CsParamsInfo = extract_cs_params(node, self.source);
         let body = node.child_by_field_name("body");
         let spec = CallableSpec {
             name: name.clone(),
             kind: CallableKind::Method,
             decl_node: node,
             body_node: body,
-            param_count,
+            param_count: params.total,
         };
         let callable: CallableDecl = assemble_callable(spec, self.source, &CS_COMPLEXITY);
-        if bool_params > 1 {
+        if params.bools > 1 {
             self.doc.kiss_yagni_findings.push(KissYagniFinding {
                 kind: KissYagniKind::ExcessiveBoolParams,
                 span: node_span(node),
-                measured: bool_params,
-                detail: format!("C# callable `{name}` has {bool_params} bool parameters"),
+                measured: params.bools,
+                detail: format!("C# callable `{name}` has {} bool parameters", params.bools),
             });
         }
         self.doc.callables.push(callable);
@@ -144,7 +144,7 @@ impl CsWalker<'_> {
             | (u8::from(self.is_entry || name == "Main") * CS_FLAG_ENTRY);
         walk_cs_body(b, self.source, CsWalkFlags::from_bits(bits), self.doc);
         let btxt = node_text(b, self.source);
-        if is_async && let Some(ct) = ct_name.as_deref() {
+        if is_async && let Some(ct) = params.ct_name.as_deref() {
             check_cs_ct_propagation(node_span(node), btxt, ct, self.doc);
         }
         if is_test {

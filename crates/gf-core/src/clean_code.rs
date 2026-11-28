@@ -39,8 +39,12 @@ pub struct CleanCodeConfig {
     pub max_property_chain: u32,
     /// Maximum `bool`/`boolean` parameters allowed on a callable signature (`1`).
     pub max_bool_parameters: u32,
+    /// Maximum arity for anonymous tuples (`2` allows pairs; `0` forbids all anonymous tuples).
+    pub max_tuple_arity: u32,
     /// Forbid `TODO`, `FIXME`, `HACK`, `XXX` comments and commented-out code in `Code`.
     pub forbid_todos: bool,
+    /// Forbid unsafe module/global-scope tuple unpacking (`GF073`).
+    pub forbid_global_tuple_unpacking: bool,
     /// Active structural YAGNI rules (`WildcardExports`, `SingleImplTraits`).
     pub yagni_rules: BTreeSet<YagniRule>,
 }
@@ -53,7 +57,9 @@ impl CleanCodeConfig {
             max_nested_ternaries: 0,
             max_property_chain: 4,
             max_bool_parameters: 1,
+            max_tuple_arity: 2,
             forbid_todos: true,
+            forbid_global_tuple_unpacking: true,
             yagni_rules: BTreeSet::from([YagniRule::WildcardExports, YagniRule::SingleImplTraits]),
         }
     }
@@ -75,11 +81,13 @@ impl CleanCodeConfig {
     pub fn canonical_fragment(&self) -> String {
         let rules: Vec<&str> = self.yagni_rules.iter().map(|r| r.as_str()).collect();
         format!(
-            "cc(nt={},pc={},bp={},td={},yg={})",
+            "cc(nt={},pc={},bp={},ta={},td={},gtu={},yg={})",
             self.max_nested_ternaries,
             self.max_property_chain,
             self.max_bool_parameters,
+            self.max_tuple_arity,
             self.forbid_todos,
+            self.forbid_global_tuple_unpacking,
             rules.join(","),
         )
     }
@@ -177,6 +185,10 @@ pub enum KissYagniKind {
     NestedTernary,
     /// Law of Demeter property access train (`a.b.c.d.e`, `GF073`).
     PropertyChain,
+    /// Anonymous tuple type, literal, or destructuring exceeding `max_tuple_arity` (`GF073`).
+    AnonymousTuple,
+    /// Unsafe module/global-scope tuple unpacking (`GF073`).
+    GlobalTupleUnpacking,
     /// Barrel wildcard re-export/import (`export *`, `from x import *`, `pub use *`, `GF074`).
     WildcardReExport,
     /// Callable with boolean parameter count (`GF074`).

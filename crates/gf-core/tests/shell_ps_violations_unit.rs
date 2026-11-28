@@ -57,37 +57,51 @@ fn shell_and_powershell_violations_have_unique_codes_and_remediations() {
     }
 }
 
+struct ShellInfraCase {
+    issue: ShellInfraConfigIssue,
+    tool: ExternalToolKind,
+    key: &'static str,
+}
+
+const fn shell_case(
+    issue: ShellInfraConfigIssue,
+    tool: ExternalToolKind,
+    key: &'static str,
+) -> ShellInfraCase {
+    ShellInfraCase { issue, tool, key }
+}
+
 #[test]
 fn tier2_shell_infra_config_issues_match_specs() {
     let cases = [
-        (
+        shell_case(
             ShellInfraConfigIssue::Shellcheck(ShellcheckConfigIssue::DisableAll),
             ExternalToolKind::Shellcheck,
             "disable",
         ),
-        (
+        shell_case(
             ShellInfraConfigIssue::Shellcheck(ShellcheckConfigIssue::GlobalRangeDisable),
             ExternalToolKind::Shellcheck,
             "disable",
         ),
-        (
+        shell_case(
             ShellInfraConfigIssue::Hadolint(HadolintConfigIssue::CriticalRuleIgnored),
             ExternalToolKind::Hadolint,
             "ignored",
         ),
-        (
+        shell_case(
             ShellInfraConfigIssue::Hadolint(HadolintConfigIssue::WildcardTrustedRegistry),
             ExternalToolKind::Hadolint,
             "trustedRegistries",
         ),
-        (
+        shell_case(
             ShellInfraConfigIssue::PsScriptAnalyzer(
                 PsScriptAnalyzerConfigIssue::WildcardExcludeRules,
             ),
             ExternalToolKind::PsScriptAnalyzer,
             "ExcludeRules",
         ),
-        (
+        shell_case(
             ShellInfraConfigIssue::PsScriptAnalyzer(
                 PsScriptAnalyzerConfigIssue::CriticalSecurityRuleExcluded,
             ),
@@ -95,17 +109,17 @@ fn tier2_shell_infra_config_issues_match_specs() {
             "ExcludeRules",
         ),
     ];
-    for (issue, expected_tool, expected_key) in cases {
-        let v = ToolConfigViolation::ShellInfra(issue);
+    for c in cases {
+        let v = ToolConfigViolation::ShellInfra(c.issue);
         let f = ToolConfigFinding {
             violation: v,
             span: Span::FIRST,
             message: String::from("weakened"),
         };
-        assert_eq!(f.tool(), expected_tool);
-        assert_eq!(f.key(), expected_key);
+        assert_eq!(f.tool(), c.tool);
+        assert_eq!(f.key(), c.key);
         assert!(f.remediation().len() >= 25);
-        assert_eq!(format!("{v}"), format!("{expected_tool}:{expected_key}"));
+        assert_eq!(format!("{v}"), format!("{}:{}", c.tool, c.key));
     }
 }
 

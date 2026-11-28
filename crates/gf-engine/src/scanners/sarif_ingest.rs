@@ -116,6 +116,14 @@ fn convert_result(
     }))
 }
 
+#[derive(Eq, Ord, PartialEq, PartialOrd)]
+struct DiagDedupKey {
+    rule_id: String,
+    path: RepoPath,
+    start_line: u32,
+    message: String,
+}
+
 /// Parses a `SARIF` 2.1.0 JSON payload and converts actionable findings into [`Diagnostic`]s.
 ///
 /// # Errors
@@ -128,18 +136,18 @@ pub fn ingest_sarif_json(
 ) -> Result<Vec<Diagnostic>, EngineError> {
     let log: SarifLog = serde_json::from_str(sarif_json)
         .map_err(|err| EngineError::InvalidConfig(format!("invalid SARIF output: {err}")))?;
-    let mut seen: BTreeSet<(String, RepoPath, u32, String)> = BTreeSet::new();
+    let mut seen: BTreeSet<DiagDedupKey> = BTreeSet::new();
     let mut out = Vec::new();
 
     for run in &log.runs {
         for res in &run.results {
             if let Some(diag) = convert_result(res, run, workspace_root, mapping)?
-                && seen.insert((
-                    diag.rule_id.clone(),
-                    diag.path.clone(),
-                    diag.span.start_line(),
-                    diag.message.clone(),
-                ))
+                && seen.insert(DiagDedupKey {
+                    rule_id: diag.rule_id.clone(),
+                    path: diag.path.clone(),
+                    start_line: diag.span.start_line(),
+                    message: diag.message.clone(),
+                })
             {
                 out.push(diag);
             }

@@ -8,13 +8,12 @@ use gf_parsers::parse_source;
 use gf_rules::evaluate_document;
 
 type Res = Result<(), Box<dyn std::error::Error>>;
-type MsgVec = Vec<(String, u32, String)>;
 
-fn eval_msgs(path: &str, src: &str) -> Result<MsgVec, Box<dyn std::error::Error>> {
+fn eval_msgs(path: &str, src: &str) -> Result<Vec<(u32, String)>, Box<dyn std::error::Error>> {
     let doc = parse_source(&RepoPath::new(path)?, src)?;
     Ok(evaluate_document(&doc, &Config::strict_defaults())
         .into_iter()
-        .map(|d| (d.rule_id, d.span.start_line(), d.message))
+        .map(|d| (d.span.start_line(), d.message))
         .collect())
 }
 
@@ -37,7 +36,7 @@ fn toml_arrays_aot_uv_pep621_mise_and_column_offsets_are_exact() -> Res {
     let cargo_tbl_wild = "[package]\nname = \"x\"\n[dependencies]\ns = { version = \"*\" }\nok = { version = \"1.0\" }\n";
     let cw_msgs = eval_msgs("Cargo.toml", cargo_tbl_wild)?;
     assert_eq!(cw_msgs.len(), 1);
-    assert!(cw_msgs[0].2.contains("`s`"), "{cw_msgs:?}");
+    assert!(cw_msgs[0].1.contains("`s`"), "{cw_msgs:?}");
 
     let syn_doc = parse_source(&RepoPath::new("bad.toml")?, "ok = 1\nbad = @\n")?;
     assert_eq!(syn_doc.syntax_errors.len(), 1);
@@ -63,9 +62,9 @@ fn toml_arrays_aot_uv_pep621_mise_and_column_offsets_are_exact() -> Res {
     );
     let py_msgs = eval_msgs("pyproject.toml", pyproj)?;
     assert_eq!(py_msgs.len(), 3, "{py_msgs:?}");
-    assert!(py_msgs.iter().any(|m| m.1 == 3), "{py_msgs:?}");
-    assert!(py_msgs.iter().any(|m| m.1 == 4), "{py_msgs:?}");
-    assert!(!py_msgs.iter().any(|m| m.1 == 5), "{py_msgs:?}");
+    assert!(py_msgs.iter().any(|m| m.0 == 3), "{py_msgs:?}");
+    assert!(py_msgs.iter().any(|m| m.0 == 4), "{py_msgs:?}");
+    assert!(!py_msgs.iter().any(|m| m.0 == 5), "{py_msgs:?}");
 
     // `.mise.toml` inline-table and `[tools.<name>]` table `version = "latest"`
     let mise_src = "[tools]\nnode = { version = \"latest\" }\n[tools.python]\nversion = \"latest\"\n[tools.jq]\nversion = \"1.7.1\"\n";
@@ -137,13 +136,13 @@ fn mdx_fragments_jsx_bridges_imports_and_fenced_code_exclusions_are_exact() -> R
     let msgs = eval_msgs("docs/bad.mdx", bad_mdx)?;
     for expected_line in [3, 5, 7, 9, 11, 17] {
         assert!(
-            msgs.iter().any(|m| m.1 == expected_line),
+            msgs.iter().any(|m| m.0 == expected_line),
             "missing line {expected_line}: {msgs:?}"
         );
     }
-    assert_eq!(msgs.iter().filter(|m| m.1 == 9).count(), 1, "{msgs:?}");
+    assert_eq!(msgs.iter().filter(|m| m.0 == 9).count(), 1, "{msgs:?}");
     assert!(
-        !msgs.iter().any(|m| m.1 == 14),
+        !msgs.iter().any(|m| m.0 == 14),
         "inside fence leaked: {msgs:?}"
     );
     for (p, mdx) in [
@@ -226,10 +225,9 @@ fn css_ast_parser_distinguishes_nested_selectors_functions_and_at_rules() {
     };
     assert_eq!(declarations.len(), 1, "{declarations:?}");
     assert_eq!(declarations[0].property, "color");
-    assert!(matches!(
-        declarations[0].values.first(),
-        Some(CssValue::Function { name, .. }) if name == "var"
-    ));
+    assert!(
+        matches!(declarations[0].values.first(), Some(CssValue::Function { name, .. }) if name == "var")
+    );
     assert_eq!(nested_rules.len(), 4, "{nested_rules:?}");
     assert!(
         matches!(&nested_rules[0], CssRule::AtRule { name, nested_rules: inner, .. } if name == "media" && inner.len() == 1)

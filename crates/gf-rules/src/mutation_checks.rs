@@ -15,7 +15,7 @@ const MAX_REPORTED_SURVIVORS: usize = 25;
 
 const SURVIVOR_REMEDIATION: &str = "Add a unit or property-based test (`proptest`/`fast-check`/`Hypothesis`) asserting the exact observable output difference when this expression is mutated; NEVER delete valid domain code or add `#[mutants::skip]`/`Stryker disable` to silence a surviving mutant.";
 
-const VACUOUS_REMEDIATION: &str = "Run your mutation suite (`cargo mutants` or `npx stryker run`) over real `Code` modules before running mutation-gated checks; never filter out all source files to fake a clean report.";
+const VACUOUS_REMEDIATION: &str = "Run your stack's mutation suite (`cargo mutants`, `stryker`, `mutmut`, `gremlins`, `pitest`, `dotnet stryker`, `infection`, or `mutation_test`) over real `Code` modules before running mutation-gated checks; never filter out all source files to fake a clean report.";
 
 fn build_survivor_diag(survivor: &SurvivedMutant, critical: bool) -> Diagnostic {
     let fn_label = survivor.function_name.as_deref().unwrap_or("<module>");

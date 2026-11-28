@@ -120,13 +120,14 @@ fn convert_md_diag(
         .rule
         .or_else(|| item.rule_names.into_iter().next())
         .unwrap_or_else(|| String::from("MD000"));
-    let message = match (item.message, item.rule_description, item.error_detail) {
-        (Some(m), _, _) => m,
-        (None, Some(desc), Some(det)) => format!("{desc}: {det}"),
-        (None, Some(desc), None) => desc,
-        (None, None, Some(det)) => det,
-        (None, None, None) => String::from("Markdown lint violation"),
-    };
+    let message =
+        item.message
+            .unwrap_or_else(|| match (item.rule_description, item.error_detail) {
+                (Some(desc), Some(det)) => format!("{desc}: {det}"),
+                (Some(desc), None) => desc,
+                (None, Some(det)) => det,
+                (None, None) => String::from("Markdown lint violation"),
+            });
     Ok(ExternalToolFinding {
         tool,
         path: normalize_tool_path_with_fallback(raw_file, workspace_root, tool, "README.md")?,

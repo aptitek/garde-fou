@@ -79,9 +79,7 @@ fn check_reserved_end_node(trimmed: &str, ln: u32, out: &mut Vec<LangRuleFinding
                     out,
                     MermaidViolation::ReservedEndNode,
                     ln,
-                    String::from(
-                        "unquoted lowercase `end` node breaks Mermaid flowchart parsing; use `END_NODE[\"end\"]`",
-                    ),
+                    "unquoted lowercase `end` node breaks Mermaid flowchart parsing; use `END_NODE[\"end\"]`",
                 );
                 return;
             }
@@ -100,7 +98,8 @@ const fn bracket_delta(ch: char) -> (i32, i32) {
 }
 
 fn has_balanced_quotes_and_brackets(trimmed: &str) -> bool {
-    let (mut in_q, mut sq, mut par) = (false, 0i32, 0i32);
+    let mut in_q = false;
+    let (mut sq, mut par) = (0i32, 0i32);
     for ch in trimmed.chars() {
         if ch == '"' {
             in_q = !in_q;

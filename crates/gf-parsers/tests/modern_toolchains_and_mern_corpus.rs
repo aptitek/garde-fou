@@ -35,11 +35,9 @@ fn has(list: &[(String, u32)], code: &str, line: u32) -> bool {
 
 #[test]
 fn pnpm_uv_and_gradle_exclusive_toolchain_corpus() -> Result<(), Box<dyn std::error::Error>> {
-    let (pnpm, uv, gradle) = (
-        ToolchainViolation::PnpmOnly.code(),
-        ToolchainViolation::UvOnly.code(),
-        ToolchainViolation::GradleKtsOnly.code(),
-    );
+    let pnpm = ToolchainViolation::PnpmOnly.code();
+    let uv = ToolchainViolation::UvOnly.code();
+    let gradle = ToolchainViolation::GradleKtsOnly.code();
     assert!(has(&tc_codes("package-lock.json", "{}")?, pnpm, 1));
     assert!(has(&tc_codes("yarn.lock", "")?, pnpm, 1));
     let bad_pkg = r#"{"name":"a","scripts":{"build":"npm run compile"}}"#;
@@ -112,13 +110,11 @@ app.post(\"/login\", async (req, res) => {
 app.listen(3000);
 ";
     let findings = lang_codes("apps/api/src/app.ts", bad)?;
-    let (cors, cast, inj, unb, listen) = (
-        MernViolation::ExpressInsecureCorsOrErrorLeak.code(),
-        MernViolation::ExpressUnvalidatedRequestCast.code(),
-        MernViolation::MongoNoSqlInjection.code(),
-        MernViolation::MongoUnboundedQueryOrMutation.code(),
-        MernViolation::ExpressListenInAppModule.code(),
-    );
+    let cors = MernViolation::ExpressInsecureCorsOrErrorLeak.code();
+    let cast = MernViolation::ExpressUnvalidatedRequestCast.code();
+    let inj = MernViolation::MongoNoSqlInjection.code();
+    let unb = MernViolation::MongoUnboundedQueryOrMutation.code();
+    let listen = MernViolation::ExpressListenInAppModule.code();
     assert!(has(&findings, cors, 2) && has(&findings, cast, 4) && has(&findings, inj, 5));
     assert!(has(&findings, inj, 6) && has(&findings, unb, 6) && has(&findings, unb, 7));
     assert!(has(&findings, cors, 8) && has(&findings, listen, 10));

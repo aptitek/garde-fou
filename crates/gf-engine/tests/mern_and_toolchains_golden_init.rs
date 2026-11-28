@@ -20,33 +20,52 @@ fn temp_ws(label: &str) -> Result<PathBuf, Box<dyn std::error::Error>> {
     Ok(dir)
 }
 
+struct GoldenInitCase {
+    name: &'static str,
+    langs: &'static [LanguageId],
+    fws: &'static [FrameworkId],
+}
+
+const GOLDEN_INIT_CASES: &[GoldenInitCase] = &[
+    GoldenInitCase {
+        name: "mern",
+        langs: &[LanguageId::TypeScript],
+        fws: &[
+            FrameworkId::NodeJs,
+            FrameworkId::Express,
+            FrameworkId::Mongoose,
+            FrameworkId::React,
+        ],
+    },
+    GoldenInitCase {
+        name: "kotlin",
+        langs: &[LanguageId::Kotlin],
+        fws: &[],
+    },
+    GoldenInitCase {
+        name: "python",
+        langs: &[LanguageId::Python],
+        fws: &[],
+    },
+    GoldenInitCase {
+        name: "nodejs",
+        langs: &[LanguageId::TypeScript],
+        fws: &[FrameworkId::NodeJs],
+    },
+];
+
 #[test]
 fn golden_init_for_mern_kotlin_python_and_nodejs_pass_fresh_check_with_zero_violations()
 -> Result<(), Box<dyn std::error::Error>> {
-    let cases: [(&str, &[LanguageId], &[FrameworkId]); 4] = [
-        (
-            "mern",
-            &[LanguageId::TypeScript],
-            &[
-                FrameworkId::NodeJs,
-                FrameworkId::Express,
-                FrameworkId::Mongoose,
-                FrameworkId::React,
-            ],
-        ),
-        ("kotlin", &[LanguageId::Kotlin], &[]),
-        ("python", &[LanguageId::Python], &[]),
-        ("nodejs", &[LanguageId::TypeScript], &[FrameworkId::NodeJs]),
-    ];
-    for (name, langs, fws) in cases {
-        let dir = temp_ws(name)?;
+    for case in GOLDEN_INIT_CASES {
+        let dir = temp_ws(case.name)?;
         let req = InitRequest {
             root: dir.clone(),
-            project_name: Some(format!("demo-{name}")),
+            project_name: Some(format!("demo-{}", case.name)),
             archetype: None,
-            languages: langs.iter().copied().collect::<BTreeSet<_>>(),
+            languages: case.langs.iter().copied().collect::<BTreeSet<_>>(),
             features: BTreeSet::new(),
-            frameworks: fws.iter().copied().collect::<BTreeSet<_>>(),
+            frameworks: case.fws.iter().copied().collect::<BTreeSet<_>>(),
             run_git_init: false,
         };
         run_init_with_sync_mode(&req, SkillsFetchMode::Offline)?;
@@ -58,7 +77,12 @@ fn golden_init_for_mern_kotlin_python_and_nodejs_pass_fresh_check_with_zero_viol
             .iter()
             .map(|d| format!("{} {} {}", d.rule_id, d.path, d.message))
             .collect();
-        assert_eq!(diags, Vec::<String>::new(), "golden init failed for {name}");
+        assert_eq!(
+            diags,
+            Vec::<String>::new(),
+            "golden init failed for {}",
+            case.name
+        );
         fs::remove_dir_all(&dir)?;
     }
     Ok(())

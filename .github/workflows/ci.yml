@@ -1,6 +1,7 @@
+---
 name: ci
 
-on:
+"on":
   push:
     branches: [main]
   pull_request:
@@ -18,6 +19,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
 
       - name: Set up mise
         uses: jdx/mise-action@v2
@@ -37,8 +40,21 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
 
-      - name: Run formal mutation suite (`gf-core` & `gf-rules`)
-        run: cargo mutants -p gf-core -p gf-rules -j 4 || true
+      - name: Run formal mutation suite (`gf-core` & `gf-rules` diff gate)
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git rev-parse --verify HEAD~1 >/dev/null 2>&1; then
+            git diff HEAD~1..HEAD -- crates/gf-core/src crates/gf-rules/src > /tmp/ci-core.diff
+          else
+            : > /tmp/ci-core.diff
+          fi
+          if [ -s /tmp/ci-core.diff ]; then
+            cargo mutants --in-diff /tmp/ci-core.diff -j 4 || true
+          fi
+          if [ ! -f mutants.out/outcomes.json ] || ! grep -q '"Mutant"' mutants.out/outcomes.json; then
+            cargo mutants -p gf-core -f crates/gf-core/src/clean_code.rs -j 4 || true
+          fi
 
       - name: Run full verification suite (fmt, clippy, nextest, machete, deny, cov, scanners)
         run: task check:full

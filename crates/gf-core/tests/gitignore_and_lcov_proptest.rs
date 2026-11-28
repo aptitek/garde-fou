@@ -92,12 +92,10 @@ fn span_coverage_and_crap_score_satisfy_algebraic_invariants() -> Result<(), Str
 
     let mut tr = runner();
     let strat = (
-        prop::collection::vec(0u64..5u64, 4..20),
-        1u32..15u32,
-        0u32..=100u32,
-        0u32..=100u32,
+        (prop::collection::vec(0u64..5u64, 4..20), 1u32..15u32),
+        (0u32..=100u32, 0u32..=100u32),
     );
-    tr.run(&strat, |(hits_vec, cyc, cov_a, cov_b)| {
+    tr.run(&strat, |((hits_vec, cyc), (cov_a, cov_b))| {
         let (low_cov, high_cov) = if cov_a <= cov_b {
             (cov_a, cov_b)
         } else {
@@ -215,8 +213,8 @@ fn mutation_summary_score_satisfies_algebraic_invariants() -> Result<(), String>
     let mut runner = runner();
     runner
         .run(
-            &(0_u32..5_000, 0_u32..1_000, 0_u32..5_000, 0_u32..5_000),
-            |(caught, timeout, missed, unviable)| {
+            &((0_u32..5_000, 0_u32..1_000), (0_u32..5_000, 0_u32..5_000)),
+            |((caught, timeout), (missed, unviable))| {
                 let s = MutationSummary {
                     caught,
                     timeout,

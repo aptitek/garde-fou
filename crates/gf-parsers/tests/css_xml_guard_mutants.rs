@@ -13,13 +13,21 @@ use gf_parsers::{
 use gf_rules::evaluate_document;
 
 type Res = Result<(), Box<dyn std::error::Error>>;
-type MsgVec = Vec<(String, u32, String)>;
 
-fn eval_msgs(path: &str, src: &str) -> Result<MsgVec, Box<dyn std::error::Error>> {
+#[derive(Debug, PartialEq, Eq)]
+struct DiagMsg {
+    line: u32,
+    message: String,
+}
+
+fn eval_msgs(path: &str, src: &str) -> Result<Vec<DiagMsg>, Box<dyn std::error::Error>> {
     let doc = parse_source(&RepoPath::new(path)?, src)?;
     Ok(evaluate_document(&doc, &Config::strict_defaults())
         .into_iter()
-        .map(|d| (d.rule_id, d.span.start_line(), d.message))
+        .map(|d| DiagMsg {
+            line: d.span.start_line(),
+            message: d.message,
+        })
         .collect())
 }
 
@@ -114,7 +122,7 @@ fn xml_xxe_comments_nodes_limit_svg_smil_and_manifests_boundaries() -> Res {
     let pub_dtd = "<!--\n<!ENTITY ignored \"1\">\n<!DOCTYPE x SYSTEM \"http://x\">\n-->\n<!DOCTYPE svg PUBLIC \"-//W3C//DTD SVG 1.1//EN\" \"http://x\">\n<svg xmlns=\"http://www.w3.org/2000/svg\"/>\n";
     let dtd_msgs = eval_msgs("assets/pub.svg", pub_dtd)?;
     assert_eq!(dtd_msgs.len(), 1, "{dtd_msgs:?}");
-    assert_eq!(dtd_msgs[0].1, 5);
+    assert_eq!(dtd_msgs[0].line, 5);
     assert_eq!(
         eval_msgs(
             "assets/plain.svg",
@@ -130,7 +138,7 @@ fn xml_xxe_comments_nodes_limit_svg_smil_and_manifests_boundaries() -> Res {
     assert!(
         huge_msgs
             .iter()
-            .any(|m| m.2.contains("[XML-FORBID-DTD-XXE]")),
+            .any(|m| m.message.contains("[XML-FORBID-DTD-XXE]")),
         "{huge_msgs:?}"
     );
 
@@ -157,7 +165,7 @@ fn xml_xxe_comments_nodes_limit_svg_smil_and_manifests_boundaries() -> Res {
     );
     let us_msgs = eval_msgs("assets/unsafe.svg", unsafe_svg)?;
     assert_eq!(us_msgs.len(), 6, "{us_msgs:?}");
-    assert!(us_msgs.iter().any(|m| m.1 == 8), "{us_msgs:?}");
+    assert!(us_msgs.iter().any(|m| m.line == 8), "{us_msgs:?}");
     Ok(())
 }
 
@@ -173,11 +181,11 @@ fn xml_maven_msbuild_and_tier2_tier3_edge_boundaries() -> Res {
     let prop_msgs = eval_msgs("Directory.Packages.props", bad_props)?;
     assert_eq!(prop_msgs.len(), 2);
     assert!(
-        prop_msgs.iter().any(|m| m.2.contains("PkgInc")),
+        prop_msgs.iter().any(|m| m.message.contains("PkgInc")),
         "{prop_msgs:?}"
     );
     assert!(
-        prop_msgs.iter().any(|m| m.2.contains("Serilog")),
+        prop_msgs.iter().any(|m| m.message.contains("Serilog")),
         "{prop_msgs:?}"
     );
 
@@ -187,7 +195,7 @@ fn xml_maven_msbuild_and_tier2_tier3_edge_boundaries() -> Res {
     let svgo_l3 = "export default {\n  plugins: [\n    { removeScripts: false }\n  ]\n};\n";
     let svgo_msgs = eval_msgs("svgo.config.mjs", svgo_l3)?;
     assert_eq!(svgo_msgs.len(), 1);
-    assert_eq!(svgo_msgs[0].1, 3);
+    assert_eq!(svgo_msgs[0].line, 3);
 
     // Rumdl vs markdownlint single-field discriminators & short relative taplo/xmllint paths
     let root = Path::new("/repo");

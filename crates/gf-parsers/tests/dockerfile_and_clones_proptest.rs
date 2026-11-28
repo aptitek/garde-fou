@@ -26,13 +26,10 @@ fn runner() -> TestRunner {
 
 fn variant_strategy(lo: u16, hi: u16) -> impl Strategy<Value = GeneratedVariant> {
     (
-        "fn_[a-z]{3,6}",
-        "p1_[a-z]{2,5}",
-        "p2_[a-z]{2,5}",
-        "acc_[a-z]{2,5}",
-        lo..hi,
+        ("fn_[a-z]{3,6}", "p1_[a-z]{2,5}"),
+        (("p2_[a-z]{2,5}", "acc_[a-z]{2,5}"), lo..hi),
     )
-        .prop_map(|(fn_name, p1, p2, local, lit)| GeneratedVariant {
+        .prop_map(|((fn_name, p1), ((p2, local), lit))| GeneratedVariant {
             fn_name,
             p1,
             p2,
@@ -123,14 +120,13 @@ fn type2_clone_hash_is_invariant_under_identifier_and_literal_renaming() -> Resu
 fn type3_minhash_shingle_sketch_shares_at_least_7_of_8_registers_with_injected_prefix_stmt()
 -> Result<(), String> {
     let mut tr = runner();
-    let pad_strat = ("pad_[a-z]{3,6}", 1u16..999u16, prop::bool::ANY);
+    let pad_strat = (("pad_[a-z]{3,6}", 1u16..999u16), prop::bool::ANY);
     let strat = (
-        variant_strategy(1, 400),
-        variant_strategy(401, 900),
+        (variant_strategy(1, 400), variant_strategy(401, 900)),
         pad_strat,
     );
 
-    tr.run(&strat, |(va, vb, (pad_var, pad_lit, call_form))| {
+    tr.run(&strat, |((va, vb), ((pad_var, pad_lit), call_form))| {
         let injected = if call_form {
             format!("{pad_var}({pad_lit});")
         } else {

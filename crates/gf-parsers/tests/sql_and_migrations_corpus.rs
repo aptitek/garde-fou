@@ -6,13 +6,23 @@ use gf_parsers::parse_source;
 use gf_rules::evaluate_document;
 
 type Res = Result<(), Box<dyn std::error::Error>>;
-type DiagRow = (String, u32, String);
+
+#[derive(Debug, PartialEq, Eq)]
+struct DiagRow {
+    rule_id: String,
+    line: u32,
+    message: String,
+}
 
 fn eval_codes(path: &str, src: &str) -> Result<Vec<DiagRow>, Box<dyn std::error::Error>> {
     let doc = parse_source(&RepoPath::new(path)?, src)?;
     Ok(evaluate_document(&doc, &Config::strict_defaults())
         .into_iter()
-        .map(|d| (d.rule_id, d.span.start_line(), d.message))
+        .map(|d| DiagRow {
+            rule_id: d.rule_id,
+            line: d.span.start_line(),
+            message: d.message,
+        })
         .collect())
 }
 
@@ -64,24 +74,27 @@ fn universal_sql_dirty_queries_bypasses_and_syntax_errors_are_flagged() -> Res {
         assert!(
             diags
                 .iter()
-                .any(|d| d.0 == "GF080" && d.2.contains(expected)),
+                .any(|d| d.rule_id == "GF080" && d.message.contains(expected)),
             "missing {expected} in {diags:?}"
         );
     }
     assert_eq!(
         diags
             .iter()
-            .filter(|d| d.2.contains("SQL-UNBOUNDED-MUTATION"))
+            .filter(|d| d.message.contains("SQL-UNBOUNDED-MUTATION"))
             .count(),
         3
     );
-    assert_eq!(diags.iter().filter(|d| d.0 == "GF070").count(), 2);
+    assert_eq!(diags.iter().filter(|d| d.rule_id == "GF070").count(), 2);
 
     let syn = eval_codes(
         "sql/broken.sql",
         "SELECT id FROM users;\nSELECT FROM WHERE ;\n",
     )?;
-    assert!(syn.iter().any(|d| d.0 == "GF000" && d.1 == 2), "{syn:?}");
+    assert!(
+        syn.iter().any(|d| d.rule_id == "GF000" && d.line == 2),
+        "{syn:?}"
+    );
     Ok(())
 }
 
@@ -135,21 +148,21 @@ fn postgres_zero_downtime_unsafe_index_and_tx_locks_are_caught() -> Res {
     assert_eq!(
         diags
             .iter()
-            .filter(|d| d.2.contains("MIG-PG-CONCURRENT-INDEX"))
+            .filter(|d| d.message.contains("MIG-PG-CONCURRENT-INDEX"))
             .count(),
         2
     );
     assert_eq!(
         diags
             .iter()
-            .filter(|d| d.2.contains("MIG-PG-CONCURRENTLY-IN-TX"))
+            .filter(|d| d.message.contains("MIG-PG-CONCURRENTLY-IN-TX"))
             .count(),
         3
     );
     assert_eq!(
         diags
             .iter()
-            .filter(|d| d.2.contains("MIG-PG-CONSTRAINT-NOT-VALID"))
+            .filter(|d| d.message.contains("MIG-PG-CONSTRAINT-NOT-VALID"))
             .count(),
         1
     );
@@ -175,28 +188,28 @@ fn postgres_zero_downtime_unsafe_alter_table_rewrites_are_caught() -> Res {
     assert_eq!(
         diags
             .iter()
-            .filter(|d| d.2.contains("MIG-PG-ADD-NOT-NULL-UNSAFE"))
+            .filter(|d| d.message.contains("MIG-PG-ADD-NOT-NULL-UNSAFE"))
             .count(),
         4
     );
     assert_eq!(
         diags
             .iter()
-            .filter(|d| d.2.contains("MIG-PG-CONSTRAINT-NOT-VALID"))
+            .filter(|d| d.message.contains("MIG-PG-CONSTRAINT-NOT-VALID"))
             .count(),
         3
     );
     assert_eq!(
         diags
             .iter()
-            .filter(|d| d.2.contains("MIG-PG-ALTER-COLUMN-TYPE"))
+            .filter(|d| d.message.contains("MIG-PG-ALTER-COLUMN-TYPE"))
             .count(),
         2
     );
     assert_eq!(
         diags
             .iter()
-            .filter(|d| d.2.contains("MIG-PG-BAN-TYPES"))
+            .filter(|d| d.message.contains("MIG-PG-BAN-TYPES"))
             .count(),
         2
     );

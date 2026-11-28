@@ -2,7 +2,55 @@
 //! (`GF000` & `GF080` with exact 1-based line remapping).
 
 use gf_core::{Span, SyntaxErrorNode, UastDocument, YamlFlavor};
-use pulldown_cmark::HeadingLevel;
+use pulldown_cmark::{HeadingLevel, LinkType};
+
+pub(super) struct ActiveHeading {
+    pub level: u8,
+    pub span: Span,
+    pub text: String,
+}
+
+impl ActiveHeading {
+    pub(super) const fn new(level: u8, span: Span) -> Self {
+        Self {
+            level,
+            span,
+            text: String::new(),
+        }
+    }
+}
+
+pub(super) struct ActiveImage {
+    pub url: String,
+    pub span: Span,
+    pub alt: String,
+}
+
+impl ActiveImage {
+    pub(super) fn new(url: &str, span: Span) -> Self {
+        Self {
+            url: String::from(url),
+            span,
+            alt: String::new(),
+        }
+    }
+}
+
+pub(super) struct ActiveLink {
+    pub kind: LinkType,
+    pub url: String,
+    pub span: Span,
+}
+
+impl ActiveLink {
+    pub(super) fn new(kind: LinkType, url: &str, span: Span) -> Self {
+        Self {
+            kind,
+            url: String::from(url),
+            span,
+        }
+    }
+}
 
 use crate::langs::yaml::{
     anchors_merge::resolve_yaml_document, events_tree::parse_yaml_stream,

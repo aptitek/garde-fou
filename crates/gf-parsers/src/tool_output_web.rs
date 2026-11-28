@@ -64,19 +64,33 @@ fn strip_ansi_codes(input: &str) -> String {
     out
 }
 
-fn split_file_line_col(lhs: &str) -> Option<(&str, u32, u32)> {
+struct FileLineCol<'a> {
+    raw_file: &'a str,
+    line: u32,
+    column: u32,
+}
+
+fn split_file_line_col(lhs: &str) -> Option<FileLineCol<'_>> {
     if let Some((raw_file, coords)) = lhs.rsplit_once('(')
         && let Some(coords) = coords.strip_suffix(')')
         && let Some((l_s, c_s)) = coords.split_once(',')
         && let (Ok(ln), Ok(col)) = (l_s.trim().parse::<u32>(), c_s.trim().parse::<u32>())
     {
-        return Some((raw_file.trim(), ln.max(1), col.max(1)));
+        return Some(FileLineCol {
+            raw_file: raw_file.trim(),
+            line: ln.max(1),
+            column: col.max(1),
+        });
     }
     let (before_col, col_s) = lhs.rsplit_once(':')?;
     let (raw_file, ln_s) = before_col.rsplit_once(':')?;
     let ln = ln_s.trim().parse::<u32>().ok()?;
     let col = col_s.trim().parse::<u32>().ok()?;
-    Some((raw_file.trim(), ln.max(1), col.max(1)))
+    Some(FileLineCol {
+        raw_file: raw_file.trim(),
+        line: ln.max(1),
+        column: col.max(1),
+    })
 }
 
 fn parse_astro_check_line(
@@ -91,14 +105,14 @@ fn parse_astro_check_line(
     } else {
         return Ok(None);
     };
-    let Some((raw_file, ln, col)) = split_file_line_col(lhs) else {
+    let Some(loc) = split_file_line_col(lhs) else {
         return Ok(None);
     };
     let (code, msg) = rhs
         .split_once(':')
         .map_or_else(|| ("ts", rhs.trim()), |(c, m)| (c.trim(), m.trim()));
     let path = normalize_tool_path_with_fallback(
-        raw_file,
+        loc.raw_file,
         root,
         ExternalToolKind::AstroCheck,
         "astro.config.mjs",
@@ -106,8 +120,8 @@ fn parse_astro_check_line(
     Ok(Some(ExternalToolFinding {
         tool: ExternalToolKind::AstroCheck,
         path,
-        line: ln,
-        column: col,
+        line: loc.line,
+        column: loc.column,
         native_code: String::from(code),
         message: String::from(msg),
         remediation: String::from(

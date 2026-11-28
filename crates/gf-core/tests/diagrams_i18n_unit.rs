@@ -5,28 +5,42 @@ use gf_core::{
     UiLocalePolicy, ui_tr, ui_tr_fmt,
 };
 
+struct Case {
+    violation: DiagramI18nViolation,
+    code: &'static str,
+    needle: &'static str,
+}
+
+const fn case(violation: DiagramI18nViolation, code: &'static str, needle: &'static str) -> Case {
+    Case {
+        violation,
+        code,
+        needle,
+    }
+}
+
 #[rustfmt::skip]
-const CASES: &[(DiagramI18nViolation, &str, &str)] = &[
-    (DiagramI18nViolation::Mermaid(MermaidViolation::UnknownOrEmptyDiagram), "MERMAID-UNKNOWN-OR-EMPTY-DIAGRAM", "flowchart"),
-    (DiagramI18nViolation::Mermaid(MermaidViolation::UnclosedBlockOrShape), "MERMAID-UNCLOSED-BLOCK-OR-SHAPE", "subgraph"),
-    (DiagramI18nViolation::Mermaid(MermaidViolation::ReservedEndNode), "MERMAID-RESERVED-END-NODE", "END_NODE"),
-    (DiagramI18nViolation::Mermaid(MermaidViolation::SpaghettiComplexity), "MERMAID-SPAGHETTI-COMPLEXITY", "max_nodes"),
-    (DiagramI18nViolation::Mermaid(MermaidViolation::UnsafeSecurityOrXss), "MERMAID-UNSAFE-SECURITY-OR-XSS", "securityLevel"),
-    (DiagramI18nViolation::PlantUml(PlantUmlViolation::UnbalancedStructure), "PLANTUML-UNBALANCED-STRUCTURE", "@end"),
-    (DiagramI18nViolation::PlantUml(PlantUmlViolation::SsrfOrLocalLeak), "PLANTUML-SSRF-OR-LOCAL-LEAK", "%getenv"),
-    (DiagramI18nViolation::PlantUml(PlantUmlViolation::BrokenInclude), "PLANTUML-BROKEN-INCLUDE", "!include"),
-    (DiagramI18nViolation::PlantUml(PlantUmlViolation::XssLink), "PLANTUML-XSS-LINK", "javascript:"),
-    (DiagramI18nViolation::I18n(I18nViolation::InvalidIcuSyntax), "I18N-INVALID-ICU-SYNTAX", "other"),
-    (DiagramI18nViolation::I18n(I18nViolation::PlaceholderMismatch), "I18N-PLACEHOLDER-MISMATCH", "placeholder"),
-    (DiagramI18nViolation::I18n(I18nViolation::EmptyOrFuzzyOrXss), "I18N-EMPTY-OR-FUZZY-OR-XSS", "fuzzy"),
+const CASES: &[Case] = &[
+    case(DiagramI18nViolation::Mermaid(MermaidViolation::UnknownOrEmptyDiagram), "MERMAID-UNKNOWN-OR-EMPTY-DIAGRAM", "flowchart"),
+    case(DiagramI18nViolation::Mermaid(MermaidViolation::UnclosedBlockOrShape), "MERMAID-UNCLOSED-BLOCK-OR-SHAPE", "subgraph"),
+    case(DiagramI18nViolation::Mermaid(MermaidViolation::ReservedEndNode), "MERMAID-RESERVED-END-NODE", "END_NODE"),
+    case(DiagramI18nViolation::Mermaid(MermaidViolation::SpaghettiComplexity), "MERMAID-SPAGHETTI-COMPLEXITY", "max_nodes"),
+    case(DiagramI18nViolation::Mermaid(MermaidViolation::UnsafeSecurityOrXss), "MERMAID-UNSAFE-SECURITY-OR-XSS", "securityLevel"),
+    case(DiagramI18nViolation::PlantUml(PlantUmlViolation::UnbalancedStructure), "PLANTUML-UNBALANCED-STRUCTURE", "@end"),
+    case(DiagramI18nViolation::PlantUml(PlantUmlViolation::SsrfOrLocalLeak), "PLANTUML-SSRF-OR-LOCAL-LEAK", "%getenv"),
+    case(DiagramI18nViolation::PlantUml(PlantUmlViolation::BrokenInclude), "PLANTUML-BROKEN-INCLUDE", "!include"),
+    case(DiagramI18nViolation::PlantUml(PlantUmlViolation::XssLink), "PLANTUML-XSS-LINK", "javascript:"),
+    case(DiagramI18nViolation::I18n(I18nViolation::InvalidIcuSyntax), "I18N-INVALID-ICU-SYNTAX", "other"),
+    case(DiagramI18nViolation::I18n(I18nViolation::PlaceholderMismatch), "I18N-PLACEHOLDER-MISMATCH", "placeholder"),
+    case(DiagramI18nViolation::I18n(I18nViolation::EmptyOrFuzzyOrXss), "I18N-EMPTY-OR-FUZZY-OR-XSS", "fuzzy"),
 ];
 
 #[test]
 fn diagram_and_i18n_violations_expose_exact_codes_display_and_remediations() {
-    for &(v, code, needle) in CASES {
-        assert_eq!(v.code(), code);
-        assert_eq!(format!("{v}"), code);
-        assert!(v.remediation().contains(needle));
+    for c in CASES {
+        assert_eq!(c.violation.code(), c.code);
+        assert_eq!(format!("{}", c.violation), c.code);
+        assert!(c.violation.remediation().contains(c.needle));
     }
 }
 

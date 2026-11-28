@@ -75,24 +75,31 @@ const d2 = import(`./${dynName}.js`);
 declare module \"amb\" { export {} from \"\"; export { X } from \"./amb_re.js\"; }
 ";
 
+#[derive(Debug, PartialEq, Eq)]
+struct ImpRow<'a> {
+    src: &'a str,
+    type_only: bool,
+    syms: Vec<&'a str>,
+}
+
+fn imp<'a>(src: &'a str, type_only: bool, syms: &[&'a str]) -> ImpRow<'a> {
+    ImpRow {
+        src,
+        type_only,
+        syms: syms.to_vec(),
+    }
+}
+
 #[test]
 fn style_leaks_colors_css_units_assets_and_translations_are_exact() -> Res {
     let doc = parse_source(&RepoPath::new("src/style_probe.ts")?, STYLE_PROBE_TS)?;
     assert_eq!(
         doc.asset_refs,
-        BTreeSet::from([
-            String::from("./logo.svg"),
-            String::from("/assets/bg.png"),
-            String::from("/img/hero.webp"),
-        ])
+        BTreeSet::from(["./logo.svg", "/assets/bg.png", "/img/hero.webp"].map(String::from))
     );
     assert_eq!(
         doc.translation_keys_used,
-        BTreeSet::from([
-            String::from("cta.go"),
-            String::from("home.title"),
-            String::from("nav.back"),
-        ])
+        BTreeSet::from(["cta.go", "home.title", "nav.back"].map(String::from))
     );
     let kinds: Vec<StyleLeakKind> = doc.style_leaks.iter().map(|s| s.kind).collect();
     let mut expected = vec![
@@ -113,33 +120,31 @@ fn style_leaks_colors_css_units_assets_and_translations_are_exact() -> Res {
 #[test]
 fn ts_module_imports_reexports_and_declaration_merging_edges_are_exact() -> Res {
     let doc = parse_source(&RepoPath::new("src/mod_edges.ts")?, MOD_EDGES_TS)?;
-    let imp_summary: Vec<(&str, bool, Vec<&str>)> = doc
+    let imp_summary: Vec<ImpRow<'_>> = doc
         .imports
         .iter()
-        .map(|i| {
-            (
-                i.module_source.as_str(),
-                i.is_type_only,
-                i.symbols.iter().map(String::as_str).collect(),
-            )
+        .map(|i| ImpRow {
+            src: i.module_source.as_str(),
+            type_only: i.is_type_only,
+            syms: i.symbols.iter().map(String::as_str).collect(),
         })
         .collect();
     assert_eq!(
         imp_summary,
         vec![
-            ("./polyfill.js", false, vec![]),
-            ("./def.js", false, vec!["Def"]),
-            ("./ns.js", false, vec![]),
-            ("./tns.js", true, vec![]),
-            ("./kw_val.js", false, vec!["type"]),
-            ("./only_t.js", true, vec!["OnlyT"]),
-            ("./mixed.js", false, vec!["T1", "liveVal"]),
-            ("./def_mixed.js", false, vec!["Def2", "T2"]),
-            ("./re_mix.js", false, vec!["alpha", "Beta"]),
-            ("./re_pure.js", true, vec!["PureRe"]),
-            ("./re_grp.js", true, vec!["GroupRe"]),
-            ("./dyn_ok.js", false, vec![]),
-            ("./amb_re.js", true, vec![]),
+            imp("./polyfill.js", false, &[]),
+            imp("./def.js", false, &["Def"]),
+            imp("./ns.js", false, &[]),
+            imp("./tns.js", true, &[]),
+            imp("./kw_val.js", false, &["type"]),
+            imp("./only_t.js", true, &["OnlyT"]),
+            imp("./mixed.js", false, &["T1", "liveVal"]),
+            imp("./def_mixed.js", false, &["Def2", "T2"]),
+            imp("./re_mix.js", false, &["alpha", "Beta"]),
+            imp("./re_pure.js", true, &["PureRe"]),
+            imp("./re_grp.js", true, &["GroupRe"]),
+            imp("./dyn_ok.js", false, &[]),
+            imp("./amb_re.js", true, &[]),
         ]
     );
     let exp_summary: Vec<(&str, bool)> = doc

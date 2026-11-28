@@ -30,11 +30,13 @@ fn arbitrary_sql_dollar_quotes_and_triggers_never_panic_across_dialects() -> Res
         SqlDialectKind::Generic,
     ];
     let strat = (
-        0usize..dialects.len(),
-        "[A-Za-z0-9_;$'\"()=<>!*+\\-\n ]{0,220}",
+        (
+            0usize..dialects.len(),
+            "[A-Za-z0-9_;$'\"()=<>!*+\\-\n ]{0,220}",
+        ),
         prop::bool::ANY,
     );
-    tr.run(&strat, |(d_idx, raw_sql, is_mig)| {
+    tr.run(&strat, |((d_idx, raw_sql), is_mig)| {
         let path_str = if is_mig {
             "migrations/0001_fuzz.sql"
         } else {
@@ -80,9 +82,9 @@ fn postgres_index_concurrency_satisfies_new_vs_existing_table_invariant() -> Res
                 | "default"
         )
     });
-    let strat = (ident.clone(), ident.clone(), ident, prop::bool::ANY);
+    let strat = ((ident.clone(), ident.clone()), (ident, prop::bool::ANY));
 
-    tr.run(&strat, |(tbl, col, idx, concurrently)| {
+    tr.run(&strat, |((tbl, col), (idx, concurrently))| {
         let conc_kw = if concurrently { "CONCURRENTLY " } else { "" };
         let new_tbl_sql = format!(
             "CREATE TABLE {tbl} ({col} BIGINT NOT NULL);\nCREATE INDEX {idx} ON {tbl} ({col});\n"

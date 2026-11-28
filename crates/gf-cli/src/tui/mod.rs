@@ -40,7 +40,9 @@ pub use self::{
         UninstallChoice, UninstallWizardModel, UninstallWizardOutcome, UninstallWizardStep,
         render_uninstall_wizard,
     },
-    wizard_data::{ARCHETYPE_CHOICES, FEATURE_CHOICES, StackToken, stack_choices_for},
+    wizard_data::{
+        ARCHETYPE_CHOICES, ArchetypeChoice, FEATURE_CHOICES, StackToken, stack_choices_for,
+    },
     wizard_preview::preview_init_files,
     wizard_state::WizardModel,
     wizard_types::{

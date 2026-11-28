@@ -33,26 +33,38 @@ fn dispatch_fenced(kind: FencedKind, buf: &str, body_start: u32, out: &mut Vec<L
     }
 }
 
+struct ActiveFence {
+    kind: FencedKind,
+    fence_len: usize,
+    body_start: u32,
+    buf: String,
+}
+
 fn scan_fenced_diagrams(source: &str, base_line: u32, out: &mut Vec<LangRuleFinding>) {
-    let mut active: Option<(FencedKind, usize, u32, String)> = None;
+    let mut active: Option<ActiveFence> = None;
     for (idx, line) in source.lines().enumerate() {
         let ln = base_line.saturating_add(u32::try_from(idx).unwrap_or(0));
         let trimmed = line.trim_start();
         let ticks = trimmed.bytes().take_while(|&b| b == b'`').count();
-        if let Some((kind, fence_len, body_start, ref mut buf)) = active {
-            if ticks >= fence_len && trimmed[ticks..].trim().is_empty() {
-                dispatch_fenced(kind, buf, body_start, out);
+        if let Some(ref mut fence) = active {
+            if ticks >= fence.fence_len && trimmed[ticks..].trim().is_empty() {
+                dispatch_fenced(fence.kind, &fence.buf, fence.body_start, out);
                 active = None;
                 continue;
             }
-            buf.push_str(line);
-            buf.push('\n');
+            fence.buf.push_str(line);
+            fence.buf.push('\n');
             continue;
         }
         if ticks >= 3
             && let Some(kind) = classify_fence_info(&trimmed[ticks..])
         {
-            active = Some((kind, ticks, ln.saturating_add(1), String::new()));
+            active = Some(ActiveFence {
+                kind,
+                fence_len: ticks,
+                body_start: ln.saturating_add(1),
+                buf: String::new(),
+            });
         }
     }
 }

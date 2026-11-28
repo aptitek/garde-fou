@@ -196,26 +196,29 @@ fn every_context_combination_produces_single_h1_agents_md() -> Result<(), String
     ];
     let cfg = Config::strict_defaults();
     let mut tr = runner();
-    tr.run(&(0u8..8u8, 0u16..512u16, 0u8..64u8), |(l_m, f_m, fw_m)| {
-        let mut ctx = ProjectContext::default();
-        for (i, &l) in all_langs.iter().enumerate() {
-            if (l_m >> i) & 1 == 1 {
-                ctx.languages.insert(l);
+    tr.run(
+        &((0u8..8u8, 0u16..512u16), 0u8..64u8),
+        |((l_m, f_m), fw_m)| {
+            let mut ctx = ProjectContext::default();
+            for (i, &l) in all_langs.iter().enumerate() {
+                if (l_m >> i) & 1 == 1 {
+                    ctx.languages.insert(l);
+                }
             }
-        }
-        for (i, &f) in all_feats.iter().enumerate() {
-            if (f_m >> i) & 1 == 1 {
-                ctx.features.insert(f);
+            for (i, &f) in all_feats.iter().enumerate() {
+                if (f_m >> i) & 1 == 1 {
+                    ctx.features.insert(f);
+                }
             }
-        }
-        for (i, &fw) in all_fws.iter().enumerate() {
-            if (fw_m >> i) & 1 == 1 {
-                ctx.frameworks.insert(fw);
+            for (i, &fw) in all_fws.iter().enumerate() {
+                if (fw_m >> i) & 1 == 1 {
+                    ctx.frameworks.insert(fw);
+                }
             }
-        }
-        let full = merge_agents_md(None, &compose_agents_managed_block(&ctx, &cfg, &[]));
-        prop_assert_eq!(count_h1_outside_fences(&full), 1);
-        Ok(())
-    })
+            let full = merge_agents_md(None, &compose_agents_managed_block(&ctx, &cfg, &[]));
+            prop_assert_eq!(count_h1_outside_fences(&full), 1);
+            Ok(())
+        },
+    )
     .map_err(|e| e.to_string())
 }

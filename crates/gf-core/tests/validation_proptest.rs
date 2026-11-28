@@ -27,11 +27,10 @@ fn runner() -> TestRunner {
 fn validation_collect_all_is_associative_and_identity_preserving() -> Result<(), String> {
     let mut tr = runner();
     let triple = (
-        arb_unit_validation(),
-        arb_unit_validation(),
+        (arb_unit_validation(), arb_unit_validation()),
         arb_unit_validation(),
     );
-    tr.run(&triple, |(a, b, c)| {
+    tr.run(&triple, |((a, b), c)| {
         let left_assoc = a
             .clone()
             .zip_with(b.clone(), |(), ()| ())

@@ -6,6 +6,23 @@ All notable changes to **Garde-fou** (`garde`) are documented in this file.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-11-28
+
+### Added
+
+- **Anonymous Tuple & Unsafe Global Tuple Unpacking Guardrails (`GF073`)**:
+  - Added configurable `[clean_code]` controls `max_tuple_arity` (default `2`, allowing pairs like `(k, v)` and blocking 3+ element anonymous tuples; set `0` to forbid all anonymous tuples) and `forbid_global_tuple_unpacking` (default `true`).
+  - Implemented native AST/record extractors across **Rust**, **Python** (exempting `except (...)`), **TypeScript/JavaScript**, **C#** (including top-level statements), and **Dart 3+** records.
+- **Polyglot 100% Mutation Testing Enforcement (`GF052` / `GF081`)**:
+  - Added canonical mutation-testing stack descriptors (`MutationStackSpec`), `Taskfile.yml` `mutate` scaffolding, `.gitignore` rules, and `AGENTS.md` stack tables for all 8 programming languages: **Rust** (`cargo-mutants`), **TypeScript/JS** (`Stryker`), **Python** (`mutmut`), **Go** (`gremlins`), **Kotlin/JVM** (`PITest`), **C#/.NET** (`Stryker.NET`), **PHP** (`Infection`), and **Dart** (`mutation_test`).
+  - Added native report ingestion for Go `gremlins` JSON, Python `mutmut` JSON, and Kotlin/JVM `PITest` XML alongside `cargo-mutants` and `mutation-testing-elements` (`Stryker` / `Stryker.NET` / `Infection`), plus `GF081` config hardening for `stryker-config.json` and `infection.json`/`infection.json5`.
+  - Raised default enforced mutation kill rate (`DEFAULT_MIN_MUTATION_SCORE` and `--mutants` CLI default) to **100%**.
+
+### Changed
+
+- Refactored all pre-existing 3+ element anonymous tuples across the Garde-fou workspace into named domain structs and nested pairs for 100% self-dogfooding under `GF073` (`max_tuple_arity = 2`).
+- Raised Garde-fou's own `[mutation] min_mutation_score` gate in `garde-fou.toml` from `95%` to `100%`.
+
 ## [0.3.0] - 2026-11-26
 
 ### Added

@@ -6,7 +6,11 @@ use gf_parsers::parse_source_with_context;
 use gf_rules::evaluate_document;
 
 type Res = Result<(), Box<dyn std::error::Error>>;
-type DiagRow = (String, u32, String);
+
+#[derive(Debug, PartialEq, Eq)]
+struct DiagRow {
+    message: String,
+}
 
 fn eval_codes_with_hint(
     path: &str,
@@ -17,7 +21,7 @@ fn eval_codes_with_hint(
     let doc = parse_source_with_context(&RepoPath::new(path)?, src, &cfg.domains, hint)?;
     Ok(evaluate_document(&doc, cfg)
         .into_iter()
-        .map(|d| (d.rule_id, d.span.start_line(), d.message))
+        .map(|d| DiagRow { message: d.message })
         .collect())
 }
 
@@ -54,14 +58,14 @@ fn d1_and_sqlite_triggers_strict_tables_and_autoincrement_are_exact() -> Res {
     assert_eq!(
         d1_diags
             .iter()
-            .filter(|d| d.2.contains("MIG-D1-FORBID-TRANSACTION"))
+            .filter(|d| d.message.contains("MIG-D1-FORBID-TRANSACTION"))
             .count(),
         3
     );
     assert!(
         d1_diags
             .iter()
-            .any(|d| d.2.contains("MIG-SQLITE-AUTOINCREMENT-TRAP"))
+            .any(|d| d.message.contains("MIG-SQLITE-AUTOINCREMENT-TRAP"))
     );
     Ok(())
 }
@@ -82,7 +86,7 @@ fn destructive_ddl_honors_new_tables_down_migrations_and_config_toggle() -> Res 
     assert_eq!(
         destr_diags
             .iter()
-            .filter(|d| d.2.contains("MIG-DESTRUCTIVE-DDL"))
+            .filter(|d| d.message.contains("MIG-DESTRUCTIVE-DDL"))
             .count(),
         4
     );
@@ -117,7 +121,7 @@ fn ts_and_python_embedded_sql_injection_bridge_has_zero_false_positives() -> Res
     );
     let ts_safe_inj: Vec<_> = eval_codes_with_hint("src/repo.ts", ts_safe, None, &cfg)?
         .into_iter()
-        .filter(|d| d.2.contains("SQL-INJECTION-INTERPOLATION"))
+        .filter(|d| d.message.contains("SQL-INJECTION-INTERPOLATION"))
         .collect();
     assert_eq!(ts_safe_inj, Vec::new());
 
@@ -132,7 +136,7 @@ fn ts_and_python_embedded_sql_injection_bridge_has_zero_false_positives() -> Res
     assert_eq!(
         ts_diags
             .iter()
-            .filter(|d| d.2.contains("SQL-INJECTION-INTERPOLATION"))
+            .filter(|d| d.message.contains("SQL-INJECTION-INTERPOLATION"))
             .count(),
         3
     );
@@ -149,7 +153,7 @@ fn ts_and_python_embedded_sql_injection_bridge_has_zero_false_positives() -> Res
     assert_eq!(
         py_diags
             .iter()
-            .filter(|d| d.2.contains("SQL-INJECTION-INTERPOLATION"))
+            .filter(|d| d.message.contains("SQL-INJECTION-INTERPOLATION"))
             .count(),
         3
     );
@@ -172,7 +176,7 @@ fn rust_embedded_sql_injection_bridge_is_exact() -> Res {
     assert_eq!(
         rs_diags
             .iter()
-            .filter(|d| d.2.contains("SQL-INJECTION-INTERPOLATION"))
+            .filter(|d| d.message.contains("SQL-INJECTION-INTERPOLATION"))
             .count(),
         2
     );

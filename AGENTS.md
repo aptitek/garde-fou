@@ -66,8 +66,15 @@ Crate boundaries are enforced by the compiler and architecture tests (`tests/arc
 | `max_struct_bools` | `2` |
 | `min_clone_lines` / `min_clone_nodes` / `min_clone_similarity_pct` | `15` / `40` / `85%` |
 | `max_property_chain` / `max_bool_parameters` | `4` / `1` |
+| `max_tuple_arity` / `forbid_global_tuple_unpacking` | `2` / `true` |
 | `min_line_coverage` (`LCOV`) | `n/a` |
-| `min_mutation_score` (`GF052`) | `95%` |
+| `min_mutation_score` (`GF052`) | `100%` |
+
+## Mutation Testing Stack (`GF052`)
+
+| Language | Runner | Command | Report Path |
+| :--- | :--- | :--- | :--- |
+| `rust` | `cargo-mutants` | `cargo mutants --output mutants.out` | `mutants.out/outcomes.json` |
 
 ## Active Six-Domain Globs
 

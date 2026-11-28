@@ -112,39 +112,53 @@ fn language_ids_and_discovery_flags_are_exact() {
     assert!(!Language::Xml.is_code_analyzed());
 }
 
+struct FormatIssueCase {
+    issue: FormatConfigIssue,
+    tool: ExternalToolKind,
+    key: &'static str,
+}
+
+const fn issue_case(
+    issue: FormatConfigIssue,
+    tool: ExternalToolKind,
+    key: &'static str,
+) -> FormatIssueCase {
+    FormatIssueCase { issue, tool, key }
+}
+
 #[test]
 fn format_tool_config_issues_and_canonical_config_keys_are_exact() {
     let issues = [
-        (
+        issue_case(
             FormatConfigIssue::Stylelint(StylelintConfigIssue::CriticalRuleDisabled),
             ExternalToolKind::Stylelint,
             "rules",
         ),
-        (
+        issue_case(
             FormatConfigIssue::Markdown(MarkdownConfigIssue::DefaultDisabled),
             ExternalToolKind::Rumdl,
             "default",
         ),
-        (
+        issue_case(
             FormatConfigIssue::Markdown(MarkdownConfigIssue::CriticalRuleDisabled),
             ExternalToolKind::Rumdl,
             "disable",
         ),
-        (
+        issue_case(
             FormatConfigIssue::Taplo(TaploConfigIssue::WildcardExcluded),
             ExternalToolKind::Taplo,
             "exclude",
         ),
-        (
+        issue_case(
             FormatConfigIssue::Svgo(SvgoConfigIssue::RemoveScriptsDisabled),
             ExternalToolKind::Xmllint,
             "plugins.removeScripts",
         ),
     ];
-    for (iss, expected_tool, expected_key) in issues {
-        let tcv = ToolConfigViolation::Formats(iss);
-        assert_eq!(tcv.tool(), expected_tool);
-        assert_eq!(tcv.key(), expected_key);
+    for c in issues {
+        let tcv = ToolConfigViolation::Formats(c.issue);
+        assert_eq!(tcv.tool(), c.tool);
+        assert_eq!(tcv.key(), c.key);
         assert!(tcv.remediation().len() >= 15);
     }
 }

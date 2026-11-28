@@ -143,7 +143,8 @@ pub(super) fn audit_stryker_json(file_name: &str, source: &str, doc: &mut UastDo
             return;
         }
     };
-    if parsed
+    let root = parsed.get("stryker-config").unwrap_or(&parsed);
+    if root
         .get("mutate")
         .and_then(serde_json::Value::as_array)
         .is_some_and(Vec::is_empty)
@@ -155,7 +156,7 @@ pub(super) fn audit_stryker_json(file_name: &str, source: &str, doc: &mut UastDo
             String::from("empty `\"mutate\": []` disables all Stryker mutations"),
         );
     }
-    if parsed
+    if root
         .get("thresholds")
         .and_then(|t| t.get("break"))
         .is_some_and(is_disabled_stryker_break)
@@ -167,6 +168,41 @@ pub(super) fn audit_stryker_json(file_name: &str, source: &str, doc: &mut UastDo
             String::from(
                 "`\"thresholds.break\"` must not be `null` or `0` in Stryker configuration",
             ),
+        );
+    }
+}
+
+pub(super) fn audit_infection_json(file_name: &str, source: &str, doc: &mut UastDocument) {
+    let cleaned = strip_jsonc_to_json(source);
+    let parsed: serde_json::Value = match serde_json::from_str(&cleaned) {
+        Ok(v) => v,
+        Err(err) => {
+            doc.syntax_errors.push(SyntaxErrorNode {
+                message: format!("invalid JSON/JSON5 in `{file_name}`: {err}"),
+                span: Span::FIRST,
+            });
+            return;
+        }
+    };
+    if parsed
+        .get("source")
+        .and_then(|s| s.get("directories"))
+        .and_then(serde_json::Value::as_array)
+        .is_some_and(Vec::is_empty)
+    {
+        push_cfg_violation(
+            &mut doc.tool_config_findings,
+            ToolConfigViolation::StrykerWeakened(StrykerConfigIssue::EmptyMutate),
+            line_span_containing(source, "directories"),
+            String::from("empty `source.directories` disables all PHP Infection mutations"),
+        );
+    }
+    if parsed.get("minMsi").is_some_and(is_disabled_stryker_break) {
+        push_cfg_violation(
+            &mut doc.tool_config_findings,
+            ToolConfigViolation::StrykerWeakened(StrykerConfigIssue::DisabledBreakThreshold),
+            line_span_containing(source, "minMsi"),
+            String::from("`minMsi` must not be `null` or `0` in PHP Infection configuration"),
         );
     }
 }

@@ -15,19 +15,42 @@ const TEST_PATH_GLOBS: &[&str] = &[
     "**/test_*.py",
 ];
 
-const TOKEN_SIGNATURES: &[(&str, usize, &str, &str)] = &[
-    ("ghp_", 20, "github-pat", "ghp_****"),
-    (
+struct TokenSignature {
+    prefix: &'static str,
+    min_tail: usize,
+    kind: &'static str,
+    preview: &'static str,
+}
+
+impl TokenSignature {
+    const fn new(
+        prefix: &'static str,
+        min_tail: usize,
+        kind: &'static str,
+        preview: &'static str,
+    ) -> Self {
+        Self {
+            prefix,
+            min_tail,
+            kind,
+            preview,
+        }
+    }
+}
+
+const TOKEN_SIGNATURES: &[TokenSignature] = &[
+    TokenSignature::new("ghp_", 20, "github-pat", "ghp_****"),
+    TokenSignature::new(
         "github_pat_",
         20,
         "github-fine-grained-pat",
         "github_pat_****",
     ),
-    ("glpat-", 16, "gitlab-pat", "glpat-****"),
-    ("sk_live_", 16, "stripe-live-key", "sk_live_****"),
-    ("xoxb-", 15, "slack-bot-token", "xoxb-****"),
-    ("xoxa-", 15, "slack-app-token", "xoxa-****"),
-    ("xoxp-", 15, "slack-user-token", "xoxp-****"),
+    TokenSignature::new("glpat-", 16, "gitlab-pat", "glpat-****"),
+    TokenSignature::new("sk_live_", 16, "stripe-live-key", "sk_live_****"),
+    TokenSignature::new("xoxb-", 15, "slack-bot-token", "xoxb-****"),
+    TokenSignature::new("xoxa-", 15, "slack-app-token", "xoxa-****"),
+    TokenSignature::new("xoxp-", 15, "slack-user-token", "xoxp-****"),
 ];
 
 const SENSITIVE_ASSIGN_KEYS: &[&str] = &[
@@ -86,11 +109,11 @@ fn token_tail_len(tail: &str) -> usize {
 }
 
 fn match_token_prefix(token: &str) -> Option<(&'static str, &'static str)> {
-    for &(prefix, min_tail, kind, preview) in TOKEN_SIGNATURES {
-        if let Some(tail) = token.strip_prefix(prefix)
-            && token_tail_len(tail) >= min_tail
+    for sig in TOKEN_SIGNATURES {
+        if let Some(tail) = token.strip_prefix(sig.prefix)
+            && token_tail_len(tail) >= sig.min_tail
         {
-            return Some((kind, preview));
+            return Some((sig.kind, sig.preview));
         }
     }
     match_aws_access_key(token)

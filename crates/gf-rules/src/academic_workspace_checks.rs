@@ -25,17 +25,19 @@ pub fn check_local_notebook_rules(
     };
     let mut diags = Vec::new();
     let max_cell = config.limits.max_function_lines;
-    for &(cell_idx, eff_lines, span) in &acad.notebook_cell_lines {
-        if eff_lines > max_cell {
+    for cell in &acad.notebook_cell_lines {
+        if cell.effective_lines > max_cell {
             let v = NotebookViolation::OversizedCell;
+            let code = v.code();
+            let msg = format!(
+                "[{code}] [cell #{}] code cell has {} effective lines (max {max_cell})",
+                cell.cell_index, cell.effective_lines
+            );
             diags.push(rule_error(
                 "GF080",
-                format!(
-                    "[{}] [cell #{cell_idx}] code cell has {eff_lines} effective lines (max {max_cell})",
-                    v.code()
-                ),
+                msg,
                 v.remediation(),
-                SourceLoc::new(&doc.path, span),
+                SourceLoc::new(&doc.path, cell.span),
             ));
         }
     }
@@ -236,8 +238,7 @@ fn check_doc_academic_refs(doc: &UastDocument, vault: &VaultIndex<'_>, out: &mut
 
 /// Evaluates workspace-wide Quarto (`QUARTO-*`) and Obsidian (`OBS-*`) reference integrity.
 pub fn check_workspace_academic(docs: &[UastDocument]) -> Validation<(), Diagnostic> {
-    let has_any = docs.iter().any(|d| d.academic.is_some());
-    if !has_any {
+    if !docs.iter().any(|d| d.academic.is_some()) {
         return Validation::Valid(());
     }
     let vault = VaultIndex::build(docs);

@@ -74,32 +74,44 @@ fn web_edge_violation_codes_remediations_and_display_are_distinct() {
     }
 }
 
+struct ConfigIssueCase {
+    issue: WebEdgeConfigIssue,
+    tool: ExternalToolKind,
+    key: &'static str,
+}
+
+const fn config_case(
+    issue: WebEdgeConfigIssue,
+    tool: ExternalToolKind,
+    key: &'static str,
+) -> ConfigIssueCase {
+    ConfigIssueCase { issue, tool, key }
+}
+
 #[rustfmt::skip]
-const EXPECTED_CONFIG_ISSUES: [(WebEdgeConfigIssue, ExternalToolKind, &str); 5] = [
-    (WebEdgeConfigIssue::PandaStrictTokensMissingOrFalse, ExternalToolKind::Tsc, "strictTokens"),
-    (WebEdgeConfigIssue::WranglerInvalidCompatibilityDate, ExternalToolKind::WranglerTypes, "compatibility_date"),
-    (WebEdgeConfigIssue::WranglerPlaintextSecretInVars, ExternalToolKind::WranglerTypes, "vars"),
-    (WebEdgeConfigIssue::WranglerUnguardedRemoteBinding, ExternalToolKind::WranglerTypes, "remote"),
-    (WebEdgeConfigIssue::WranglerMissingNodejsCompat, ExternalToolKind::WranglerTypes, "compatibility_flags"),
+const EXPECTED_CONFIG_ISSUES: [ConfigIssueCase; 5] = [
+    config_case(WebEdgeConfigIssue::PandaStrictTokensMissingOrFalse, ExternalToolKind::Tsc, "strictTokens"),
+    config_case(WebEdgeConfigIssue::WranglerInvalidCompatibilityDate, ExternalToolKind::WranglerTypes, "compatibility_date"),
+    config_case(WebEdgeConfigIssue::WranglerPlaintextSecretInVars, ExternalToolKind::WranglerTypes, "vars"),
+    config_case(WebEdgeConfigIssue::WranglerUnguardedRemoteBinding, ExternalToolKind::WranglerTypes, "remote"),
+    config_case(WebEdgeConfigIssue::WranglerMissingNodejsCompat, ExternalToolKind::WranglerTypes, "compatibility_flags"),
 ];
 
 #[test]
 fn web_edge_config_issues_and_tools_config_metadata_are_exact()
 -> Result<(), Box<dyn std::error::Error>> {
-    for (issue, tool, key) in EXPECTED_CONFIG_ISSUES {
-        assert_eq!((issue.tool(), issue.key()), (tool, key));
-        assert!(issue.remediation().len() >= 30);
-        let tv = ToolConfigViolation::WebEdge(issue);
-        assert_eq!(tv.to_string(), format!("{}:{key}", tool.as_str()));
+    for c in EXPECTED_CONFIG_ISSUES {
+        assert_eq!((c.issue.tool(), c.issue.key()), (c.tool, c.key));
+        assert!(c.issue.remediation().len() >= 30);
+        let tv = ToolConfigViolation::WebEdge(c.issue);
+        assert_eq!(tv.to_string(), format!("{}:{}", c.tool.as_str(), c.key));
         let f = ToolConfigFinding {
             violation: tv,
             span: Span::FIRST,
             message: String::from("cfg"),
         };
-        assert_eq!(
-            (f.tool(), f.key(), f.remediation()),
-            (tool, key, issue.remediation())
-        );
+        assert_eq!((f.tool(), f.key()), (c.tool, c.key));
+        assert_eq!(f.remediation(), c.issue.remediation());
     }
     for name in [
         "panda.config.ts",

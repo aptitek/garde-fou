@@ -101,23 +101,41 @@ fn plsql_package_spec_body_mismatch_and_utplsql_empty_test_gf076()
     Ok(())
 }
 
+struct GoldenDbCase {
+    tag: &'static str,
+    langs: &'static [LanguageId],
+    fws: &'static [FrameworkId],
+}
+
 #[test]
 fn golden_init_for_plsql_postgresql_and_mariadb_pass_with_zero_violations()
 -> Result<(), Box<dyn std::error::Error>> {
-    let cases: [(&str, Vec<LanguageId>, Vec<FrameworkId>); 3] = [
-        ("plsql", vec![LanguageId::PlSql], vec![]),
-        ("pg", vec![LanguageId::Sql], vec![FrameworkId::PostgreSql]),
-        ("mariadb", vec![LanguageId::Sql], vec![FrameworkId::MariaDb]),
+    let cases = [
+        GoldenDbCase {
+            tag: "plsql",
+            langs: &[LanguageId::PlSql],
+            fws: &[],
+        },
+        GoldenDbCase {
+            tag: "pg",
+            langs: &[LanguageId::Sql],
+            fws: &[FrameworkId::PostgreSql],
+        },
+        GoldenDbCase {
+            tag: "mariadb",
+            langs: &[LanguageId::Sql],
+            fws: &[FrameworkId::MariaDb],
+        },
     ];
-    for (tag, langs, fws) in cases {
-        let dir = temp_ws(tag)?;
+    for case in cases {
+        let dir = temp_ws(case.tag)?;
         let req = InitRequest {
             root: dir.clone(),
-            project_name: Some(format!("demo-{tag}")),
+            project_name: Some(format!("demo-{}", case.tag)),
             archetype: None,
-            languages: langs.into_iter().collect::<BTreeSet<_>>(),
+            languages: case.langs.iter().copied().collect::<BTreeSet<_>>(),
             features: BTreeSet::new(),
-            frameworks: fws.into_iter().collect::<BTreeSet<_>>(),
+            frameworks: case.fws.iter().copied().collect::<BTreeSet<_>>(),
             run_git_init: false,
         };
         run_init_with_sync_mode(&req, SkillsFetchMode::Offline)?;
@@ -133,7 +151,8 @@ fn golden_init_for_plsql_postgresql_and_mariadb_pass_with_zero_violations()
         assert_eq!(
             non_tool,
             Vec::<String>::new(),
-            "golden init failed for {tag}"
+            "golden init failed for {}",
+            case.tag
         );
         fs::remove_dir_all(&dir)?;
     }

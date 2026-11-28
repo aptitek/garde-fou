@@ -13,7 +13,10 @@ use pulldown_cmark::{BrokenLink, Event, LinkType, Options, Parser, Tag, TagEnd};
 
 use crate::cst::line_metrics;
 use crate::types::{LanguageExtractor, ParseError};
-use frontmatter::{FrontmatterSplit, LineIndex, heading_level_u8, split_and_validate_frontmatter};
+use frontmatter::{
+    ActiveHeading, ActiveImage, ActiveLink, FrontmatterSplit, LineIndex, heading_level_u8,
+    split_and_validate_frontmatter,
+};
 use mdx_bridge::{inspect_html_or_mdx_tag, scan_mdx_esm_and_expressions};
 use slugger_links::{MdLinkAcc, github_slugify, push_md_issue, scan_reversed_links_outside_code};
 
@@ -26,13 +29,14 @@ const MD_PARSE_OPTS: Options = Options::ENABLE_TABLES
 #[derive(Clone, Copy, Debug, Default)]
 pub struct MarkdownExtractor;
 
+#[derive(Default)]
 struct MdWalkState {
     is_mdx: bool,
     prev_heading: u8,
     h1_count: u32,
-    active_heading: Option<(u8, Span, String)>,
-    active_image: Option<(String, Span, String)>,
-    active_link: Option<(LinkType, String, Span)>,
+    active_heading: Option<ActiveHeading>,
+    active_image: Option<ActiveImage>,
+    active_link: Option<ActiveLink>,
     slug_counts: BTreeMap<String, usize>,
     heading_slugs: BTreeSet<String>,
     fenced_ranges: Vec<(usize, usize)>,
@@ -44,76 +48,70 @@ impl MdWalkState {
     fn new(is_mdx: bool) -> Self {
         Self {
             is_mdx,
-            prev_heading: 0,
-            h1_count: 0,
-            active_heading: None,
-            active_image: None,
-            active_link: None,
-            slug_counts: BTreeMap::new(),
-            heading_slugs: BTreeSet::new(),
-            fenced_ranges: Vec::new(),
-            code_ranges: Vec::new(),
-            acc: MdLinkAcc::default(),
+            ..Self::default()
         }
     }
 
     fn finish_heading(&mut self) {
-        let Some((level, span, text)) = self.active_heading.take() else {
+        let Some(heading) = self.active_heading.take() else {
             return;
         };
-        if level == 1 {
+        if heading.level == 1 {
             self.h1_count = self.h1_count.saturating_add(1);
             if self.h1_count > 1 {
                 push_md_issue(
                     &mut self.acc.issues,
                     MarkdownViolation::HeadingHierarchy,
-                    span,
+                    heading.span,
                     String::from("multiple top-level `# H1` headings in document"),
                 );
             }
         }
-        if self.prev_heading > 0 && level > self.prev_heading.saturating_add(1) {
+        if self.prev_heading > 0 && heading.level > self.prev_heading.saturating_add(1) {
             push_md_issue(
                 &mut self.acc.issues,
                 MarkdownViolation::HeadingHierarchy,
-                span,
-                format!("heading level jump `H{}` -> `H{level}`", self.prev_heading),
+                heading.span,
+                format!(
+                    "heading level jump `H{}` -> `H{}`",
+                    self.prev_heading, heading.level
+                ),
             );
         }
-        self.prev_heading = level;
-        let slug = github_slugify(&text, &mut self.slug_counts);
+        self.prev_heading = heading.level;
+        let slug = github_slugify(&heading.text, &mut self.slug_counts);
         if !slug.is_empty() {
             self.heading_slugs.insert(slug);
         }
     }
 
     fn append_inline_text(&mut self, txt: &str) {
-        if let Some((_, _, h_buf)) = &mut self.active_heading {
-            h_buf.push_str(txt);
+        if let Some(h) = &mut self.active_heading {
+            h.text.push_str(txt);
         }
-        if let Some((_, _, alt_buf)) = &mut self.active_image {
-            alt_buf.push_str(txt);
+        if let Some(img) = &mut self.active_image {
+            img.alt.push_str(txt);
         }
     }
 
     fn handle_start_tag(&mut self, tag: Tag<'_>, range: std::ops::Range<usize>, span: Span) {
         match tag {
             Tag::Heading { level, .. } => {
-                self.active_heading = Some((heading_level_u8(level), span, String::new()));
+                self.active_heading = Some(ActiveHeading::new(heading_level_u8(level), span));
             }
             Tag::CodeBlock(_) => {
                 self.fenced_ranges.push((range.start, range.end));
                 self.code_ranges.push((range.start, range.end));
             }
             Tag::Image { dest_url, .. } => {
-                self.active_image = Some((String::from(dest_url.as_ref()), span, String::new()));
+                self.active_image = Some(ActiveImage::new(&dest_url, span));
             }
             Tag::Link {
                 link_type,
                 dest_url,
                 ..
             } => {
-                self.active_link = Some((link_type, String::from(dest_url.as_ref()), span));
+                self.active_link = Some(ActiveLink::new(link_type, &dest_url, span));
             }
             _ => {}
         }
@@ -123,13 +121,13 @@ impl MdWalkState {
         match end {
             TagEnd::Heading(_) => self.finish_heading(),
             TagEnd::Image => {
-                if let Some((url, sp, alt)) = self.active_image.take() {
-                    self.acc.inspect_image(&alt, &url, sp);
+                if let Some(img) = self.active_image.take() {
+                    self.acc.inspect_image(&img.alt, &img.url, img.span);
                 }
             }
             TagEnd::Link => {
-                if let Some((lt, url, sp)) = self.active_link.take() {
-                    self.acc.inspect_link(lt, &url, sp);
+                if let Some(link) = self.active_link.take() {
+                    self.acc.inspect_link(link.kind, &link.url, link.span);
                 }
             }
             _ => {}

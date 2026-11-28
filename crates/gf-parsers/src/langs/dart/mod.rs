@@ -3,6 +3,7 @@
 pub mod flutter_checks;
 pub mod lexer_and_safety;
 pub mod tool_configs;
+pub mod tuple_checks;
 
 use gf_core::{Language, RepoPath, UastDocument, is_dart_generated_file};
 
@@ -22,6 +23,7 @@ impl LanguageExtractor for DartExtractor {
         }
         lexer_and_safety::analyze_dart(path, source, &mut doc);
         flutter_checks::analyze_flutter(path, source, &mut doc);
+        tuple_checks::analyze_dart_tuples(source, &mut doc);
         Ok(doc)
     }
 }

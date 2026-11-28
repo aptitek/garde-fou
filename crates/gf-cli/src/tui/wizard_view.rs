@@ -1,28 +1,15 @@
 //! Pure Lipgloss view renderer (`render_wizard`) for the 4-step `garde init` wizard.
 
-use std::collections::BTreeSet;
-
 use super::wizard_data::{ARCHETYPE_CHOICES, FEATURE_CHOICES};
 use super::wizard_preview::preview_init_files;
 use super::wizard_state::WizardModel;
-use super::wizard_types::{ConfirmChoice, MultiInputMode, WizardStep};
+use super::wizard_types::{
+    ConfirmChoice, MultiInputMode, MultiPaneSpec, MultiRow, RowState, WizardStep,
+};
 use crate::ui::{
     CardStyle, ColorPolicy, PillRole, Role, TreeSymbol, paint, paint_bold, pill, rounded_card,
     status_tree,
 };
-
-struct MultiPaneSpec<'a> {
-    title: &'a str,
-    empty_msg: &'a str,
-    rows: &'a [(usize, &'a str, &'a str)],
-    selected: &'a BTreeSet<usize>,
-}
-
-#[derive(Clone, Copy)]
-struct RowState {
-    focused: bool,
-    checked: bool,
-}
 
 /// Renders the current viewport of [`WizardModel`] as a pure Lipgloss string.
 #[must_use]
@@ -33,36 +20,38 @@ pub fn render_wizard(model: &WizardModel, policy: ColorPolicy, max_width: usize)
         WizardStep::Features => "ÉTAPE 3/4 · FEATURES & GARDE-FOUS",
         WizardStep::Confirm => "ÉTAPE 4/4 · APERÇU & CONFIRMATION",
     };
-    let header = format!(
-        "{} {}",
-        pill("GARDE INIT", PillRole::BadgeAccent, policy),
-        pill(step_badge, PillRole::BadgeMuted, policy),
-    );
     let body = match model.step {
         WizardStep::Archetype => render_archetype_step(model, policy, max_width),
         WizardStep::Stack => render_stack_step(model, policy, max_width),
         WizardStep::Features => render_features_step(model, policy, max_width),
         WizardStep::Confirm => render_confirm_step(model, policy, max_width),
     };
-    format!("{header}\n{body}")
+    format!(
+        "{} {}\n{body}",
+        pill("GARDE INIT", PillRole::BadgeAccent, policy),
+        pill(step_badge, PillRole::BadgeMuted, policy),
+    )
+}
+
+fn accent_if(active: bool, on: &str, off: &str, policy: ColorPolicy) -> String {
+    if active {
+        paint_bold(on, Role::Accent, policy)
+    } else {
+        String::from(off)
+    }
 }
 
 fn render_archetype_step(m: &WizardModel, policy: ColorPolicy, max_width: usize) -> String {
     let mut lines = Vec::with_capacity(ARCHETYPE_CHOICES.len() * 2);
-    for (idx, (_, title, desc)) in ARCHETYPE_CHOICES.iter().enumerate() {
+    for (idx, choice) in ARCHETYPE_CHOICES.iter().enumerate() {
         let active = idx == m.cursor;
-        let ptr = if active {
-            paint_bold("▸", Role::Accent, policy)
-        } else {
-            String::from(" ")
-        };
-        let label = if active {
-            paint_bold(title, Role::Accent, policy)
-        } else {
-            String::from(*title)
-        };
+        let ptr = accent_if(active, "▸", " ", policy);
+        let label = accent_if(active, choice.title, choice.title, policy);
         lines.push(format!("{ptr} {label}"));
-        lines.push(format!("    {}", paint(desc, Role::Muted, policy)));
+        lines.push(format!(
+            "    {}",
+            paint(choice.description, Role::Muted, policy)
+        ));
     }
     let card = rounded_card(
         Some("Choisissez l'archétype du projet"),
@@ -109,12 +98,12 @@ fn render_multiselect_pane(
     if spec.rows.is_empty() {
         lines.push(paint(spec.empty_msg, Role::Muted, policy));
     }
-    for (pos, &(orig_idx, slug, summary)) in spec.rows.iter().enumerate() {
+    for (pos, row) in spec.rows.iter().enumerate() {
         let st = RowState {
             focused: pos == m.cursor,
-            checked: spec.selected.contains(&orig_idx),
+            checked: spec.selected.contains(&row.orig_idx),
         };
-        lines.push(format_check_row(st, (slug, summary), policy));
+        lines.push(format_check_row(st, (row.slug, row.summary), policy));
     }
     let card = rounded_card(
         Some(spec.title),
@@ -131,10 +120,16 @@ fn render_multiselect_pane(
 }
 
 fn render_stack_step(m: &WizardModel, policy: ColorPolicy, max_width: usize) -> String {
-    let rows: Vec<(usize, &str, &str)> = m
+    let rows: Vec<MultiRow<'_>> = m
         .visible_stack_indices()
         .into_iter()
-        .filter_map(|i| m.stack_options.get(i).map(|t| (i, t.slug(), t.summary())))
+        .filter_map(|i| {
+            m.stack_options.get(i).map(|t| MultiRow {
+                orig_idx: i,
+                slug: t.slug(),
+                summary: t.summary(),
+            })
+        })
         .collect();
     let title = format!("Stack pour `{}`", m.selected_archetype.as_str());
     let spec = MultiPaneSpec {
@@ -147,10 +142,16 @@ fn render_stack_step(m: &WizardModel, policy: ColorPolicy, max_width: usize) -> 
 }
 
 fn render_features_step(m: &WizardModel, policy: ColorPolicy, max_width: usize) -> String {
-    let rows: Vec<(usize, &str, &str)> = m
+    let rows: Vec<MultiRow<'_>> = m
         .visible_feature_indices()
         .into_iter()
-        .filter_map(|i| FEATURE_CHOICES.get(i).map(|(f, d)| (i, f.as_str(), *d)))
+        .filter_map(|i| {
+            FEATURE_CHOICES.get(i).map(|(f, d)| MultiRow {
+                orig_idx: i,
+                slug: f.as_str(),
+                summary: d,
+            })
+        })
         .collect();
     let spec = MultiPaneSpec {
         title: "Features & Garde-fous",
@@ -162,21 +163,13 @@ fn render_features_step(m: &WizardModel, policy: ColorPolicy, max_width: usize) 
 }
 
 fn format_check_row(state: RowState, labels: (&str, &str), policy: ColorPolicy) -> String {
-    let ptr = if state.focused {
-        paint_bold("▸", Role::Accent, policy)
-    } else {
-        String::from(" ")
-    };
+    let ptr = accent_if(state.focused, "▸", " ", policy);
     let mark = if state.checked {
         paint_bold("[✓]", Role::Success, policy)
     } else {
         paint("[ ]", Role::Muted, policy)
     };
-    let name = if state.focused {
-        paint_bold(labels.0, Role::Accent, policy)
-    } else {
-        String::from(labels.0)
-    };
+    let name = accent_if(state.focused, labels.0, labels.0, policy);
     format!(
         "{ptr} {mark} {name}  {}",
         paint(labels.1, Role::Muted, policy)
@@ -184,18 +177,22 @@ fn format_check_row(state: RowState, labels: (&str, &str), policy: ColorPolicy) 
 }
 
 fn format_confirm_prompt(choice: ConfirmChoice, policy: ColorPolicy) -> String {
-    let (yes_btn, no_btn) = if choice == ConfirmChoice::Yes {
-        (
-            pill("Oui", PillRole::BadgeOk, policy),
-            pill("Non", PillRole::BadgeMuted, policy),
-        )
+    let is_yes = choice == ConfirmChoice::Yes;
+    let yes_role = if is_yes {
+        PillRole::BadgeOk
     } else {
-        (
-            pill("Oui", PillRole::BadgeMuted, policy),
-            pill("Non", PillRole::BadgeError, policy),
-        )
+        PillRole::BadgeMuted
     };
-    format!("Initialiser le projet ?  {yes_btn}  {no_btn}")
+    let no_role = if is_yes {
+        PillRole::BadgeMuted
+    } else {
+        PillRole::BadgeError
+    };
+    format!(
+        "Initialiser le projet ?  {}  {}",
+        pill("Oui", yes_role, policy),
+        pill("Non", no_role, policy)
+    )
 }
 
 fn render_confirm_step(m: &WizardModel, policy: ColorPolicy, max_width: usize) -> String {
@@ -203,14 +200,12 @@ fn render_confirm_step(m: &WizardModel, policy: ColorPolicy, max_width: usize) -
     let entries: Vec<(TreeSymbol, String)> = preview_init_files(&req)
         .into_iter()
         .map(|f| {
-            (
-                if f == "garde.lock" {
-                    TreeSymbol::Sealed
-                } else {
-                    TreeSymbol::Created
-                },
-                f,
-            )
+            let sym = if f == "garde.lock" {
+                TreeSymbol::Sealed
+            } else {
+                TreeSymbol::Created
+            };
+            (sym, f)
         })
         .collect();
     let header = format!(

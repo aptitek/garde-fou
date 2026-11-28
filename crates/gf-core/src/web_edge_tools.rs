@@ -156,32 +156,46 @@ pub enum WebEdgeConfigIssue {
     WranglerMissingNodejsCompat,
 }
 
+#[derive(Clone, Copy)]
+struct WebEdgeCfgMeta {
+    tool: ExternalToolKind,
+    key: &'static str,
+    remediation: &'static str,
+}
+
 #[rustfmt::skip]
-const WEB_EDGE_CFG_META: [(ExternalToolKind, &str, &str); 5] = [
-    (ExternalToolKind::Tsc, "strictTokens", "Set `strictTokens: true` (and `strictPropertyValues: true`) inside `defineConfig({ ... })` in `panda.config.*`."),
-    (ExternalToolKind::WranglerTypes, "compatibility_date", "Declare a valid `compatibility_date = \"YYYY-MM-DD\"` in `wrangler.toml` / `wrangler.jsonc`."),
-    (ExternalToolKind::WranglerTypes, "vars", "Never place credentials in `[vars]`; manage secrets via `wrangler secret put` and `.dev.vars`."),
-    (ExternalToolKind::WranglerTypes, "remote", "Remove `remote = true` from default bindings in `wrangler.*` so local dev/tests never mutate production resources."),
-    (ExternalToolKind::WranglerTypes, "compatibility_flags", "Add `\"nodejs_compat\"` to `compatibility_flags` in `wrangler.*` when importing `node:*` built-in modules."),
+impl WebEdgeCfgMeta {
+    const fn new(tool: ExternalToolKind, key: &'static str, remediation: &'static str) -> Self {
+        Self { tool, key, remediation }
+    }
+}
+
+#[rustfmt::skip]
+const WEB_EDGE_CFG_META: [WebEdgeCfgMeta; 5] = [
+    WebEdgeCfgMeta::new(ExternalToolKind::Tsc, "strictTokens", "Set `strictTokens: true` (and `strictPropertyValues: true`) inside `defineConfig({ ... })` in `panda.config.*`."),
+    WebEdgeCfgMeta::new(ExternalToolKind::WranglerTypes, "compatibility_date", "Declare a valid `compatibility_date = \"YYYY-MM-DD\"` in `wrangler.toml` / `wrangler.jsonc`."),
+    WebEdgeCfgMeta::new(ExternalToolKind::WranglerTypes, "vars", "Never place credentials in `[vars]`; manage secrets via `wrangler secret put` and `.dev.vars`."),
+    WebEdgeCfgMeta::new(ExternalToolKind::WranglerTypes, "remote", "Remove `remote = true` from default bindings in `wrangler.*` so local dev/tests never mutate production resources."),
+    WebEdgeCfgMeta::new(ExternalToolKind::WranglerTypes, "compatibility_flags", "Add `\"nodejs_compat\"` to `compatibility_flags` in `wrangler.*` when importing `node:*` built-in modules."),
 ];
 
 impl WebEdgeConfigIssue {
     /// Ecosystem tool associated with this configuration violation.
     #[must_use]
     pub const fn tool(self) -> ExternalToolKind {
-        WEB_EDGE_CFG_META[self as usize].0
+        WEB_EDGE_CFG_META[self as usize].tool
     }
 
     /// Canonical configuration key path.
     #[must_use]
     pub const fn key(self) -> &'static str {
-        WEB_EDGE_CFG_META[self as usize].1
+        WEB_EDGE_CFG_META[self as usize].key
     }
 
     /// Actionable root-cause remediation snippet.
     #[must_use]
     pub const fn remediation(self) -> &'static str {
-        WEB_EDGE_CFG_META[self as usize].2
+        WEB_EDGE_CFG_META[self as usize].remediation
     }
 }
 

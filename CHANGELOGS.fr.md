@@ -6,6 +6,23 @@ Tous les changements notables apportés à **Garde-fou** (`garde`) sont document
 
 Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) et [Semantic Versioning](https://semver.org/lang/fr/).
 
+## [0.4.0] - 2026-11-28
+
+### Ajouté
+
+- **Garde-fous Tuples Anonymes & Dépaquetage Global Dangereux (`GF073`)** :
+  - Ajout des paramètres configurables `[clean_code]` `max_tuple_arity` (défaut `2`, autorisant les paires `(k, v)` et bloquant les tuples anonymes de 3+ éléments ; `0` pour tout interdire) et `forbid_global_tuple_unpacking` (défaut `true`).
+  - Extracteurs AST/records natifs pour **Rust**, **Python** (avec exemption `except (...)`), **TypeScript/JavaScript**, **C#** (instructions top-level incluses) et **Dart 3+**.
+- **Forteresse de Tests de Mutation Polyglotte à 100% (`GF052` / `GF081`)** :
+  - Ajout du registre canonique `MutationStackSpec`, des tâches `Taskfile.yml` `mutate`, des entrées `.gitignore` et du tableau `AGENTS.md` pour les 8 langages de programmation : **Rust** (`cargo-mutants`), **TypeScript/JS** (`Stryker`), **Python** (`mutmut`), **Go** (`gremlins`), **Kotlin/JVM** (`PITest`), **C#/.NET** (`Stryker.NET`), **PHP** (`Infection`) et **Dart** (`mutation_test`).
+  - Ajout de l'ingestion native des rapports Go `gremlins` JSON, Python `mutmut` JSON et Kotlin/JVM `PITest` XML en complément de `cargo-mutants` et `mutation-testing-elements` (`Stryker` / `Stryker.NET` / `Infection`), plus durcissement `GF081` de `stryker-config.json` et `infection.json`/`infection.json5`.
+  - Relèvement du taux de destruction de mutants par défaut (`DEFAULT_MIN_MUTATION_SCORE` et défaut CLI `--mutants`) à **100%**.
+
+### Modifié
+
+- Refactorisation de tous les tuples anonymes de 3+ éléments du workspace Garde-fou en structures nommées et paires imbriquées pour un dogfooding à 100% sous `GF073` (`max_tuple_arity = 2`).
+- Relèvement du seuil `[mutation] min_mutation_score` dans `garde-fou.toml` de `95%` à `100%`.
+
 ## [0.3.0] - 2026-11-26
 
 ### Ajouté

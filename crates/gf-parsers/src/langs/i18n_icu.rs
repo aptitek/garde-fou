@@ -14,12 +14,8 @@ fn step_apostrophe(bytes: &[u8], i: usize, in_quoted: &mut bool, out: &mut Strin
         out.push('\'');
         return i + 2;
     }
-    if !*in_quoted && matches!(bytes.get(i + 1), Some(b'{' | b'}' | b'#')) {
-        *in_quoted = true;
-        return i + 1;
-    }
-    if *in_quoted {
-        *in_quoted = false;
+    if *in_quoted || matches!(bytes.get(i + 1), Some(b'{' | b'}' | b'#')) {
+        *in_quoted = !*in_quoted;
         return i + 1;
     }
     out.push('\'');
@@ -105,7 +101,8 @@ fn validate_plural_select_branches(
     src: &str,
     vars: &mut BTreeSet<String>,
 ) -> Result<(), String> {
-    let (mut has_other, mut idx, bytes) = (false, 0usize, src.as_bytes());
+    let (mut has_other, mut idx) = (false, 0usize);
+    let bytes = src.as_bytes();
     while idx < bytes.len() {
         idx = skip_ws(bytes, idx);
         if idx >= bytes.len() {
@@ -225,10 +222,11 @@ pub fn audit_translation_value(
 ) -> BTreeSet<String> {
     let mut placeholders = BTreeSet::new();
     let low = val.to_ascii_lowercase();
-    let is_xss = ["<script", "javascript:", "onerror="]
-        .iter()
-        .any(|p| low.contains(p));
-    if val.trim().is_empty() || is_xss {
+    if val.trim().is_empty()
+        || ["<script", "javascript:", "onerror="]
+            .iter()
+            .any(|p| low.contains(p))
+    {
         let msg = format!("translation `{key}` is empty or contains XSS markup");
         out.push(LangRuleFinding::new(
             I18nViolation::EmptyOrFuzzyOrXss,

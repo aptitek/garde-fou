@@ -1,9 +1,31 @@
 //! Leaf types (`WizardTriggerEnv`, `WizardStep`, `WizardOutcome`, `WizardTransition`)
 //! and strict trigger rule (`should_launch_init_wizard`) for the `garde init` wizard.
 
+use std::collections::BTreeSet;
+
 use gf_engine::InitRequest;
 
 use crate::args::InitArgs;
+
+#[derive(Clone, Copy)]
+pub(super) struct MultiRow<'a> {
+    pub(super) orig_idx: usize,
+    pub(super) slug: &'a str,
+    pub(super) summary: &'a str,
+}
+
+pub(super) struct MultiPaneSpec<'a> {
+    pub(super) title: &'a str,
+    pub(super) empty_msg: &'a str,
+    pub(super) rows: &'a [MultiRow<'a>],
+    pub(super) selected: &'a BTreeSet<usize>,
+}
+
+#[derive(Clone, Copy)]
+pub(super) struct RowState {
+    pub(super) focused: bool,
+    pub(super) checked: bool,
+}
 
 /// Environment signals determining whether `garde init` launches interactively.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]

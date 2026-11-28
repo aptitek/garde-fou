@@ -116,7 +116,8 @@ fn count_plsql_params(text: &str) -> u32 {
 }
 
 fn compute_complexity(text: &str) -> (u32, u32) {
-    let (mut cyclo, mut cog, mut depth) = (1u32, 0u32, 0u32);
+    let mut cyclo = 1u32;
+    let (mut cog, mut depth) = (0u32, 0u32);
     for line in text.lines() {
         let up = line
             .split("--")
@@ -145,35 +146,53 @@ fn compute_complexity(text: &str) -> (u32, u32) {
     (cyclo, cog)
 }
 
-fn unit_to_callable(unit: &PlSqlUnit) -> CallableDecl {
+pub(super) struct SqlCallableSpec<'a> {
+    pub(super) name: &'a str,
+    pub(super) text: &'a str,
+    pub(super) start_line: u32,
+    pub(super) end_line: u32,
+    pub(super) param_count: u32,
+    pub(super) cyclo: u32,
+    pub(super) cog: u32,
+    pub(super) max_depth: u32,
+}
+
+pub(super) fn build_sql_callable(s: &SqlCallableSpec<'_>) -> CallableDecl {
     let eff = u32::try_from(
-        unit.text
+        s.text
             .lines()
-            .filter(|l| {
-                let t = l.trim();
-                !t.is_empty() && !t.starts_with("--")
-            })
+            .filter(|l| !l.trim().is_empty() && !l.trim_start().starts_with("--"))
             .count(),
     )
     .unwrap_or(u32::MAX);
-    let (cyclo, cog) = compute_complexity(&unit.text);
+    let start = s.start_line.max(1);
     CallableDecl {
-        name: unit.name.clone(),
+        name: String::from(s.name),
         kind: CallableKind::Function,
-        span: Span::new(
-            unit.start_line.max(1),
-            unit.end_line.max(unit.start_line.max(1)),
-        )
-        .unwrap_or(Span::FIRST),
+        span: Span::new(start, s.end_line.max(start)).unwrap_or(Span::FIRST),
         effective_lines: eff,
-        param_count: count_plsql_params(&unit.text),
-        cyclomatic_complexity: cyclo,
-        cognitive_complexity: cog,
-        max_nesting_depth: 0,
+        param_count: s.param_count,
+        cyclomatic_complexity: s.cyclo,
+        cognitive_complexity: s.cog,
+        max_nesting_depth: s.max_depth,
         structural_hash: None,
         shingle_sketch: None,
         ast_node_count: eff,
     }
+}
+
+fn unit_to_callable(unit: &PlSqlUnit) -> CallableDecl {
+    let (cyclo, cog) = compute_complexity(&unit.text);
+    build_sql_callable(&SqlCallableSpec {
+        name: &unit.name,
+        text: &unit.text,
+        start_line: unit.start_line,
+        end_line: unit.end_line,
+        param_count: count_plsql_params(&unit.text),
+        cyclo,
+        cog,
+        max_depth: 0,
+    })
 }
 
 /// Parses segmented Oracle PL/SQL units, populating `SqlDocument` package maps and UAST callables.

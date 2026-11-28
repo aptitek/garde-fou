@@ -102,16 +102,13 @@ fn arbitrary_utf8_never_panics_tool_output_and_config_parsers() -> Result<(), St
 fn convert_external_tool_findings_is_idempotent_sorted_and_one_based() -> Result<(), String> {
     let mut tr = runner();
     let strat = (
-        0..ExternalToolId::ALL.len(),
-        0u32..500u32,
-        0u32..200u32,
-        "[a-zA-Z0-9_-]{0,16}",
-        "[a-zA-Z0-9 _.-]{1,32}",
+        ((0..ExternalToolId::ALL.len(), 0u32..500u32), 0u32..200u32),
+        ("[a-zA-Z0-9_-]{0,16}", "[a-zA-Z0-9 _.-]{1,32}"),
     );
 
     tr.run(&prop::collection::vec(strat, 1..10), |items| {
         let mut findings = Vec::new();
-        for (tool_idx, line, col, code, msg) in items {
+        for (((tool_idx, line), col), (code, msg)) in items {
             let path =
                 RepoPath::new("src/app.py").map_err(|e| TestCaseError::fail(e.to_string()))?;
             findings.push(ExternalToolFinding {

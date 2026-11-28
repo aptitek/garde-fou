@@ -2,12 +2,14 @@
 //! and local YAGNI (`GF074`: wildcard re-exports & excessive boolean parameters).
 
 mod demeter;
+mod tuples;
 
 use gf_core::{KissYagniFinding, KissYagniKind, UastDocument};
 use tree_sitter::Node;
 
 use crate::cst::{field_name_string, node_span, node_text};
 use demeter::measure_outermost_property_chain;
+use tuples::check_tuple_kiss;
 
 const FN_BOUNDARIES: &[&str] = &[
     "function_item",
@@ -195,6 +197,7 @@ fn walk_kiss(node: Node<'_>, source: &str, doc: &mut UastDocument) {
     }
     check_wildcard_export(node, source, doc);
     check_callable_bool_params(node, source, doc);
+    check_tuple_kiss(node, source, doc);
 
     let mut cursor = node.walk();
     for child in node.children(&mut cursor) {

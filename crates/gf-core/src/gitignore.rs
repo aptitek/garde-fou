@@ -33,7 +33,12 @@ const BASE_GARDE_FOU_COV: &[&str] = &[
     "mutants.out*/",
     "reports/mutation/",
     ".stryker-tmp/",
+    "StrykerOutput/",
     ".mutmut-cache",
+    "build/reports/pitest/",
+    "gremlins-report.json",
+    "infection-report.json",
+    "infection*.log",
 ];
 
 const BASE_SECRETS_ENV: &[&str] = &[".env", ".env.*", "!.env.example", "*.pem", "*.key"];
@@ -61,12 +66,22 @@ fn append_section(out: &mut String, title: &str, entries: &[&str], seen: &mut BT
 }
 
 #[rustfmt::skip]
-const LANG_IGNORES: &[(LanguageId, &str, &[&str])] = &[
-    (LanguageId::Rust, "Rust", &["/target/", "**/*.rs.bk"]),
-    (LanguageId::Python, "Python", &[".venv/", "__pycache__/", "*.py[cod]", ".pytest_cache/", ".mypy_cache/", ".ruff_cache/"]),
-    (LanguageId::Go, "Go", &["bin/", "*.test", "*.out"]),
-    (LanguageId::Kotlin, "Kotlin / Gradle", &[".gradle/", "build/", ".kotlin/"]),
-    (LanguageId::CSharp, "C# / .NET", &["bin/", "obj/", "*.user"]),
+struct IgnoreSpec<K: Copy> { key: K, title: &'static str, entries: &'static [&'static str] }
+
+#[rustfmt::skip]
+impl<K: Copy> IgnoreSpec<K> {
+    const fn new(key: K, title: &'static str, entries: &'static [&'static str]) -> Self {
+        Self { key, title, entries }
+    }
+}
+
+#[rustfmt::skip]
+const LANG_IGNORES: &[IgnoreSpec<LanguageId>] = &[
+    IgnoreSpec::new(LanguageId::Rust, "Rust", &["/target/", "**/*.rs.bk"]),
+    IgnoreSpec::new(LanguageId::Python, "Python", &[".venv/", "__pycache__/", "*.py[cod]", ".pytest_cache/", ".mypy_cache/", ".ruff_cache/"]),
+    IgnoreSpec::new(LanguageId::Go, "Go", &["bin/", "*.test", "*.out"]),
+    IgnoreSpec::new(LanguageId::Kotlin, "Kotlin / Gradle", &[".gradle/", "build/", ".kotlin/"]),
+    IgnoreSpec::new(LanguageId::CSharp, "C# / .NET", &["bin/", "obj/", "*.user"]),
 ];
 
 fn append_language_sections(out: &mut String, ctx: &ProjectContext, seen: &mut BTreeSet<String>) {
@@ -88,32 +103,32 @@ fn append_language_sections(out: &mut String, ctx: &ProjectContext, seen: &mut B
             seen,
         );
     }
-    for (lang, title, entries) in LANG_IGNORES {
-        if ctx.languages.contains(lang) {
-            append_section(out, title, entries, seen);
+    for spec in LANG_IGNORES {
+        if ctx.languages.contains(&spec.key) {
+            append_section(out, spec.title, spec.entries, seen);
         }
     }
 }
 
 #[rustfmt::skip]
-const FRAMEWORK_IGNORES: &[(FrameworkId, &str, &[&str])] = &[
-    (FrameworkId::Astro, "Astro", &[".astro/"]),
-    (FrameworkId::NextJs, "Next.js", &[".next/", "out/"]),
-    (FrameworkId::ReactRouter, "React Router", &[".react-router/", "build/"]),
-    (FrameworkId::CloudflareWorkers, "Cloudflare Workers", &[".wrangler/", ".dev.vars"]),
-    (FrameworkId::Django, "Django", &["db.sqlite3", "staticfiles/"]),
-    (FrameworkId::Jupyter, "Jupyter", &[".ipynb_checkpoints/", "/.virtual_documents/"]),
-    (FrameworkId::Quarto, "Quarto", &["/.quarto/", "/_site/", "/_book/", "/*_files/"]),
-    (FrameworkId::Obsidian, "Obsidian", &[".obsidian/workspace.json", ".obsidian/workspace-mobile.json", ".obsidian/cache", ".trash/"]),
+const FRAMEWORK_IGNORES: &[IgnoreSpec<FrameworkId>] = &[
+    IgnoreSpec::new(FrameworkId::Astro, "Astro", &[".astro/"]),
+    IgnoreSpec::new(FrameworkId::NextJs, "Next.js", &[".next/", "out/"]),
+    IgnoreSpec::new(FrameworkId::ReactRouter, "React Router", &[".react-router/", "build/"]),
+    IgnoreSpec::new(FrameworkId::CloudflareWorkers, "Cloudflare Workers", &[".wrangler/", ".dev.vars"]),
+    IgnoreSpec::new(FrameworkId::Django, "Django", &["db.sqlite3", "staticfiles/"]),
+    IgnoreSpec::new(FrameworkId::Jupyter, "Jupyter", &[".ipynb_checkpoints/", "/.virtual_documents/"]),
+    IgnoreSpec::new(FrameworkId::Quarto, "Quarto", &["/.quarto/", "/_site/", "/_book/", "/*_files/"]),
+    IgnoreSpec::new(FrameworkId::Obsidian, "Obsidian", &[".obsidian/workspace.json", ".obsidian/workspace-mobile.json", ".obsidian/cache", ".trash/"]),
 ];
 
 fn append_framework_sections(out: &mut String, ctx: &ProjectContext, seen: &mut BTreeSet<String>) {
     if ctx.languages.contains(&LanguageId::Astro) {
         append_section(out, "Astro", &[".astro/"], seen);
     }
-    for &(fw, title, entries) in FRAMEWORK_IGNORES {
-        if ctx.frameworks.contains(&fw) {
-            append_section(out, title, entries, seen);
+    for spec in FRAMEWORK_IGNORES {
+        if ctx.frameworks.contains(&spec.key) {
+            append_section(out, spec.title, spec.entries, seen);
         }
     }
     if ctx.features.contains(&FeatureId::PandaCss) {

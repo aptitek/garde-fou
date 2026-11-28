@@ -5,7 +5,18 @@ use alloc::string::String;
 
 pub use crate::coverage::{FileCoverage, LcovSummary, compute_crap_score};
 
-type BranchKey = (u32, String, String);
+#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
+struct BranchKey {
+    line: u32,
+    block: String,
+    branch: String,
+}
+
+struct LineMetrics {
+    found: u32,
+    hit: u32,
+    executed: BTreeSet<u32>,
+}
 
 #[derive(Default)]
 struct FileAccumulator {
@@ -38,21 +49,23 @@ impl FileAccumulator {
     }
 
     fn into_file_coverage(self) -> FileCoverage {
-        let (lines_found, lines_hit, executed_lines) = if self.da_hits.is_empty() {
-            (
-                self.fallback_lf,
-                self.fallback_lh.min(self.fallback_lf),
-                BTreeSet::new(),
-            )
+        let lines = if self.da_hits.is_empty() {
+            LineMetrics {
+                found: self.fallback_lf,
+                hit: self.fallback_lh.min(self.fallback_lf),
+                executed: BTreeSet::new(),
+            }
         } else {
-            let exec: BTreeSet<u32> = self
+            let executed: BTreeSet<u32> = self
                 .da_hits
                 .iter()
                 .filter_map(|(&ln, &h)| (h > 0).then_some(ln))
                 .collect();
-            let found = u32::try_from(self.da_hits.len()).unwrap_or(u32::MAX);
-            let hit = u32::try_from(exec.len()).unwrap_or(u32::MAX);
-            (found, hit, exec)
+            LineMetrics {
+                found: u32::try_from(self.da_hits.len()).unwrap_or(u32::MAX),
+                hit: u32::try_from(executed.len()).unwrap_or(u32::MAX),
+                executed,
+            }
         };
 
         let (branches_found, branches_hit) = if self.brda_hits.is_empty() {
@@ -65,11 +78,11 @@ impl FileAccumulator {
         };
 
         FileCoverage {
-            lines_found,
-            lines_hit,
+            lines_found: lines.found,
+            lines_hit: lines.hit,
             branches_found,
             branches_hit,
-            executed_lines,
+            executed_lines: lines.executed,
             line_hits: self.da_hits,
         }
     }
@@ -97,11 +110,10 @@ fn parse_da_line(rest: &str, da_hits: &mut BTreeMap<u32, u64>) {
 
 fn parse_brda_line(rest: &str, brda_hits: &mut BTreeMap<BranchKey, u64>) {
     let mut parts = rest.splitn(4, ',');
-    let (Some(line_s), Some(block_s), Some(branch_s), Some(taken_s)) =
-        (parts.next(), parts.next(), parts.next(), parts.next())
-    else {
-        return;
-    };
+    let Some(line_s) = parts.next() else { return };
+    let Some(block_s) = parts.next() else { return };
+    let Some(branch_s) = parts.next() else { return };
+    let Some(taken_s) = parts.next() else { return };
     let taken_trimmed = taken_s.trim();
     if taken_trimmed == "-" {
         return;
@@ -109,11 +121,11 @@ fn parse_brda_line(rest: &str, brda_hits: &mut BTreeMap<BranchKey, u64>) {
     if let (Ok(line_no), Ok(taken)) = (line_s.trim().parse::<u32>(), taken_trimmed.parse::<u64>())
         && line_no > 0
     {
-        let key = (
-            line_no,
-            String::from(block_s.trim()),
-            String::from(branch_s.trim()),
-        );
+        let key = BranchKey {
+            line: line_no,
+            block: String::from(block_s.trim()),
+            branch: String::from(branch_s.trim()),
+        };
         let entry = brda_hits.entry(key).or_insert(0);
         *entry = entry.saturating_add(taken);
     }

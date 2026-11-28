@@ -1,7 +1,7 @@
 //! `PL/pgSQL` routine UAST metrics (`GF002`–`GF005`, `GF020`) and semantic safety checks
 //! (`PLPGSQL-MISSING-INTO-STRICT`, `PLPGSQL-UNSAFE-DYNAMIC-EXECUTE`).
 
-use gf_core::{CallableDecl, CallableKind, LangRuleFinding, PostgresAdvViolation, Span};
+use gf_core::{CallableDecl, LangRuleFinding, PostgresAdvViolation, Span};
 
 use super::plpgsql_extract::{PlpgsqlBody, extract_plpgsql_bodies};
 
@@ -41,8 +41,17 @@ fn step_plpgsql_branch(up: &str, cyclo: &mut u32, cog: &mut u32, depth: &mut u32
     *depth
 }
 
-fn plpgsql_complexity(body: &str) -> (u32, u32, u32) {
-    let (mut cyclo, mut cog, mut depth, mut max_d) = (1u32, 0u32, 0u32, 0u32);
+struct PlpgsqlComplexity {
+    cyclo: u32,
+    cog: u32,
+    max_depth: u32,
+}
+
+fn plpgsql_complexity(body: &str) -> PlpgsqlComplexity {
+    let mut cyclo = 1u32;
+    let mut cog = 0u32;
+    let mut depth = 0u32;
+    let mut max_depth = 0u32;
     for line in body.lines() {
         let up = line
             .split("--")
@@ -50,34 +59,27 @@ fn plpgsql_complexity(body: &str) -> (u32, u32, u32) {
             .unwrap_or(line)
             .trim()
             .to_ascii_uppercase();
-        max_d = max_d.max(step_plpgsql_branch(&up, &mut cyclo, &mut cog, &mut depth));
+        max_depth = max_depth.max(step_plpgsql_branch(&up, &mut cyclo, &mut cog, &mut depth));
     }
-    (cyclo, cog, max_d)
+    PlpgsqlComplexity {
+        cyclo,
+        cog,
+        max_depth,
+    }
 }
 
 fn measure_plpgsql_callable(b: &PlpgsqlBody) -> CallableDecl {
-    let eff = u32::try_from(
-        b.body
-            .lines()
-            .filter(|l| !l.trim().is_empty() && !l.trim_start().starts_with("--"))
-            .count(),
-    )
-    .unwrap_or(u32::MAX);
-    let (cyclo, cog, max_nesting_depth) = plpgsql_complexity(&b.body);
-    CallableDecl {
-        name: b.name.clone(),
-        kind: CallableKind::Function,
-        span: Span::new(b.header_line.max(1), b.end_line.max(b.header_line.max(1)))
-            .unwrap_or(Span::FIRST),
-        effective_lines: eff,
+    let metrics = plpgsql_complexity(&b.body);
+    super::plsql_ast::build_sql_callable(&super::plsql_ast::SqlCallableSpec {
+        name: &b.name,
+        text: &b.body,
+        start_line: b.header_line,
+        end_line: b.end_line,
         param_count: count_header_params(&b.header),
-        cyclomatic_complexity: cyclo,
-        cognitive_complexity: cog,
-        max_nesting_depth,
-        structural_hash: None,
-        shingle_sketch: None,
-        ast_node_count: eff,
-    }
+        cyclo: metrics.cyclo,
+        cog: metrics.cog,
+        max_depth: metrics.max_depth,
+    })
 }
 
 #[rustfmt::skip]

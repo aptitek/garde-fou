@@ -49,7 +49,17 @@ pub fn classify_shell_argv(argv: &[String]) -> DockerStageShell {
     }
 }
 
-pub fn split_image_ref(spec: &str) -> (String, Option<String>, Option<String>) {
+/// Parsed image name, optional tag, and optional digest from a `FROM` spec.
+pub(super) struct ImageRefParts {
+    /// Image repository/name without tag or digest.
+    pub(super) image: String,
+    /// Optional `:tag` suffix.
+    pub(super) tag: Option<String>,
+    /// Optional `@digest` suffix.
+    pub(super) digest: Option<String>,
+}
+
+pub(super) fn split_image_ref(spec: &str) -> ImageRefParts {
     let (without_digest, digest) = spec.split_once('@').map_or_else(
         || (spec, None),
         |(img, dig)| (img, (!dig.is_empty()).then(|| String::from(dig))),
@@ -59,9 +69,13 @@ pub fn split_image_ref(spec: &str) -> (String, Option<String>, Option<String>) {
     if let Some((head_rel, tag_str)) = tail.split_once(':') {
         let image = String::from(&without_digest[..last_slash + head_rel.len()]);
         let tag = (!tag_str.is_empty()).then(|| String::from(tag_str));
-        (image, tag, digest)
+        ImageRefParts { image, tag, digest }
     } else {
-        (String::from(without_digest), None, digest)
+        ImageRefParts {
+            image: String::from(without_digest),
+            tag: None,
+            digest,
+        }
     }
 }
 

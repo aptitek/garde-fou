@@ -64,38 +64,49 @@ impl StackToken {
     }
 }
 
+/// Static metadata for a selectable archetype option in Step 1 (`Choose`).
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct ArchetypeChoice {
+    /// Target workspace archetype.
+    pub archetype: WorkspaceArchetype,
+    /// Short display title shown in the selector.
+    pub title: &'static str,
+    /// One-line description shown beneath the title.
+    pub description: &'static str,
+}
+
 /// Ordered archetype choices presented in Step 1 (`Choose`).
-pub const ARCHETYPE_CHOICES: [(WorkspaceArchetype, &str, &str); 6] = [
-    (
-        WorkspaceArchetype::Minimal,
-        "Minimal",
-        "Gouvernance sobre sans langage imposé (garde-fou.toml, AGENTS.md, garde.lock)",
-    ),
-    (
-        WorkspaceArchetype::Software,
-        "Software",
-        "Ingénierie logicielle complète et ségrégation stricte des 6 domaines",
-    ),
-    (
-        WorkspaceArchetype::Infra,
-        "Infra / Docker Compose",
-        "Stacks conteneurisées (compose.yaml, Dockerfile, CI durcie)",
-    ),
-    (
-        WorkspaceArchetype::Knowledge,
-        "Knowledge / Obsidian",
-        "Base de connaissances Markdown & JSON Canvas (.obsidian/)",
-    ),
-    (
-        WorkspaceArchetype::Academic,
-        "Academic / Jupyter & Quarto",
-        "Cours et notebooks scientifiques reproductibles (.ipynb, .qmd)",
-    ),
-    (
-        WorkspaceArchetype::Scripts,
-        "Scripts pratico-pratiques",
-        "Automatisation Shell, PowerShell et scripts Python PEP 723",
-    ),
+pub const ARCHETYPE_CHOICES: [ArchetypeChoice; 6] = [
+    ArchetypeChoice {
+        archetype: WorkspaceArchetype::Minimal,
+        title: "Minimal",
+        description: "Gouvernance sobre sans langage imposé (garde-fou.toml, AGENTS.md, garde.lock)",
+    },
+    ArchetypeChoice {
+        archetype: WorkspaceArchetype::Software,
+        title: "Software",
+        description: "Ingénierie logicielle complète et ségrégation stricte des 6 domaines",
+    },
+    ArchetypeChoice {
+        archetype: WorkspaceArchetype::Infra,
+        title: "Infra / Docker Compose",
+        description: "Stacks conteneurisées (compose.yaml, Dockerfile, CI durcie)",
+    },
+    ArchetypeChoice {
+        archetype: WorkspaceArchetype::Knowledge,
+        title: "Knowledge / Obsidian",
+        description: "Base de connaissances Markdown & JSON Canvas (.obsidian/)",
+    },
+    ArchetypeChoice {
+        archetype: WorkspaceArchetype::Academic,
+        title: "Academic / Jupyter & Quarto",
+        description: "Cours et notebooks scientifiques reproductibles (.ipynb, .qmd)",
+    },
+    ArchetypeChoice {
+        archetype: WorkspaceArchetype::Scripts,
+        title: "Scripts pratico-pratiques",
+        description: "Automatisation Shell, PowerShell et scripts Python PEP 723",
+    },
 ];
 
 /// Ordered 12 feature choices presented in Step 3 (`MultiSelect`).

@@ -118,43 +118,57 @@ fn yaml_tool_config_predicates_are_exact() -> Result<(), Box<dyn std::error::Err
     Ok(())
 }
 
+struct YamlIssueCase {
+    issue: YamlCiConfigIssue,
+    tool: ExternalToolKind,
+    key: &'static str,
+}
+
+const fn yaml_case(
+    issue: YamlCiConfigIssue,
+    tool: ExternalToolKind,
+    key: &'static str,
+) -> YamlIssueCase {
+    YamlIssueCase { issue, tool, key }
+}
+
 #[test]
 fn yaml_tool_config_issues_map_to_tools_and_keys() {
-    for (issue, expected_tool, expected_key) in [
-        (
+    for c in [
+        yaml_case(
             YamlCiConfigIssue::Yamllint(YamllintConfigIssue::ExtendsRelaxed),
             ExternalToolKind::Yamllint,
             "extends",
         ),
-        (
+        yaml_case(
             YamlCiConfigIssue::Yamllint(YamllintConfigIssue::TruthyDisabled),
             ExternalToolKind::Yamllint,
             "rules.truthy",
         ),
-        (
+        yaml_case(
             YamlCiConfigIssue::Yamllint(YamllintConfigIssue::KeyDuplicatesDisabled),
             ExternalToolKind::Yamllint,
             "rules.key-duplicates",
         ),
-        (
+        yaml_case(
             YamlCiConfigIssue::Dclint(DclintConfigIssue::CriticalRuleDisabled),
             ExternalToolKind::Dclint,
             "rules",
         ),
-        (
+        yaml_case(
             YamlCiConfigIssue::Dclint(DclintConfigIssue::WildcardExcluded),
             ExternalToolKind::Dclint,
             "exclude",
         ),
-        (
+        yaml_case(
             YamlCiConfigIssue::Zizmor(ZizmorConfigIssue::CriticalRuleDisabled),
             ExternalToolKind::Zizmor,
             "rules",
         ),
     ] {
-        let tcv = ToolConfigViolation::YamlCi(issue);
-        assert_eq!((tcv.tool(), tcv.key()), (expected_tool, expected_key));
-        assert!(tcv.remediation().contains(expected_tool.as_str()));
+        let tcv = ToolConfigViolation::YamlCi(c.issue);
+        assert_eq!((tcv.tool(), tcv.key()), (c.tool, c.key));
+        assert!(tcv.remediation().contains(c.tool.as_str()));
     }
 }
 

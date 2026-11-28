@@ -94,6 +94,7 @@ fn render_thresholds_table(config: &Config) -> String {
          | `max_struct_bools` | `{}` |\n\
          | `min_clone_lines` / `min_clone_nodes` / `min_clone_similarity_pct` | `{}` / `{}` / `{}%` |\n\
          | `max_property_chain` / `max_bool_parameters` | `{}` / `{}` |\n\
+         | `max_tuple_arity` / `forbid_global_tuple_unpacking` | `{}` / `{}` |\n\
          | `min_line_coverage` (`LCOV`) | `{cov}` |\n\
          | `min_mutation_score` (`GF052`) | `{mut_score}` |",
         l.max_file_lines,
@@ -107,6 +108,8 @@ fn render_thresholds_table(config: &Config) -> String {
         l.min_clone_similarity_pct,
         cc.max_property_chain,
         cc.max_bool_parameters,
+        cc.max_tuple_arity,
+        cc.forbid_global_tuple_unpacking,
     )
 }
 
@@ -174,6 +177,7 @@ pub fn compose_agents_managed_block(
         ctx.summary_inline()
     );
     buf.push_str(&render_thresholds_table(config));
+    buf.push_str(&crate::mutation::render_mutation_stack_markdown(ctx));
     if ctx.archetype == WorkspaceArchetype::Software {
         buf.push_str(&render_domains_table(config));
     }
