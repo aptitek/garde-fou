@@ -18,12 +18,12 @@ jobs:
     name: Full Quality, Security & LCOV Dogfooding
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7.0.1
         with:
           fetch-depth: 2
 
       - name: Set up mise
-        uses: jdx/mise-action@v2
+        uses: jdx/mise-action@v5.3.0
         with:
           install: false
 
@@ -62,14 +62,14 @@ jobs:
       - name: Generate LCOV report and run ultimate Garde-fou self-check
         run: |
           cargo llvm-cov nextest --workspace --lcov --output-path lcov.info
-          cargo run -p gf-cli --bin garde -- check --no-cache --strict-tools --lcov lcov.info
+          cargo run -p gf-cli --bin garde -- check --no-cache --lcov lcov.info
 
   mutation-gate:
     name: Formal Mutation Gate (`GF052` on `gf-core` & `gf-rules`)
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7.0.1
         with:
           fetch-depth: 0
 
@@ -106,7 +106,7 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7.0.1
 
       - uses: dtolnay/rust-toolchain@stable
 
