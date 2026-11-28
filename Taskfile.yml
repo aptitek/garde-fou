@@ -77,7 +77,7 @@ tasks:
       - bash -euo pipefail -c 'cargo mutants --in-diff <(git diff origin/main...) && cargo run -p gf-cli --bin garde -- check --mutants mutants.out/outcomes.json'
 
   mutants:core:
-    desc: Run full cargo-mutants campaign on #![no_std] core/rules and enforce GF052
+    desc: "Run full cargo-mutants campaign on #![no_std] core/rules and enforce GF052"
     cmds:
       - cargo mutants -p gf-core -p gf-rules -j 8
       - cargo run -p gf-cli --bin garde -- check --mutants mutants.out/outcomes.json
